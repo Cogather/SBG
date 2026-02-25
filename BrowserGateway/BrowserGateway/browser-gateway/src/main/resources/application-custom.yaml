@@ -1,0 +1,19 @@
+# 外网环境配置（使用自定义实现）
+
+adapter:
+  provider:
+    type: CUSTOM
+    enable-mock: false
+  
+  custom:
+    service-name: browser-gateway-external
+    pod-name: browser-gateway-pod-1
+    namespace: external
+    certificate:
+      ca-path: /etc/browsergw/ca.crt
+      cert-path: /etc/browsergw/device.crt
+      key-path: /etc/browsergw/device.key
+    alarm:
+      log-path: /var/log/browsergw/alarms.log
+    service:
+      mock-instances: true

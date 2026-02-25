@@ -1,0 +1,60 @@
+# BrowserGateway 应用配置
+
+server:
+  address: 0.0.0.0
+  port: 8090
+
+spring:
+  application:
+    name: browser-gateway
+
+# 适配器配置
+adapter:
+  provider:
+    type: CSP_SDK  # CSP_SDK 或 CUSTOM
+    enable-mock: false
+  
+  # 自定义实现配置（外网环境）
+  custom:
+    certificate:
+      ca-path: /etc/browsergw/ca.crt
+      cert-path: /etc/browsergw/device.crt
+      key-path: /etc/browsergw/device.key
+    alarm:
+      log-path: /tmp/browsergw_alarms.log
+    service:
+      mock-instances: true
+
+# BrowserGateway 业务配置
+browsergw:
+  workspace: /opt/host
+  chrome:
+    headless: true
+    record-mode: 1
+    endpoint: http://127.0.0.1:8000
+    executable-path: /usr/bin/chromium
+    ttl: 360000000000  # 纳秒，约100小时
+  
+  websocket:
+    media-port: 30002
+    muen-port: 30005
+    boss: 8
+    worker: 64
+    heartbeat-ttl: 300000  # 毫秒
+  
+  tcp:
+    control-port: 18601
+    media-port: 18602
+    heartbeat-ttl: 360000000000  # 纳秒
+  
+  scheduled:
+    check-browser-period: 1800000  # 30分钟
+    close-browser-period: 600000   # 10分钟
+    tcp-heartbeat-period: 600000   # 10分钟
+    health-check-period: 60000     # 1分钟
+  
+  healthCheck:
+    cpu-trigger-threshold: 90
+    cpu-recover-threshold: 80
+    memory-trigger-threshold: 90
+    memory-recover-threshold: 80

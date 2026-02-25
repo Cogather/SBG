@@ -1,0 +1,18 @@
+# 内网环境配置（使用CSP SDK）
+
+adapter:
+  provider:
+    type: CSP_SDK
+    enable-mock: false
+
+# CSE配置
+cse:
+  service:
+    registry:
+      address: http://127.0.0.1:30100
+  rest:
+    address: 127.0.0.1:8090
+
+# 证书配置
+cert:
+  cert-path: /opt/csp/browsergw

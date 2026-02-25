@@ -1,0 +1,511 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 
+         http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <groupId>com.huawei</groupId>
+    <artifactId>browser-gateway</artifactId>
+    <version>1.0-SNAPSHOT</version>
+    <packaging>jar</packaging>
+
+    <name>BrowserGateway</name>
+    <description>BrowserGateway - 云浏览器网关组件</description>
+
+    <properties>
+        <maven.compiler.source>21</maven.compiler.source>
+        <maven.compiler.target>21</maven.compiler.target>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
+        
+        <!-- Spring Boot版本 -->
+        <spring-boot.version>2.7.18</spring-boot.version>
+        
+        <!-- 第三方依赖版本（与original_pom.xml保持一致） -->
+        <selenium.version>4.28.0</selenium.version>
+        <netty.version>4.1.94.Final</netty.version>
+        <playwright.version>1.53.0</playwright.version>
+        <httpclient5.version>5.4.3</httpclient5.version>
+        <aws-sdk-s3.version>2.20.26</aws-sdk-s3.version>
+        <zstd-jni.version>1.5.5-1</zstd-jni.version>
+        <yeauty.version>0.13.0</yeauty.version>
+        <ffmpeg.version>6.0-1.5.9</ffmpeg.version>
+        <hutool.version>5.8.25</hutool.version>
+        <bouncycastle.version>1.78</bouncycastle.version>
+        <junit-jupiter.version>5.11.0</junit-jupiter.version>
+        <mockito.version>4.5.1</mockito.version>
+        <jsoup.version>1.17.2</jsoup.version>
+        <swagger.version>2.2.15</swagger.version>
+        <log4j.version>2.23.1</log4j.version>
+        
+        <!-- CSP SDK版本 -->
+        <cspjsfpkg.version>26.1.1.B071</cspjsfpkg.version>
+        
+        <!-- Moon SDK版本 -->
+        <moon-sdk.version>0.0.22</moon-sdk.version>
+        
+        <!-- CSP SDK 启用标志，默认不启用（外网环境） -->
+        <!-- 使用 -Dcsp.sdk.enabled=true 或 -Pcsp-sdk 来启用 -->
+        <csp.sdk.enabled>false</csp.sdk.enabled>
+    </properties>
+
+    <dependencyManagement>
+        <dependencies>
+            <dependency>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-dependencies</artifactId>
+                <version>${spring-boot.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+            
+            <!-- CSP SDK依赖管理（内网环境使用，需要配置内部Maven仓库�?-->
+            <!-- 外网环境请注释掉此依赖，并将CSP SDK相关依赖设为optional -->
+            <!--
+            <dependency>
+                <groupId>com.huawei.csp</groupId>
+                <artifactId>cspjsfpkg</artifactId>
+                <version>${cspjsfpkg.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+            -->
+        </dependencies>
+    </dependencyManagement>
+
+    <dependencies>
+        <!-- Spring Boot Starter -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-web</artifactId>
+        </dependency>
+        
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-websocket</artifactId>
+        </dependency>
+        
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-configuration-processor</artifactId>
+            <optional>true</optional>
+        </dependency>
+
+        <!-- Apache HttpClient 5 -->
+        <dependency>
+            <groupId>org.apache.httpcomponents.client5</groupId>
+            <artifactId>httpclient5</artifactId>
+            <version>${httpclient5.version}</version>
+        </dependency>
+
+        <!-- Netty - TCP服务�?-->
+        <dependency>
+            <groupId>io.netty</groupId>
+            <artifactId>netty-all</artifactId>
+            <version>${netty.version}</version>
+        </dependency>
+
+        <!-- Yeauty WebSocket -->
+        <dependency>
+            <groupId>org.yeauty</groupId>
+            <artifactId>netty-websocket-spring-boot-starter</artifactId>
+            <version>${yeauty.version}</version>
+        </dependency>
+
+        <!-- Selenium - 浏览器自动化 -->
+        <dependency>
+            <groupId>org.seleniumhq.selenium</groupId>
+            <artifactId>selenium-java</artifactId>
+            <version>${selenium.version}</version>
+        </dependency>
+
+        <!-- Playwright - 浏览器自动化 -->
+        <dependency>
+            <groupId>com.microsoft.playwright</groupId>
+            <artifactId>playwright</artifactId>
+            <version>${playwright.version}</version>
+        </dependency>
+
+        <!-- AWS SDK S3 - 对象存储 -->
+        <dependency>
+            <groupId>software.amazon.awssdk</groupId>
+            <artifactId>s3</artifactId>
+            <version>${aws-sdk-s3.version}</version>
+        </dependency>
+        
+        <!-- AWS SDK URL Connection Client - HTTP客户端（presigner需要） -->
+        <dependency>
+            <groupId>software.amazon.awssdk</groupId>
+            <artifactId>url-connection-client</artifactId>
+            <version>${aws-sdk-s3.version}</version>
+        </dependency>
+        
+        <!-- Fastjson - JSON处理 -->
+        <dependency>
+            <groupId>com.alibaba</groupId>
+            <artifactId>fastjson</artifactId>
+            <version>1.2.83</version>
+        </dependency>
+
+        <!-- Zstd压缩 -->
+        <dependency>
+            <groupId>com.github.luben</groupId>
+            <artifactId>zstd-jni</artifactId>
+            <version>${zstd-jni.version}</version>
+        </dependency>
+
+        <!-- FFmpeg (媒体编解�? -->
+        <dependency>
+            <groupId>org.bytedeco</groupId>
+            <artifactId>ffmpeg</artifactId>
+            <version>${ffmpeg.version}</version>
+        </dependency>
+
+        <!-- Hutool工具�?-->
+        <dependency>
+            <groupId>cn.hutool</groupId>
+            <artifactId>hutool-all</artifactId>
+            <version>${hutool.version}</version>
+        </dependency>
+
+        <!-- BouncyCastle (证书处理) -->
+        <dependency>
+            <groupId>org.bouncycastle</groupId>
+            <artifactId>bcprov-jdk18on</artifactId>
+            <version>${bouncycastle.version}</version>
+        </dependency>
+
+        <dependency>
+            <groupId>org.bouncycastle</groupId>
+            <artifactId>bcpkix-jdk18on</artifactId>
+            <version>${bouncycastle.version}</version>
+        </dependency>
+
+        <!-- JSoup (HTML解析) -->
+        <dependency>
+            <groupId>org.jsoup</groupId>
+            <artifactId>jsoup</artifactId>
+            <version>${jsoup.version}</version>
+        </dependency>
+
+        <!-- Swagger注解 -->
+        <dependency>
+            <groupId>io.swagger.core.v3</groupId>
+            <artifactId>swagger-annotations-jakarta</artifactId>
+            <version>${swagger.version}</version>
+        </dependency>
+
+        <!-- Servlet API -->
+        <dependency>
+            <groupId>javax.servlet</groupId>
+            <artifactId>javax.servlet-api</artifactId>
+            <version>4.0.1</version>
+            <scope>provided</scope>
+        </dependency>
+
+        <!-- Annotation API -->
+        <dependency>
+            <groupId>javax.annotation</groupId>
+            <artifactId>javax.annotation-api</artifactId>
+            <version>1.3.2</version>
+            <scope>provided</scope>
+        </dependency>
+
+        <!-- YAML处理 -->
+        <dependency>
+            <groupId>org.yaml</groupId>
+            <artifactId>snakeyaml</artifactId>
+        </dependency>
+
+        <!-- Lombok - 代码生成工具 -->
+        <dependency>
+            <groupId>org.projectlombok</groupId>
+            <artifactId>lombok</artifactId>
+            <optional>true</optional>
+        </dependency>
+
+        <!-- Moon SDK (系统依赖) -->
+        <dependency>
+            <groupId>com.moon.cloud</groupId>
+            <artifactId>browser-module-sdk-api</artifactId>
+            <version>${moon-sdk.version}</version>
+            <scope>system</scope>
+            <systemPath>${project.basedir}/src/main/resources/lib/original-browser-module-sdk-api-${moon-sdk.version}.jar</systemPath>
+        </dependency>
+
+        <!-- 外网环境：这些依赖设为optional，不会影响构�?-->
+        <!-- 内网环境：取消注释cspjsfpkg依赖管理，并配置内部Maven仓库 -->
+        <!-- CSP SDK 依赖（通过 profile 控制是否启用） -->
+        <!-- 默认不启用，使用 -Pcsp-sdk 或 -Dcsp.sdk.enabled=true 启用 -->
+
+        <!-- 测试依赖 -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <version>${junit-jupiter.version}</version>
+            <scope>test</scope>
+        </dependency>
+
+        <dependency>
+            <groupId>org.mockito</groupId>
+            <artifactId>mockito-core</artifactId>
+            <version>${mockito.version}</version>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <!-- Maven Compiler Plugin -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <version>3.11.0</version>
+                <configuration>
+                    <source>21</source>
+                    <target>21</target>
+                    <encoding>${project.build.sourceEncoding}</encoding>
+                    <compilerArgument>-parameters</compilerArgument>
+                </configuration>
+            </plugin>
+
+            <!-- Spring Boot Maven Plugin -->
+            <plugin>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-maven-plugin</artifactId>
+                <version>${spring-boot.version}</version>
+                <configuration>
+                    <excludes>
+                        <exclude>
+                            <groupId>org.projectlombok</groupId>
+                            <artifactId>lombok</artifactId>
+                        </exclude>
+                    </excludes>
+                </configuration>
+                <executions>
+                    <execution>
+                        <goals>
+                            <goal>repackage</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+
+            <!-- Maven JAR Plugin -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-jar-plugin</artifactId>
+                <version>3.3.0</version>
+                <configuration>
+                    <archive>
+                        <manifest>
+                            <addClasspath>true</addClasspath>
+                            <classpathPrefix>lib/</classpathPrefix>
+                            <mainClass>com.huawei.browsergateway.BrowserGatewayApplication</mainClass>
+                            <useUniqueVersions>false</useUniqueVersions>
+                        </manifest>
+                    </archive>
+                </configuration>
+            </plugin>
+
+            <!-- Maven Dependency Plugin -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-dependency-plugin</artifactId>
+                <version>2.10</version>
+                <executions>
+                    <execution>
+                        <id>copy-dependencies</id>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>copy-dependencies</goal>
+                        </goals>
+                        <configuration>
+                            <outputDirectory>${project.build.directory}/lib</outputDirectory>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+
+            <!-- Maven Assembly Plugin -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-assembly-plugin</artifactId>
+                <version>3.6.0</version>
+                <configuration>
+                    <appendAssemblyId>false</appendAssemblyId>
+                    <descriptors>
+                        <descriptor>assembly/package.xml</descriptor>
+                    </descriptors>
+                </configuration>
+                <executions>
+                    <execution>
+                        <id>make-assembly</id>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>single</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+
+            <!-- Maven Resources Plugin -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-resources-plugin</artifactId>
+                <version>3.3.1</version>
+                <configuration>
+                    <encoding>${project.build.sourceEncoding}</encoding>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
+
+    <!-- 仓库配置 -->
+    <repositories>
+        <repository>
+            <id>central</id>
+            <name>Maven Central</name>
+            <url>https://repo1.maven.org/maven2</url>
+        </repository>
+        
+        <!-- 华为内部Maven仓库（需要配置） -->
+        <!--
+        <repository>
+            <id>huawei-internal</id>
+            <name>Huawei Internal Repository</name>
+            <url>http://internal-maven-repo.huawei.com/repository/maven-public/</url>
+        </repository>
+        -->
+    </repositories>
+
+    <pluginRepositories>
+        <pluginRepository>
+            <id>central</id>
+            <name>Maven Central</name>
+            <url>https://repo1.maven.org/maven2</url>
+        </pluginRepository>
+    </pluginRepositories>
+
+    <!-- Profiles 配置 -->
+    <profiles>
+        <!-- 外网环境 Profile（默认）：不使用 CSP SDK -->
+        <profile>
+            <id>no-csp-sdk</id>
+            <activation>
+                <activeByDefault>true</activeByDefault>
+                <property>
+                    <name>!csp.sdk.enabled</name>
+                </property>
+            </activation>
+            <build>
+                <plugins>
+                    <!-- Maven Compiler Plugin - 外网环境排除 CSP 适配器类 -->
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-compiler-plugin</artifactId>
+                        <version>3.11.0</version>
+                        <configuration>
+                            <source>21</source>
+                            <target>21</target>
+                            <encoding>${project.build.sourceEncoding}</encoding>
+                            <compilerArgument>-parameters</compilerArgument>
+                            <!-- 排除 CSP 适配器类和工厂类的编译（外网环境） -->
+                            <excludes>
+                                <exclude>com/huawei/browsergateway/adapter/impl/csp/**/*.java</exclude>
+                                <exclude>com/huawei/browsergateway/adapter/factory/CspSdkAdapterFactory.java</exclude>
+                            </excludes>
+                        </configuration>
+                    </plugin>
+                </plugins>
+            </build>
+            <dependencies>
+                <!-- 外网环境：不包含 CSP SDK 依赖，避免 Maven 尝试解析 -->
+                <!-- CSP 适配器类已通过条件编译排除，不会参与编译 -->
+            </dependencies>
+        </profile>
+
+        <!-- 内网环境 Profile：启用 CSP SDK -->
+        <profile>
+            <id>csp-sdk</id>
+            <activation>
+                <property>
+                    <name>csp.sdk.enabled</name>
+                    <value>true</value>
+                </property>
+            </activation>
+            <dependencyManagement>
+                <dependencies>
+                    <!-- CSP SDK 依赖管理 -->
+                    <dependency>
+                        <groupId>com.huawei.csp</groupId>
+                        <artifactId>cspjsfpkg</artifactId>
+                        <version>${cspjsfpkg.version}</version>
+                        <type>pom</type>
+                        <scope>import</scope>
+                    </dependency>
+                </dependencies>
+            </dependencyManagement>
+            <dependencies>
+                <!-- CSP SDK 依赖，使用 compile scope -->
+                <dependency>
+                    <groupId>com.huawei.csp</groupId>
+                    <artifactId>log-sdk</artifactId>
+                    <version>${cspjsfpkg.version}</version>
+                </dependency>
+                <dependency>
+                    <groupId>com.huawei.csp</groupId>
+                    <artifactId>certmgr-jsdk</artifactId>
+                    <version>${cspjsfpkg.version}</version>
+                </dependency>
+                <dependency>
+                    <groupId>com.huawei.csp</groupId>
+                    <artifactId>transport-sdk</artifactId>
+                    <version>${cspjsfpkg.version}</version>
+                </dependency>
+                <dependency>
+                    <groupId>com.huawei.csp</groupId>
+                    <artifactId>haservicesdk.service</artifactId>
+                    <version>${cspjsfpkg.version}</version>
+                </dependency>
+                <dependency>
+                    <groupId>com.huawei.csp</groupId>
+                    <artifactId>csejsdk-rssdk</artifactId>
+                    <version>${cspjsfpkg.version}</version>
+                </dependency>
+                <dependency>
+                    <groupId>com.huawei.csp</groupId>
+                    <artifactId>csejsdk-starter-all</artifactId>
+                    <version>${cspjsfpkg.version}</version>
+                </dependency>
+                <dependency>
+                    <groupId>com.huawei.csp</groupId>
+                    <artifactId>jpsdk-redis</artifactId>
+                    <version>${cspjsfpkg.version}</version>
+                </dependency>
+                <dependency>
+                    <groupId>com.huawei.csp</groupId>
+                    <artifactId>alarmsdk</artifactId>
+                    <version>${cspjsfpkg.version}</version>
+                </dependency>
+            </dependencies>
+            <repositories>
+                <!-- 华为内部Maven仓库（内网环境需要配置） -->
+                <repository>
+                    <id>huawei-internal</id>
+                    <name>Huawei Internal Repository</name>
+                    <url>http://internal-maven-repo.huawei.com/repository/maven-public/</url>
+                </repository>
+            </repositories>
+        </profile>
+    </profiles>
+
+</project>
+
