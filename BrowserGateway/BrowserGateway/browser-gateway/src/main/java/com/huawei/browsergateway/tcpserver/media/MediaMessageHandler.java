@@ -80,12 +80,14 @@ public class MediaMessageHandler extends SimpleChannelInboundHandler<TlvMessage>
             // 更新心跳
             chromeSet.updateHeartbeats(userId, System.nanoTime());
             
-            // 通知MuenDriver媒体TCP连接建立
+            // 通知MuenDriver媒体TCP连接建立并更新状态
             try {
                 com.huawei.browsergateway.entity.browser.UserChrome userChrome = chromeSet.get(userId);
                 if (userChrome != null && userChrome.getMuenDriver() != null) {
                     userChrome.getMuenDriver().onMediaTcpConnected();
-                    log.debug("已通知MuenDriver媒体TCP连接建立: userId={}", userId);
+                    // 更新媒体状态
+                    userChrome.setMediaState(com.huawei.browsergateway.entity.browser.MediaState.STREAMING);
+                    log.debug("已通知MuenDriver媒体TCP连接建立，更新媒体状态: userId={}", userId);
                 } else {
                     log.debug("UserChrome或MuenDriver不存在，跳过媒体TCP连接回调: userId={}", userId);
                 }

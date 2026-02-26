@@ -93,10 +93,13 @@ public class RemoteImpl implements IRemote {
                 }
             }
             
-            // 4. 通知连接建立
+            // 4. 通知连接建立并更新状态
             if (muenDriver != null) {
                 try {
                     muenDriver.onControlTcpConnected();
+                    // 更新连接状态
+                    userChrome.setConnectionState(com.huawei.browsergateway.tcpserver.control.ConnectionState.AUTHENTICATED);
+                    log.debug("控制TCP连接建立，更新连接状态: userId={}", userId);
                 } catch (Exception e) {
                     log.warn("通知控制TCP连接建立失败: userId={}", userId, e);
                 }

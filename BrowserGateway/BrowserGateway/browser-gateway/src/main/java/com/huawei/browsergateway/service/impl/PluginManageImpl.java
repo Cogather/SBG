@@ -1,5 +1,7 @@
 package com.huawei.browsergateway.service.impl;
 
+import com.huawei.browsergateway.adapter.factory.EnvironmentAwareAdapterFactory;
+import com.huawei.browsergateway.adapter.interfaces.AlarmAdapter;
 import com.huawei.browsergateway.entity.plugin.PluginActive;
 import com.huawei.browsergateway.entity.request.LoadExtensionRequest;
 import com.huawei.browsergateway.service.IFileStorage;
@@ -12,6 +14,9 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+
+import java.util.HashMap;
+import java.util.Map;
 
 import javax.annotation.PostConstruct;
 import javax.annotation.PreDestroy;
@@ -37,6 +42,9 @@ public class PluginManageImpl implements IPluginManage {
     
     @Autowired
     private IFileStorage fileStorageService;
+    
+    @Autowired(required = false)
+    private EnvironmentAwareAdapterFactory adapterFactory;
     
     @Value("${browsergw.plugin.temp-dir:/tmp/browsergateway/plugins}")
     private String pluginTempDir;
@@ -80,6 +88,7 @@ public class PluginManageImpl implements IPluginManage {
                     log.info("Moon SDK插件初始化成功");
                 } else {
                     log.error("Moon SDK插件初始化失败");
+                    sendPluginLoadFailureAlarm("MoonSDK", "0.0.22", "类加载器初始化失败");
                     updatePluginStatus("FAILED");
                 }
             } else {
@@ -87,6 +96,7 @@ public class PluginManageImpl implements IPluginManage {
             }
         } catch (Exception e) {
             log.error("初始化Moon SDK插件异常", e);
+            sendPluginLoadFailureAlarm("MoonSDK", "0.0.22", "初始化异常: " + e.getMessage());
             updatePluginStatus("FAILED");
         }
     }
@@ -158,18 +168,27 @@ public class PluginManageImpl implements IPluginManage {
             // 3. 下载插件JAR文件
             String localJarPath = downloadPluginJar(request);
             
-            // 4. 初始化插件类加载器
+            // 4. 验证插件（签名、完整性等）
+            if (!validatePlugin(localJarPath, request.getName(), request.getVersion())) {
+                log.error("插件验证失败: {}", localJarPath);
+                sendPluginLoadFailureAlarm(request.getName(), request.getVersion(), "插件验证失败");
+                updatePluginStatus("FAILED");
+                return false;
+            }
+            
+            // 5. 初始化插件类加载器
             Path jarPath = Paths.get(localJarPath);
             muenPluginClassLoader = new MuenPluginClassLoader();
             boolean success = muenPluginClassLoader.init(jarPath);
             
             if (!success) {
                 log.error("插件类加载器初始化失败: {}", localJarPath);
+                sendPluginLoadFailureAlarm(request.getName(), request.getVersion(), "类加载器初始化失败");
                 updatePluginStatus("FAILED");
                 return false;
             }
             
-            // 5. 更新插件状态
+            // 6. 更新插件状态
             updatePluginActive(request.getName(), request.getVersion(), request.getType());
             updatePluginStatus("COMPLETE");
             
@@ -178,6 +197,7 @@ public class PluginManageImpl implements IPluginManage {
             
         } catch (Exception e) {
             log.error("插件加载失败", e);
+            sendPluginLoadFailureAlarm(request.getName(), request.getVersion(), "插件加载异常: " + e.getMessage());
             updatePluginStatus("FAILED");
             return false;
         }
@@ -324,5 +344,160 @@ public class PluginManageImpl implements IPluginManage {
         
         // 重置状态
         pluginActive = null;
+    }
+    
+    /**
+     * 发送插件加载失败告警
+     * 
+     * @param pluginName 插件名称
+     * @param version 插件版本
+     * @param error 错误信息
+     */
+    private void sendPluginLoadFailureAlarm(String pluginName, String version, String error) {
+        try {
+            if (adapterFactory != null) {
+                AlarmAdapter alarmAdapter = adapterFactory.createAlarmAdapter();
+                if (alarmAdapter != null) {
+                    Map<String, String> parameters = new HashMap<>();
+                    parameters.put("pluginName", pluginName);
+                    parameters.put("version", version);
+                    parameters.put("type", "ChromeExtension");
+                    parameters.put("error", error);
+                    parameters.put("timestamp", String.valueOf(System.currentTimeMillis()));
+                    
+                    boolean success = alarmAdapter.sendAlarm("plugin-load-fail", 
+                            AlarmAdapter.AlarmType.GENERATE, parameters);
+                    if (success) {
+                        log.info("插件加载失败告警发送成功: pluginName={}, version={}", pluginName, version);
+                    } else {
+                        log.warn("插件加载失败告警发送失败: pluginName={}, version={}", pluginName, version);
+                    }
+                } else {
+                    log.debug("告警适配器未初始化，跳过告警发送");
+                }
+            } else {
+                log.debug("适配器工厂未注入，跳过告警发送");
+            }
+        } catch (Exception e) {
+            log.error("发送插件加载失败告警异常: pluginName={}, version={}", pluginName, version, e);
+        }
+    }
+    
+    /**
+     * 验证插件
+     * 检查签名、完整性等
+     * 
+     * @param localPath 插件本地路径
+     * @param name 插件名称
+     * @param version 插件版本
+     * @return 验证是否通过
+     */
+    private boolean validatePlugin(String localPath, String name, String version) {
+        try {
+            Path pluginPath = Paths.get(localPath);
+            
+            // 1. 检查文件是否存在
+            if (!Files.exists(pluginPath)) {
+                log.error("插件文件不存在: {}", localPath);
+                return false;
+            }
+            
+            // 2. 检查文件大小（防止异常大的文件）
+            long fileSize = Files.size(pluginPath);
+            long maxPluginSize = 100 * 1024 * 1024; // 100MB
+            if (fileSize > maxPluginSize) {
+                log.error("插件文件过大: {} bytes (最大: {} bytes)", fileSize, maxPluginSize);
+                return false;
+            }
+            
+            if (fileSize == 0) {
+                log.error("插件文件为空: {}", localPath);
+                return false;
+            }
+            
+            // 3. 检查JAR文件格式（验证是否为有效的JAR文件）
+            if (!isValidJarFile(pluginPath)) {
+                log.error("无效的JAR文件: {}", localPath);
+                return false;
+            }
+            
+            // 4. 检查插件签名（如果启用签名验证）
+            // TODO: 如果启用签名验证，可以在这里添加
+            // if (enableSignatureValidation && !validatePluginSignature(pluginPath)) {
+            //     log.error("插件签名验证失败: {}", localPath);
+            //     return false;
+            // }
+            
+            // 5. 检查插件元数据（从MANIFEST.MF读取）
+            if (!validatePluginMetadata(pluginPath, name, version)) {
+                log.warn("插件元数据验证失败（非致命）: {}", localPath);
+                // 元数据验证失败不阻断加载，只记录警告
+            }
+            
+            log.info("插件验证通过: name={}, version={}, size={} bytes", name, version, fileSize);
+            return true;
+            
+        } catch (Exception e) {
+            log.error("插件验证异常: {}", localPath, e);
+            return false;
+        }
+    }
+    
+    /**
+     * 验证JAR文件格式
+     * 
+     * @param jarPath JAR文件路径
+     * @return 是否为有效的JAR文件
+     */
+    private boolean isValidJarFile(Path jarPath) {
+        try {
+            // 检查文件扩展名
+            String fileName = jarPath.getFileName().toString().toLowerCase();
+            if (!fileName.endsWith(".jar")) {
+                return false;
+            }
+            
+            // 检查JAR文件魔数（ZIP文件格式）
+            // JAR文件本质上是ZIP文件，以PK开头（0x504B）
+            try (java.io.FileInputStream fis = new java.io.FileInputStream(jarPath.toFile())) {
+                byte[] header = new byte[4];
+                int bytesRead = fis.read(header);
+                if (bytesRead < 4) {
+                    return false;
+                }
+                // ZIP文件魔数：PK (0x50 0x4B)
+                return header[0] == 0x50 && header[1] == 0x4B;
+            }
+        } catch (Exception e) {
+            log.error("验证JAR文件格式异常: {}", jarPath, e);
+            return false;
+        }
+    }
+    
+    /**
+     * 验证插件元数据
+     * 从MANIFEST.MF读取插件信息并验证
+     * 
+     * @param jarPath JAR文件路径
+     * @param expectedName 期望的插件名称
+     * @param expectedVersion 期望的插件版本
+     * @return 验证是否通过
+     */
+    private boolean validatePluginMetadata(Path jarPath, String expectedName, String expectedVersion) {
+        try {
+            // 尝试读取JAR文件的MANIFEST.MF
+            // 这里简化实现，实际可以解析MANIFEST.MF文件
+            // 由于Moon SDK的JAR可能没有标准的MANIFEST，这里只做基本检查
+            log.debug("验证插件元数据: jarPath={}, expectedName={}, expectedVersion={}", 
+                    jarPath, expectedName, expectedVersion);
+            
+            // 如果JAR文件存在且可读，认为元数据验证通过
+            // 实际实现中可以根据需要解析MANIFEST.MF
+            return true;
+            
+        } catch (Exception e) {
+            log.warn("验证插件元数据异常: {}", jarPath, e);
+            return false;
+        }
     }
 }

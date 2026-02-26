@@ -3,6 +3,12 @@ package com.huawei.browsergateway.sdk;
 /**
  * Moon SDK回调接口
  * 根据Moon-SDK应用模块分析文档，用于SDK向系统回调事件和数据
+ * 
+ * 注意：
+ * - 此接口是功能接口（提供功能方法），而非事件回调接口
+ * - 事件回调接口在MuenDriver中定义（onControlTcpConnected等）
+ * - 当前实现与Moon SDK文档一致，接口定义正确
+ * - 所有方法已在HWCallbackImpl中实现
  */
 public interface HWCallback {
     

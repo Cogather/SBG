@@ -2,6 +2,7 @@ package com.huawei.browsergateway.entity.browser;
 
 import com.huawei.browsergateway.entity.request.InitBrowserRequest;
 import com.huawei.browsergateway.sdk.MuenDriver;
+import com.huawei.browsergateway.tcpserver.control.ConnectionState;
 import lombok.Data;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -23,12 +24,19 @@ public class UserChrome {
     private Object chromeDriver; // ChromiumDriverProxy，暂时使用Object避免依赖
     private MuenDriver muenDriver;
     
+    // 连接状态和媒体状态
+    private ConnectionState connectionState = ConnectionState.DISCONNECTED;
+    private MediaState mediaState = MediaState.IDLE;
+    
     public UserChrome(String userId, InitBrowserRequest request) {
         this.userId = userId;
         this.imei = request.getImei();
         this.imsi = request.getImsi();
         this.status = BrowserStatus.INITIALIZING;
         this.lastHeartbeat = System.nanoTime();
+        // 初始化连接状态和媒体状态
+        this.connectionState = ConnectionState.DISCONNECTED;
+        this.mediaState = MediaState.IDLE;
     }
     
     /**
@@ -55,6 +63,10 @@ public class UserChrome {
     public void closeApp() {
         log.info("关闭应用程序连接: userId={}", userId);
         
+        // 更新连接状态和媒体状态
+        setConnectionState(ConnectionState.CLOSED);
+        setMediaState(MediaState.IDLE);
+        
         // 通知SDK连接断开
         if (muenDriver != null) {
             try {
@@ -68,8 +80,19 @@ public class UserChrome {
         // 关闭浏览器驱动
         if (chromeDriver != null) {
             try {
-                // 这里需要调用chromeDriver.quit()，暂时使用反射或后续实现
-                log.debug("关闭浏览器驱动: userId={}", userId);
+                // 如果chromeDriver是ChromeDriverProxy实例，调用quit方法
+                if (chromeDriver instanceof com.huawei.browsergateway.driver.ChromeDriverProxy) {
+                    ((com.huawei.browsergateway.driver.ChromeDriverProxy) chromeDriver).quit();
+                } else {
+                    // 兼容旧代码，尝试使用反射调用quit方法
+                    try {
+                        java.lang.reflect.Method quitMethod = chromeDriver.getClass().getMethod("quit");
+                        quitMethod.invoke(chromeDriver);
+                    } catch (NoSuchMethodException e) {
+                        log.debug("ChromeDriver没有quit方法: userId={}", userId);
+                    }
+                }
+                log.debug("关闭浏览器驱动成功: userId={}", userId);
             } catch (Exception e) {
                 log.error("关闭浏览器驱动失败: userId={}", userId, e);
             }
@@ -88,8 +111,10 @@ public class UserChrome {
     
     public enum BrowserStatus {
         INITIALIZING("初始化中"),
+        CREATING("创建中"),
         PRE_OPENING("预开启中"),
         CONNECTING("连接中"),
+        CONNECTED("已连接"),
         READY("就绪"),
         RUNNING("运行中"),
         RECORDING("录制中"),
@@ -116,7 +141,7 @@ public class UserChrome {
          */
         public boolean isHealthy() {
             return this == READY || this == PRE_OPENING || this == CONNECTING || 
-                   this == RUNNING || this == RECORDING;
+                   this == CONNECTED || this == RUNNING || this == RECORDING;
         }
         
         /**

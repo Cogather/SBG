@@ -9,6 +9,13 @@ import com.huawei.browsergateway.entity.request.InitBrowserRequest;
 import com.huawei.browsergateway.exception.common.BusinessException;
 import com.huawei.browsergateway.service.IChromeSet;
 import com.huawei.browsergateway.service.IRemote;
+import com.huawei.browsergateway.service.impl.UserDataManager;
+import com.huawei.browsergateway.tcpserver.common.Message;
+import com.huawei.browsergateway.tcpserver.common.MessageType;
+import com.huawei.browsergateway.tcpserver.common.TlvCodec;
+
+import java.nio.ByteOrder;
+import java.nio.file.Paths;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -29,6 +36,12 @@ public class ChromeApi {
     
     @Autowired
     private IChromeSet chromeSet;
+    
+    @Autowired(required = false)
+    private UserDataManager userDataManager;
+    
+    @org.springframework.beans.factory.annotation.Value("${browsergw.workspace:/opt/host}")
+    private String workspace;
     
     /**
      * 预开浏览器
@@ -56,9 +69,24 @@ public class ChromeApi {
                 return BaseResponse.success("浏览器实例已存在");
             }
             
-            // 4. 调用远程服务创建浏览器实例（预开场景，consumer为null）
-            // 预开场景不需要控制包数据，传入null
-            remoteService.createChrome(null, request, null);
+            // 4. 构造TLV格式参数（预开浏览器需要特殊格式）
+            // 将request转换为Message对象
+            Message message = new Message();
+            message.setType(MessageType.LOGIN);
+            message.setImei(request.getImei());
+            message.setImsi(request.getImsi());
+            message.setLcdWidth(request.getLcdWidth());
+            message.setLcdHeight(request.getLcdHeight());
+            message.setAppType(request.getAppType());
+            // 预开浏览器时，audType和token设置为空字符串
+            message.setAudType("");
+            message.setToken("");
+            
+            // 使用TlvCodec编组为TLV格式（大端序）
+            byte[] encodeParam = TlvCodec.marshalWithByteOrder(message, ByteOrder.BIG_ENDIAN);
+            
+            // 5. 调用远程服务创建浏览器实例（传入TLV编码参数）
+            remoteService.createChrome(encodeParam, request, null);
             
             log.info("预开浏览器成功: userId={}", userId);
             return BaseResponse.success("success");
@@ -100,8 +128,23 @@ public class ChromeApi {
                 return BaseResponse.success(request);
             }
             
-            // 4. 删除浏览器实例（会先关闭再删除）
+            // 4. 删除浏览器实例（会先关闭再删除，包括上传用户数据）
             chromeSet.delete(userId);
+            
+            // 5. 删除远程和本地用户数据
+            String userDataPath = Paths.get(workspace, userId).toString();
+            if (userDataManager != null) {
+                try {
+                    log.info("开始删除用户数据: userId={}, path={}", userId, userDataPath);
+                    userDataManager.deleteUserData(userId, userDataPath);
+                    log.info("用户数据删除成功: userId={}", userId);
+                } catch (Exception e) {
+                    log.error("删除用户数据失败: userId={}", userId, e);
+                    // 删除失败不影响整体流程，继续返回成功
+                }
+            } else {
+                log.warn("UserDataManager未注入，跳过用户数据删除: userId={}", userId);
+            }
             
             log.info("删除用户数据成功: userId={}", userId);
             return BaseResponse.success(request);

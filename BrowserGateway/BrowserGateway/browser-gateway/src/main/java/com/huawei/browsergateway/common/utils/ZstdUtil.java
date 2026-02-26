@@ -223,4 +223,80 @@ public class ZstdUtil {
         
         log.debug("JSON文件解压完成: {} -> {}", sourceCompressedPath, targetJsonPath);
     }
+    
+    /**
+     * 流式压缩
+     * 支持大文件的流式处理，避免内存占用过高
+     * 
+     * @param inputStream 输入流
+     * @return 压缩后的输入流
+     * @throws IOException 压缩失败时抛出
+     */
+    public static InputStream compressStream(InputStream inputStream) throws IOException {
+        if (inputStream == null) {
+            throw new IllegalArgumentException("输入流不能为null");
+        }
+        
+        try {
+            // 使用PipedInputStream和PipedOutputStream实现流式压缩
+            PipedInputStream pipedInputStream = new PipedInputStream();
+            PipedOutputStream pipedOutputStream = new PipedOutputStream(pipedInputStream);
+            
+            // 在后台线程中执行压缩
+            Thread compressThread = new Thread(() -> {
+                try (ZstdOutputStream zos = new ZstdOutputStream(pipedOutputStream)) {
+                    byte[] buffer = new byte[8192];
+                    int bytesRead;
+                    while ((bytesRead = inputStream.read(buffer)) != -1) {
+                        zos.write(buffer, 0, bytesRead);
+                    }
+                    zos.flush();
+                } catch (IOException e) {
+                    log.error("流式压缩失败", e);
+                    try {
+                        pipedOutputStream.close();
+                    } catch (IOException closeException) {
+                        log.error("关闭输出流失败", closeException);
+                    }
+                } finally {
+                    try {
+                        pipedOutputStream.close();
+                    } catch (IOException e) {
+                        log.error("关闭输出流失败", e);
+                    }
+                }
+            }, "ZstdCompressThread");
+            
+            compressThread.setDaemon(true);
+            compressThread.start();
+            
+            return pipedInputStream;
+            
+        } catch (Exception e) {
+            log.error("创建流式压缩流失败", e);
+            throw new IOException("创建流式压缩流失败: " + e.getMessage(), e);
+        }
+    }
+    
+    /**
+     * 流式解压
+     * 支持大文件的流式处理，避免内存占用过高
+     * 
+     * @param inputStream 压缩的输入流
+     * @return 解压后的输入流
+     * @throws IOException 解压失败时抛出
+     */
+    public static InputStream decompressStream(InputStream inputStream) throws IOException {
+        if (inputStream == null) {
+            throw new IllegalArgumentException("输入流不能为null");
+        }
+        
+        try {
+            // 直接使用ZstdInputStream进行流式解压
+            return new ZstdInputStream(inputStream);
+        } catch (Exception e) {
+            log.error("创建流式解压流失败", e);
+            throw new IOException("创建流式解压流失败: " + e.getMessage(), e);
+        }
+    }
 }
