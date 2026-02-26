@@ -17,6 +17,9 @@ import com.huawei.browsergateway.sdk.MuenDriver;
 import com.huawei.browsergateway.driver.ChromeDriverProxy;
 import com.huawei.browsergateway.tcpserver.control.ControlClientSet;
 import com.huawei.browsergateway.tcpserver.media.MediaClientSet;
+import com.huawei.browsergateway.adapter.interfaces.ServiceManagementAdapter;
+import com.huawei.browsergateway.entity.report.ServiceReport;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 import java.nio.file.Paths;
 import org.slf4j.Logger;
@@ -24,6 +27,8 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
@@ -57,6 +62,9 @@ public class ChromeSetImpl implements IChromeSet {
     @Autowired(required = false)
     private UserDataManager userDataManager;
     
+    @Autowired(required = false)
+    private ServiceManagementAdapter serviceManagementAdapter;
+    
     @org.springframework.beans.factory.annotation.Value("${browsergw.server.address:127.0.0.1}")
     private String serverAddress;
     
@@ -66,25 +74,57 @@ public class ChromeSetImpl implements IChromeSet {
     @org.springframework.beans.factory.annotation.Value("${browsergw.workspace:/opt/host}")
     private String workspace;
     
+    // 服务上报配置
+    @org.springframework.beans.factory.annotation.Value("${browsergw.report.cap:300}")
+    private Integer reportCap;
+    
+    @org.springframework.beans.factory.annotation.Value("${browsergw.report.chain-endpoints:}")
+    private String chainEndpoints;
+    
+    @org.springframework.beans.factory.annotation.Value("${browsergw.report.self-addr:}")
+    private String selfAddr;
+    
+    @org.springframework.beans.factory.annotation.Value("${browsergw.report.control-endpoint:}")
+    private String controlEndpoint;
+    
+    @org.springframework.beans.factory.annotation.Value("${browsergw.report.media-endpoint:}")
+    private String mediaEndpoint;
+    
+    @org.springframework.beans.factory.annotation.Value("${browsergw.report.ttl:120}")
+    private Integer reportTtl;
+    
+    // JSON序列化工具
+    private static final ObjectMapper objectMapper = new ObjectMapper();
+    
+    // 上报属性键名（与存量代码保持一致）
+    private static final String PROPERTY_KEY = "serviceReport";
+    private static final String REPORT_CHAIN_KEY = "chainEndpoints";
+    
     @Override
     public UserChrome create(InitBrowserRequest request) {
         log.info("创建浏览器实例: imei={}, imsi={}", request.getImei(), request.getImsi());
         
-        // 1. 生成用户ID
+        // 1. 容量检查（cap检查）
+        if (reportCap != null && userChromeMap.size() >= reportCap) {
+            log.error("容量不足，无法创建新实例: cap={}, current size={}", reportCap, userChromeMap.size());
+            throw new RuntimeException("cap is not enough!");
+        }
+        
+        // 2. 生成用户ID
         String userId = UserIdUtil.generateUserId(request.getImei(), request.getImsi());
         
-        // 2. 检查现有实例
+        // 3. 检查现有实例
         UserChrome existingChrome = userChromeMap.get(userId);
         if (existingChrome != null) {
             log.warn("用户浏览器实例已存在，先删除: userId={}", userId);
             delete(userId);
         }
         
-        // 3. 创建UserChrome对象（初始状态为INITIALIZING）
+        // 4. 创建UserChrome对象（初始状态为INITIALIZING）
         UserChrome userChrome = new UserChrome(userId, request);
         userChrome.setStatus(BrowserStatus.INITIALIZING);
         
-        // 4. 使用状态机验证并转换到CREATING状态
+        // 5. 使用状态机验证并转换到CREATING状态
         try {
             BrowserStateMachine.transition(userChrome, BrowserStatus.CREATING, "开始创建浏览器实例");
         } catch (IllegalStateException e) {
@@ -94,7 +134,7 @@ public class ChromeSetImpl implements IChromeSet {
         }
         
         try {
-            // 5. 下载用户数据（如果存在）
+            // 6. 下载用户数据（如果存在）
             String userDataPath = Paths.get(workspace, userId).toString();
             if (userDataManager != null) {
                 try {
@@ -113,20 +153,17 @@ public class ChromeSetImpl implements IChromeSet {
                 log.warn("UserDataManager未注入，跳过用户数据下载: userId={}", userId);
             }
             
-            // 6. 检查插件状态并加载插件（如果需要）
+            // 7. 检查插件状态并加载插件（如果需要）
             MuenDriver muenDriver = null;
-            if (pluginManage instanceof PluginManageImpl) {
-                PluginManageImpl pluginManageImpl = (PluginManageImpl) pluginManage;
-                HWCallback callback = createHWCallback(userId);
-                muenDriver = pluginManageImpl.createDriver(userId, callback);
-                if (muenDriver == null) {
-                    log.warn("MuenDriver创建失败，继续创建浏览器实例: userId={}", userId);
-                } else {
-                    log.info("MuenDriver创建成功: userId={}", userId);
-                }
+            // 使用接口方法创建驱动实例（内部会自动创建callback）
+            muenDriver = pluginManage.createDriver(userId);
+            if (muenDriver == null) {
+                log.warn("MuenDriver创建失败，继续创建浏览器实例: userId={}", userId);
+            } else {
+                log.info("MuenDriver创建成功: userId={}", userId);
             }
             
-            // 7. 创建浏览器驱动实例（ChromeDriverProxy）
+            // 8. 创建浏览器驱动实例（ChromeDriverProxy）
             // 根据Moon SDK架构，ChromeDriver可能由MuenDriver内部管理
             // 这里创建ChromeDriverProxy作为代理，提供统一的访问接口
             ChromeDriverProxy chromeDriver = createChromeDriverProxy(userId, muenDriver, request);
@@ -137,19 +174,22 @@ public class ChromeSetImpl implements IChromeSet {
                 log.warn("浏览器驱动创建失败: userId={}", userId);
             }
             
-            // 8. 设置MuenDriver
+            // 9. 设置MuenDriver
             userChrome.setMuenDriver(muenDriver);
             
-            // 9. 初始化连接状态和媒体状态
+            // 10. 初始化连接状态和媒体状态
             // 注意：这些状态在UserChrome构造函数中已初始化，这里确保正确设置
             userChrome.setConnectionState(com.huawei.browsergateway.tcpserver.control.ConnectionState.DISCONNECTED);
             userChrome.setMediaState(com.huawei.browsergateway.entity.browser.MediaState.IDLE);
             
-            // 10. 使用状态机转换到READY状态
+            // 11. 使用状态机转换到READY状态
             BrowserStateMachine.transition(userChrome, BrowserStatus.READY, "浏览器实例创建完成");
             
-            // 11. 保存到映射表
+            // 12. 保存到映射表
             userChromeMap.put(userId, userChrome);
+            
+            // 13. 创建后立即上报使用数量
+            reportUsed();
             
             log.info("浏览器实例创建成功: userId={}, status={}", userId, userChrome.getStatus());
             return userChrome;
@@ -259,6 +299,9 @@ public class ChromeSetImpl implements IChromeSet {
             
             // 8. 从映射表中移除
             userChromeMap.remove(userId);
+            
+            // 9. 删除后立即上报使用数量
+            reportUsed();
             
             log.info("浏览器实例删除完成: userId={}", userId);
             
@@ -393,6 +436,100 @@ public class ChromeSetImpl implements IChromeSet {
         } catch (Exception e) {
             log.error("创建ChromeDriverProxy失败: userId={}", userId, e);
             return null;
+        }
+    }
+    
+    /**
+     * 上报已使用数量
+     * 上报当前使用的浏览器实例数量到CSE
+     * 与存量代码保持一致：使用ServiceReport对象封装上报数据
+     */
+    @Override
+    public synchronized void reportUsed() {
+        if (serviceManagementAdapter == null) {
+            log.debug("ServiceManagementAdapter未注入，跳过上报");
+            return;
+        }
+        
+        try {
+            // 1. 获取服务ID（自身地址）
+            String id = selfAddr;
+            if (id == null || id.trim().isEmpty()) {
+                id = serverAddress;
+            }
+            
+            // 2. 构建媒体内部端点
+            String mediaInnerEndpoint = serverAddress + ":" + websocketPort;
+            
+            // 3. 获取插件状态
+            String pluginStatus = pluginManage.getPluginStatus();
+            
+            // 4. 创建ServiceReport对象
+            ServiceReport report = new ServiceReport(id, mediaInnerEndpoint, pluginStatus);
+            report.setUsed(userChromeMap.size());
+            report.setCap(reportCap);
+            report.setControlEndpoint(controlEndpoint);
+            report.setMediaEndpoint(mediaEndpoint);
+            report.setTtl(reportTtl);
+            
+            // 5. 序列化为JSON字符串
+            String jsonStr = objectMapper.writeValueAsString(report);
+            
+            // 6. 构建上报属性Map
+            Map<String, String> reportMap = new HashMap<>();
+            reportMap.put(PROPERTY_KEY, jsonStr);
+            
+            // 7. 上报到CSE
+            boolean success = serviceManagementAdapter.reportInstanceProperties(reportMap);
+            if (!success) {
+                log.error("failed to update properties to cse");
+            } else {
+                log.debug("服务使用数量上报成功: used={}, cap={}, id={}", 
+                    userChromeMap.size(), reportCap, id);
+            }
+            
+        } catch (Exception e) {
+            log.error("上报服务使用数量异常", e);
+        }
+    }
+    
+    /**
+     * 上报链路端点
+     * 上报链路端点信息到CSE
+     * 
+     * @return 上报是否成功
+     */
+    @Override
+    public boolean reportChainEndpoints() {
+        if (serviceManagementAdapter == null) {
+            log.debug("ServiceManagementAdapter未注入，跳过上报");
+            return false;
+        }
+        
+        try {
+            // 1. 检查链路端点配置
+            if (chainEndpoints == null || chainEndpoints.trim().isEmpty()) {
+                log.warn("链路端点配置为空，跳过上报");
+                return false;
+            }
+            
+            // 2. 构建上报属性Map
+            Map<String, String> reportMap = new HashMap<>();
+            reportMap.put(REPORT_CHAIN_KEY, chainEndpoints);
+            
+            // 3. 上报到CSE
+            boolean success = serviceManagementAdapter.reportInstanceProperties(reportMap);
+            if (!success) {
+                log.error("failed to report {} to cse", REPORT_CHAIN_KEY);
+                return false;
+            }
+            
+            log.debug("链路端点上报成功: chainEndpoints={}", chainEndpoints);
+            return true;
+            
+        } catch (Exception e) {
+            log.error("上报链路端点异常", e);
+            return false;
         }
     }
 }

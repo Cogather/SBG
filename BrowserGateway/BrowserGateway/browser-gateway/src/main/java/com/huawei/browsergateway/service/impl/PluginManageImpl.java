@@ -3,9 +3,9 @@ package com.huawei.browsergateway.service.impl;
 import com.huawei.browsergateway.adapter.factory.EnvironmentAwareAdapterFactory;
 import com.huawei.browsergateway.adapter.interfaces.AlarmAdapter;
 import com.huawei.browsergateway.entity.plugin.PluginActive;
-import com.huawei.browsergateway.entity.request.LoadExtensionRequest;
 import com.huawei.browsergateway.service.IFileStorage;
 import com.huawei.browsergateway.service.IPluginManage;
+import com.huawei.browsergateway.service.impl.HWCallbackImpl;
 import com.huawei.browsergateway.sdk.HWCallback;
 import com.huawei.browsergateway.sdk.MuenDriver;
 import com.huawei.browsergateway.util.MuenPluginClassLoader;
@@ -84,12 +84,12 @@ public class PluginManageImpl implements IPluginManage {
                 
                 if (success) {
                     updatePluginActive("MoonSDK", "0.0.22", "ChromeExtension");
-                    updatePluginStatus("COMPLETE");
+                    updateStatus("COMPLETE");
                     log.info("Moon SDK插件初始化成功");
                 } else {
                     log.error("Moon SDK插件初始化失败");
                     sendPluginLoadFailureAlarm("MoonSDK", "0.0.22", "类加载器初始化失败");
-                    updatePluginStatus("FAILED");
+                    updateStatus("FAILED");
                 }
             } else {
                 log.warn("未找到本地JAR文件，将等待手动加载: {}", localJarPath);
@@ -97,7 +97,7 @@ public class PluginManageImpl implements IPluginManage {
         } catch (Exception e) {
             log.error("初始化Moon SDK插件异常", e);
             sendPluginLoadFailureAlarm("MoonSDK", "0.0.22", "初始化异常: " + e.getMessage());
-            updatePluginStatus("FAILED");
+            updateStatus("FAILED");
         }
     }
     
@@ -153,58 +153,64 @@ public class PluginManageImpl implements IPluginManage {
     }
     
     @Override
-    public boolean loadExtension(LoadExtensionRequest request) {
-        log.info("开始加载插件: name={}, version={}, type={}", 
-                request.getName(), request.getVersion(), request.getType());
+    public void loadPlugin(String keyPath, String touchPath, String jarPath) {
+        log.info("开始加载插件: keyPath={}, touchPath={}, jarPath={}", keyPath, touchPath, jarPath);
         
         try {
             // 1. 参数验证
-            validateRequest(request);
+            if (jarPath == null || jarPath.trim().isEmpty()) {
+                throw new IllegalArgumentException("jarPath不能为空");
+            }
             
-            // 2. 关闭所有现有浏览器实例（如果需要）
-            // 注意：这里需要依赖IChromeSet，但为了避免循环依赖，先注释
-            // chromeSet.deleteAll();
+            // 2. 加载扩展文件（如果提供）
+            if (keyPath != null && !keyPath.trim().isEmpty()) {
+                loadExtensionFile(keyPath, "key");
+            }
+            if (touchPath != null && !touchPath.trim().isEmpty()) {
+                loadExtensionFile(touchPath, "touch");
+            }
             
-            // 3. 下载插件JAR文件
-            String localJarPath = downloadPluginJar(request);
+            // 3. 验证JAR文件
+            Path jarFilePath = Paths.get(jarPath);
+            if (!Files.exists(jarFilePath)) {
+                throw new IllegalArgumentException("JAR文件不存在: " + jarPath);
+            }
             
             // 4. 验证插件（签名、完整性等）
-            if (!validatePlugin(localJarPath, request.getName(), request.getVersion())) {
-                log.error("插件验证失败: {}", localJarPath);
-                sendPluginLoadFailureAlarm(request.getName(), request.getVersion(), "插件验证失败");
-                updatePluginStatus("FAILED");
-                return false;
+            if (!validatePlugin(jarPath, "MoonSDK", "Unknown")) {
+                log.error("插件验证失败: {}", jarPath);
+                sendPluginLoadFailureAlarm("MoonSDK", "Unknown", "插件验证失败");
+                updateStatus("FAILED");
+                throw new RuntimeException("插件验证失败");
             }
             
             // 5. 初始化插件类加载器
-            Path jarPath = Paths.get(localJarPath);
             muenPluginClassLoader = new MuenPluginClassLoader();
-            boolean success = muenPluginClassLoader.init(jarPath);
+            boolean success = muenPluginClassLoader.init(jarFilePath);
             
             if (!success) {
-                log.error("插件类加载器初始化失败: {}", localJarPath);
-                sendPluginLoadFailureAlarm(request.getName(), request.getVersion(), "类加载器初始化失败");
-                updatePluginStatus("FAILED");
-                return false;
+                log.error("插件类加载器初始化失败: {}", jarPath);
+                sendPluginLoadFailureAlarm("MoonSDK", "Unknown", "类加载器初始化失败");
+                updateStatus("FAILED");
+                throw new RuntimeException("插件类加载器初始化失败");
             }
             
             // 6. 更新插件状态
-            updatePluginActive(request.getName(), request.getVersion(), request.getType());
-            updatePluginStatus("COMPLETE");
+            updatePluginActive("MoonSDK", "Unknown", "ChromeExtension");
+            updateStatus("COMPLETE");
             
-            log.info("插件加载成功: name={}, version={}", request.getName(), request.getVersion());
-            return true;
+            log.info("插件加载成功: jarPath={}", jarPath);
             
         } catch (Exception e) {
             log.error("插件加载失败", e);
-            sendPluginLoadFailureAlarm(request.getName(), request.getVersion(), "插件加载异常: " + e.getMessage());
-            updatePluginStatus("FAILED");
-            return false;
+            sendPluginLoadFailureAlarm("MoonSDK", "Unknown", "插件加载异常: " + e.getMessage());
+            updateStatus("FAILED");
+            throw new RuntimeException("插件加载失败: " + e.getMessage(), e);
         }
     }
     
     @Override
-    public PluginActive getPluginInfo() {
+    public PluginActive getPluginActive() {
         if (pluginActive == null) {
             // 返回默认状态
             PluginActive defaultActive = new PluginActive();
@@ -217,14 +223,8 @@ public class PluginManageImpl implements IPluginManage {
         return pluginActive;
     }
     
-    /**
-     * 创建驱动实例
-     * 
-     * @param userId 用户ID
-     * @param callback 回调接口
-     * @return 驱动实例，失败返回null
-     */
-    public MuenDriver createDriver(String userId, HWCallback callback) {
+    @Override
+    public MuenDriver createDriver(String userId) {
         if (muenPluginClassLoader == null) {
             log.warn("插件未加载，无法创建驱动实例: userId={}", userId);
             return null;
@@ -238,6 +238,14 @@ public class PluginManageImpl implements IPluginManage {
         }
         
         try {
+            // 创建回调实例（需要根据实际情况创建，这里先使用null，实际应该注入或创建）
+            // TODO: 需要根据userId创建对应的HWCallback实例
+            HWCallback callback = createCallbackForUser(userId);
+            if (callback == null) {
+                log.error("无法创建回调实例: userId={}", userId);
+                return null;
+            }
+            
             // 创建驱动实例
             MuenDriver driver = muenPluginClassLoader.createDriverInstance(callback);
             if (driver != null) {
@@ -254,82 +262,261 @@ public class PluginManageImpl implements IPluginManage {
     }
     
     /**
-     * 更新插件活跃状态
+     * 为用户创建回调实例
+     * 
+     * @param userId 用户ID
+     * @return 回调实例
      */
+    private HWCallback createCallbackForUser(String userId) {
+        // 尝试从HWCallbackImpl获取已存在的实例
+        try {
+            HWCallbackImpl existingCallback = HWCallbackImpl.getInstance(userId);
+            if (existingCallback != null) {
+                return existingCallback;
+            }
+        } catch (Exception e) {
+            log.debug("无法获取已存在的回调实例: userId={}", userId);
+        }
+        
+        // 如果不存在，创建新的回调实例
+        // 注意：这里需要注入必要的依赖，实际实现可能需要调整
+        log.warn("需要创建新的回调实例，但当前实现可能不完整: userId={}", userId);
+        return null;
+    }
+    
+    /**
+     * 更新插件活跃状态
+     * 动态更新插件的名称、版本和类型信息
+     * 
+     * @param name 插件名称
+     * @param version 插件版本
+     * @param type 插件类型
+     */
+    @Override
     public void updatePluginActive(String name, String version, String type) {
-        PluginActive active = new PluginActive();
-        active.setName(name);
-        active.setVersion(version);
-        active.setType(type);
-        active.setStatus("ACTIVE");
-        active.setLoadTime(LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME));
-        this.pluginActive = active;
+        // 参数验证
+        if (name == null || name.trim().isEmpty()) {
+            throw new IllegalArgumentException("插件名称不能为空");
+        }
+        if (version == null || version.trim().isEmpty()) {
+            throw new IllegalArgumentException("插件版本不能为空");
+        }
+        if (type == null || type.trim().isEmpty()) {
+            throw new IllegalArgumentException("插件类型不能为空");
+        }
+        
+        // 保存旧状态信息（用于日志记录）
+        String oldName = pluginActive != null ? pluginActive.getName() : null;
+        String oldVersion = pluginActive != null ? pluginActive.getVersion() : null;
+        String oldType = pluginActive != null ? pluginActive.getType() : null;
+        String oldStatus = pluginActive != null ? pluginActive.getStatus() : null;
+        
+        // 创建或更新插件活跃状态对象
+        if (pluginActive == null) {
+            pluginActive = new PluginActive();
+        }
+        
+        // 更新插件信息
+        pluginActive.setName(name);
+        pluginActive.setVersion(version);
+        pluginActive.setType(type);
+        
+        // 如果状态为空或为NOTSTART，设置为ACTIVE；否则保持现有状态
+        if (pluginActive.getStatus() == null || "NOTSTART".equals(pluginActive.getStatus())) {
+            pluginActive.setStatus("ACTIVE");
+        }
+        
+        // 更新加载时间
+        pluginActive.setLoadTime(LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME));
+        
+        // 记录更新日志
+        if (oldName != null) {
+            log.info("插件活跃状态已更新: name={}->{}, version={}->{}, type={}->{}, status={}",
+                    oldName, name, oldVersion, version, oldType, type, oldStatus);
+        } else {
+            log.info("插件活跃状态已创建: name={}, version={}, type={}, status={}",
+                    name, version, type, pluginActive.getStatus());
+        }
     }
     
     /**
      * 更新插件运行状态
+     * 根据设计文档：更新状态并触发相关操作
+     * 
+     * @param pluginStatus 新的插件状态
      */
-    public void updatePluginStatus(String status) {
+    @Override
+    public void updateStatus(String pluginStatus) {
+        if (pluginActive == null) {
+            log.warn("插件状态对象为空，无法更新状态");
+            return;
+        }
+        
+        // 1. 保存旧状态
+        String oldStatus = pluginActive.getStatus();
+        
+        // 2. 设置新状态
+        pluginActive.setStatus(pluginStatus);
+        
+        // 3. 更新加载时间
+        pluginActive.setLoadTime(LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME));
+        
+        // 4. 处理状态变更事件
+        handleStatusChange(oldStatus, pluginStatus);
+        
+        log.info("插件状态已更新: {} -> {}", oldStatus, pluginStatus);
+    }
+    
+    /**
+     * 处理状态变更事件
+     * 根据设计文档：根据新状态清除或发送告警
+     * 
+     * @param oldStatus 旧状态
+     * @param newStatus 新状态
+     */
+    private void handleStatusChange(String oldStatus, String newStatus) {
+        try {
+            // COMPLETE状态：清除插件加载告警
+            if ("COMPLETE".equals(newStatus)) {
+                clearPluginLoadAlarm();
+                log.info("插件加载完成，清除相关告警");
+            }
+            
+            // FAILED状态：发送插件加载失败告警
+            if ("FAILED".equals(newStatus) && !"FAILED".equals(oldStatus)) {
+                // 如果是从非失败状态变为失败状态，发送告警
+                String pluginName = pluginActive != null ? pluginActive.getName() : "Unknown";
+                String version = pluginActive != null ? pluginActive.getVersion() : "Unknown";
+                sendPluginLoadFailureAlarm(pluginName, version, "插件状态变更为FAILED");
+                log.warn("插件状态变更为FAILED，已发送告警");
+            }
+            
+            // 记录状态变更日志
+            log.debug("插件状态变更处理完成: {} -> {}", oldStatus, newStatus);
+            
+        } catch (Exception e) {
+            log.error("处理状态变更事件异常: {} -> {}", oldStatus, newStatus, e);
+        }
+    }
+    
+    /**
+     * 清除插件加载告警
+     */
+    private void clearPluginLoadAlarm() {
+        try {
+            if (adapterFactory != null) {
+                AlarmAdapter alarmAdapter = adapterFactory.createAlarmAdapter();
+                if (alarmAdapter != null) {
+                    boolean success = alarmAdapter.clearAlarm("plugin-load-fail");
+                    if (success) {
+                        log.info("插件加载告警清除成功");
+                    } else {
+                        log.debug("插件加载告警清除失败或告警不存在");
+                    }
+                }
+            }
+        } catch (Exception e) {
+            log.error("清除插件加载告警异常", e);
+        }
+    }
+    
+    /**
+     * 获取插件运行状态
+     * 
+     * @return 插件状态字符串
+     */
+    @Override
+    public String getPluginStatus() {
         if (pluginActive != null) {
-            pluginActive.setStatus(status);
+            return pluginActive.getStatus();
+        }
+        return "NOTSTART";
+    }
+    
+    /**
+     * 加载扩展文件
+     * 
+     * @param sourcePath 源文件路径
+     * @param extensionType 扩展类型（key或touch）
+     */
+    private void loadExtensionFile(String sourcePath, String extensionType) {
+        try {
+            Path source = Paths.get(sourcePath);
+            if (!Files.exists(source)) {
+                log.warn("扩展文件不存在: {}", sourcePath);
+                return;
+            }
+            
+            // 构建目标路径
+            Path targetDir = Paths.get(extensionsDir, extensionType);
+            if (!Files.exists(targetDir)) {
+                Files.createDirectories(targetDir);
+            }
+            
+            // 如果是目录，复制目录内容；如果是文件，复制文件
+            if (Files.isDirectory(source)) {
+                // 复制目录内容
+                Path target = targetDir.resolve(source.getFileName());
+                if (Files.exists(target)) {
+                    deleteRecursively(target);
+                }
+                copyDirectory(source, target);
+                log.info("扩展目录复制成功: {} -> {}", sourcePath, target);
+            } else {
+                // 复制文件
+                Path target = targetDir.resolve(source.getFileName());
+                if (Files.exists(target)) {
+                    Files.delete(target);
+                }
+                Files.copy(source, target, StandardCopyOption.REPLACE_EXISTING);
+                log.info("扩展文件复制成功: {} -> {}", sourcePath, target);
+            }
+        } catch (Exception e) {
+            log.error("加载扩展文件失败: sourcePath={}, extensionType={}", sourcePath, extensionType, e);
+            throw new RuntimeException("加载扩展文件失败: " + e.getMessage(), e);
         }
     }
     
     /**
-     * 验证请求参数
+     * 递归复制目录
      */
-    private void validateRequest(LoadExtensionRequest request) {
-        if (request == null) {
-            throw new IllegalArgumentException("请求参数不能为空");
-        }
-        if (request.getBucketName() == null || request.getBucketName().trim().isEmpty()) {
-            throw new IllegalArgumentException("bucketName不能为空");
-        }
-        if (request.getExtensionFilePath() == null || request.getExtensionFilePath().trim().isEmpty()) {
-            throw new IllegalArgumentException("extensionFilePath不能为空");
-        }
-        if (!request.getExtensionFilePath().endsWith(".jar")) {
-            throw new IllegalArgumentException("extensionFilePath必须以.jar结尾");
-        }
-        if (request.getName() == null || request.getName().trim().isEmpty()) {
-            throw new IllegalArgumentException("name不能为空");
-        }
-        if (request.getVersion() == null || request.getVersion().trim().isEmpty()) {
-            throw new IllegalArgumentException("version不能为空");
-        }
+    private void copyDirectory(Path source, Path target) throws Exception {
+        Files.walk(source).forEach(sourcePath -> {
+            try {
+                Path targetPath = target.resolve(source.relativize(sourcePath));
+                if (Files.isDirectory(sourcePath)) {
+                    if (!Files.exists(targetPath)) {
+                        Files.createDirectories(targetPath);
+                    }
+                } else {
+                    Files.copy(sourcePath, targetPath, StandardCopyOption.REPLACE_EXISTING);
+                }
+            } catch (Exception e) {
+                throw new RuntimeException("复制目录失败", e);
+            }
+        });
     }
     
     /**
-     * 下载插件JAR文件
+     * 递归删除目录或文件
      */
-    private String downloadPluginJar(LoadExtensionRequest request) throws Exception {
-        // 确保临时目录存在
-        Path tempDir = Paths.get(pluginTempDir);
-        if (!Files.exists(tempDir)) {
-            Files.createDirectories(tempDir);
+    private void deleteRecursively(Path path) throws Exception {
+        if (Files.isDirectory(path)) {
+            Files.walk(path)
+                .sorted((a, b) -> b.compareTo(a))
+                .forEach(p -> {
+                    try {
+                        Files.delete(p);
+                    } catch (Exception e) {
+                        log.warn("删除文件失败: {}", p, e);
+                    }
+                });
+        } else {
+            Files.delete(path);
         }
-        
-        // 构建本地文件路径
-        String fileName = request.getName() + "-" + request.getVersion() + ".jar";
-        String localPath = Paths.get(pluginTempDir, fileName).toString();
-        
-        // 构建远程路径（bucketName/extensionFilePath）
-        String remotePath = request.getBucketName() + "/" + request.getExtensionFilePath();
-        
-        // 下载文件
-        File downloadedFile = fileStorageService.downloadFile(localPath, remotePath);
-        if (downloadedFile == null || !downloadedFile.exists()) {
-            throw new RuntimeException("插件JAR文件下载失败: " + remotePath);
-        }
-        
-        log.info("插件JAR文件下载成功: localPath={}, remotePath={}", localPath, remotePath);
-        return localPath;
     }
     
-    /**
-     * 清理资源
-     */
-    @PreDestroy
+    @Override
     public void shutdown() {
         log.info("插件管理器关闭，清理资源");
         

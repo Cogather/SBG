@@ -44,4 +44,18 @@ public interface IChromeSet {
      * 获取心跳
      */
     long getHeartbeats(String userId);
+    
+    /**
+     * 上报已使用数量
+     * 上报当前使用的浏览器实例数量到CSE
+     */
+    void reportUsed();
+    
+    /**
+     * 上报链路端点
+     * 上报链路端点信息到CSE
+     * 
+     * @return 上报是否成功
+     */
+    boolean reportChainEndpoints();
 }

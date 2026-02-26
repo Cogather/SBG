@@ -136,9 +136,9 @@ class ChromeSetImplTest {
             PluginManageImpl pluginManageImpl = mock(PluginManageImpl.class);
             ReflectionTestUtils.setField(chromeSet, "pluginManage", pluginManageImpl);
             if (shouldCreateDriver && muenDriverCreated) {
-                when(pluginManageImpl.createDriver(anyString(), any())).thenReturn(mock(com.huawei.browsergateway.sdk.MuenDriver.class));
+                when(pluginManageImpl.createDriver(anyString())).thenReturn(mock(com.huawei.browsergateway.sdk.MuenDriver.class));
             } else {
-                when(pluginManageImpl.createDriver(anyString(), any())).thenReturn(null);
+                when(pluginManageImpl.createDriver(anyString())).thenReturn(null);
             }
         } else {
             ReflectionTestUtils.setField(chromeSet, "pluginManage", pluginManage);

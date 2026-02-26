@@ -58,3 +58,12 @@ browsergw:
     cpu-recover-threshold: 80
     memory-trigger-threshold: 90
     memory-recover-threshold: 80
+  
+  # 服务上报配置
+  report:
+    cap: 300                    # 服务容量上限
+    chain-endpoints: ""         # 链路端点信息
+    self-addr: ""               # 服务自身地址（如果为空，使用server.address）
+    control-endpoint: ""        # 控制端点
+    media-endpoint: ""          # 媒体端点
+    ttl: 120                    # 信息TTL（秒）
