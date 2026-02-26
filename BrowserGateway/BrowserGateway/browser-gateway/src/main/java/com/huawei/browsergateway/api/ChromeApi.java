@@ -54,11 +54,11 @@ public class ChromeApi {
      */
     @PostMapping(value = "/preOpen")
     public BaseResponse<String> preOpenBrowser(@RequestBody InitBrowserRequest request) {
-        log.info("预开浏览器请求: imei={}, imsi={}", request.getImei(), request.getImsi());
-        
         try {
             // 1. 参数验证
             validatePreOpenRequest(request);
+            
+            log.info("预开浏览器请求: imei={}, imsi={}", request.getImei(), request.getImsi());
             
             // 2. 生成用户ID
             String userId = UserIdUtil.generateUserId(request.getImei(), request.getImsi());
@@ -112,11 +112,11 @@ public class ChromeApi {
      */
     @DeleteMapping(value = "/userdata/delete")
     public BaseResponse<DeleteUserDataRequest> deleteUserData(@RequestBody DeleteUserDataRequest request) {
-        log.info("删除用户数据请求: imei={}, imsi={}", request.getImei(), request.getImsi());
-        
         try {
             // 1. 参数验证
             validateDeleteUserDataRequest(request);
+            
+            log.info("删除用户数据请求: imei={}, imsi={}", request.getImei(), request.getImsi());
             
             // 2. 生成用户ID
             String userId = UserIdUtil.generateUserId(request.getImei(), request.getImsi());

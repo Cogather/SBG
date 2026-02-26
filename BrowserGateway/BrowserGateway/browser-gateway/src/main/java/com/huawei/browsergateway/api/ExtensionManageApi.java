@@ -42,12 +42,12 @@ public class ExtensionManageApi {
      */
     @PostMapping(value = "/load")
     public BaseResponse<LoadExtensionResponse> loadExtension(@RequestBody LoadExtensionRequest request) {
-        log.info("加载扩展请求: name={}, version={}, bucketName={}, extensionFilePath={}", 
-                request.getName(), request.getVersion(), request.getBucketName(), request.getExtensionFilePath());
-        
         try {
             // 1. 参数验证
             validateLoadExtensionRequest(request);
+            
+            log.info("加载扩展请求: name={}, version={}, bucketName={}, extensionFilePath={}", 
+                    request.getName(), request.getVersion(), request.getBucketName(), request.getExtensionFilePath());
             
             // 2. 关闭所有现有浏览器实例（加载新扩展前必须关闭）
             log.info("关闭所有现有浏览器实例，准备加载新扩展");
