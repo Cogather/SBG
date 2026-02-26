@@ -34,6 +34,7 @@ browsergw:
     endpoint: http://127.0.0.1:8000
     executable-path: /usr/bin/chromium
     ttl: 360000000000  # 纳秒，约100小时
+    heartbeat-timeout: 300000000000  # 纳秒，约5分钟，用于浏览器检查任务
   
   websocket:
     media-port: 30002
