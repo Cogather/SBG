@@ -7,11 +7,10 @@ import com.huawei.browsergateway.entity.request.LoadExtensionRequest;
 import com.huawei.browsergateway.entity.response.LoadExtensionResponse;
 import com.huawei.browsergateway.entity.response.PluginInfoResponse;
 import com.huawei.browsergateway.exception.common.BusinessException;
-import com.huawei.browsergateway.service.IFileStorage;
 import com.huawei.browsergateway.service.IChromeSet;
+import com.huawei.browsergateway.service.IExtensionManage;
 import com.huawei.browsergateway.service.IPluginManage;
 
-import java.io.File;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -22,7 +21,6 @@ import org.junit.jupiter.params.provider.MethodSource;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.test.util.ReflectionTestUtils;
 
 import java.time.LocalDateTime;
 import java.util.stream.Stream;
@@ -46,15 +44,15 @@ class ExtensionManageApiTest {
     private IChromeSet chromeSet;
 
     @Mock
-    private IFileStorage fileStorageService;
+    private IExtensionManage extensionManageService;
 
     @InjectMocks
     private ExtensionManageApi extensionManageApi;
 
     @BeforeEach
     void setUp() {
-        // 设置 pluginTempDir 配置值
-        ReflectionTestUtils.setField(extensionManageApi, "pluginTempDir", "/tmp/browsergateway/plugins");
+        // ExtensionManageApi 不需要 pluginTempDir 字段
+        // pluginTempDir 字段只存在于 PluginManageImpl 中，通过 mock 的 pluginManage 服务使用
     }
 
     private static final String TEST_PLUGIN_NAME = "test-plugin";
@@ -95,21 +93,8 @@ class ExtensionManageApiTest {
         
         // 设置Mock行为
         if (shouldCallLoadExtension && !shouldThrowException) {
-            // 模拟文件下载成功
-            File mockFile = mock(File.class);
-            when(mockFile.exists()).thenReturn(true);
-            try {
-                when(fileStorageService.downloadFile(anyString(), anyString())).thenReturn(mockFile);
-            } catch (Exception e) {
-                // 忽略异常
-            }
-            // loadPlugin 是 void 方法，成功时不抛出异常
-            if (loadSuccess) {
-                doNothing().when(pluginManage).loadPlugin(any(), any(), anyString());
-            } else {
-                // 加载失败时抛出异常
-                doThrow(new RuntimeException("插件加载失败")).when(pluginManage).loadPlugin(any(), any(), anyString());
-            }
+            // mock extensionManageService.loadExtension 方法
+            when(extensionManageService.loadExtension(any(LoadExtensionRequest.class))).thenReturn(loadSuccess);
         }
 
         // 执行测试
@@ -120,17 +105,16 @@ class ExtensionManageApiTest {
         }
         
         if (shouldThrowException) {
-            // 参数验证失败时，不应该调用chromeSet.deleteAll和pluginManage.loadPlugin
+            // 参数验证失败时，不应该调用chromeSet.deleteAll和extensionManageService.loadExtension
             verify(chromeSet, never()).deleteAll();
-            verify(pluginManage, never()).loadPlugin(any(), any(), anyString());
+            verify(extensionManageService, never()).loadExtension(any(LoadExtensionRequest.class));
         } else {
             if (shouldCallDeleteAll) {
                 verify(chromeSet, times(1)).deleteAll();
             }
             
             if (shouldCallLoadExtension) {
-                verify(fileStorageService, times(1)).downloadFile(anyString(), anyString());
-                verify(pluginManage, times(1)).loadPlugin(any(), any(), anyString());
+                verify(extensionManageService, times(1)).loadExtension(any(LoadExtensionRequest.class));
             }
         }
     }
@@ -169,7 +153,7 @@ class ExtensionManageApiTest {
             
             // R8: 所有参数有效，加载失败 -> 返回失败
             Arguments.of("R8", createLoadRequest(TEST_PLUGIN_NAME, TEST_VERSION, TEST_BUCKET_NAME, TEST_FILE_PATH),
-                    false, "1002", "扩展加载失败", true, true, false) // EXTENSION_LOAD_FAILED
+                    false, "1002", "reload extension failed", true, true, false) // EXTENSION_LOAD_FAILED
         );
     }
 
@@ -241,16 +225,9 @@ class ExtensionManageApiTest {
     @DisplayName("加载扩展异常场景：插件管理服务异常")
     void testLoadExtensionPluginManageException() {
         LoadExtensionRequest request = createLoadRequest(TEST_PLUGIN_NAME, TEST_VERSION, TEST_BUCKET_NAME, TEST_FILE_PATH);
-        // 模拟文件下载成功
-        File mockFile = mock(File.class);
-        when(mockFile.exists()).thenReturn(true);
-        try {
-            when(fileStorageService.downloadFile(anyString(), anyString())).thenReturn(mockFile);
-        } catch (Exception e) {
-            // 忽略异常
-        }
-        // loadPlugin 抛出异常
-        doThrow(new RuntimeException("插件管理服务异常")).when(pluginManage).loadPlugin(any(), any(), anyString());
+        // extensionManageService.loadExtension 抛出异常
+        when(extensionManageService.loadExtension(any(LoadExtensionRequest.class)))
+                .thenThrow(new RuntimeException("插件管理服务异常"));
         
         BaseResponse<LoadExtensionResponse> response = extensionManageApi.loadExtension(request);
         
@@ -258,6 +235,7 @@ class ExtensionManageApiTest {
         assertNotNull(response.getMessage());
         assertTrue(response.getMessage().contains("加载扩展失败") || response.getMessage().contains("插件管理服务异常"));
         verify(chromeSet, times(1)).deleteAll();
+        verify(extensionManageService, times(1)).loadExtension(any(LoadExtensionRequest.class));
     }
 
     /**

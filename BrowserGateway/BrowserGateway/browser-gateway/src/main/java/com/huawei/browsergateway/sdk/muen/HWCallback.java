@@ -1,4 +1,4 @@
-package com.huawei.browsergateway.sdk;
+package com.huawei.browsergateway.sdk.muen;
 
 /**
  * Moon SDK回调接口

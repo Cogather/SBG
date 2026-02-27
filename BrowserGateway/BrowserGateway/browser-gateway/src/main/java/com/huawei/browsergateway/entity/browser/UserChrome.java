@@ -1,7 +1,7 @@
 package com.huawei.browsergateway.entity.browser;
 
 import com.huawei.browsergateway.entity.request.InitBrowserRequest;
-import com.huawei.browsergateway.sdk.MuenDriver;
+import com.huawei.browsergateway.sdk.muen.MuenDriver;
 import com.huawei.browsergateway.tcpserver.control.ConnectionState;
 import lombok.Data;
 import org.slf4j.Logger;

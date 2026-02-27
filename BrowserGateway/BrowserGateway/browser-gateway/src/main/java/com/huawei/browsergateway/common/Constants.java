@@ -1,4 +1,4 @@
-package com.huawei.browsergateway.common.constant;
+package com.huawei.browsergateway.common;
 
 /**
  * 系统常量定义
@@ -66,4 +66,8 @@ public class Constants {
     
     /** 缓存路径前缀 */
     public static final String CACHE_PATH_PREFIX = "cache/";
+
+    // tcp流的类型: 媒体流、控制流
+    public static String TCP_MEDIA = "TcpMedia";
+    public static String TCP_CONTROL = "TcpControl";
 }

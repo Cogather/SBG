@@ -1,6 +1,6 @@
 package com.huawei.browsergateway.service.storage;
 
-import com.huawei.browsergateway.common.constant.Constants;
+import com.huawei.browsergateway.common.Constants;
 import com.huawei.browsergateway.exception.storage.FileStorageException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;

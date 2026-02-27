@@ -1,7 +1,9 @@
 package com.huawei.browsergateway.service;
 
+import com.huawei.browsergateway.entity.plugin.ExtensionFilePaths;
 import com.huawei.browsergateway.entity.plugin.PluginActive;
-import com.huawei.browsergateway.sdk.MuenDriver;
+import com.huawei.browsergateway.entity.request.LoadExtensionRequest;
+import com.huawei.browsergateway.sdk.muen.MuenDriver;
 
 /**
  * 插件管理服务接口，负责Moon SDK插件的全生命周期管理
@@ -60,4 +62,37 @@ public interface IPluginManage {
      * 释放所有资源
      */
     void shutdown();
+    
+    /**
+     * 加载JavaScript扩展文件
+     * 
+     * @param keyPath 按键扩展文件路径
+     * @param touchPath 触控扩展文件路径
+     * @return 是否成功
+     */
+    boolean loadJSExtension(String keyPath, String touchPath);
+    
+    /**
+     * 加载扩展（完整流程）
+     * 包括下载插件、更新插件信息、加载插件、后置处理
+     * 
+     * @param request 加载扩展请求
+     * @return 是否成功
+     */
+    boolean loadExtension(LoadExtensionRequest request);
+    
+    /**
+     * 下载插件文件
+     * 
+     * @param request 加载扩展请求
+     * @return 扩展文件路径对象
+     */
+    ExtensionFilePaths downPlugin(LoadExtensionRequest request);
+    
+    /**
+     * 插件加载后处理
+     * 
+     * @param extensionFilePaths 扩展文件路径对象
+     */
+    void postLoadingPlugin(ExtensionFilePaths extensionFilePaths);
 }

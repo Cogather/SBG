@@ -3,7 +3,7 @@ package com.huawei.browsergateway.websocket.extension;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.huawei.browsergateway.common.utils.UserIdUtil;
 import com.huawei.browsergateway.entity.browser.UserChrome;
-import com.huawei.browsergateway.sdk.MuenDriver;
+import com.huawei.browsergateway.sdk.muen.MuenDriver;
 import com.huawei.browsergateway.service.IChromeSet;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -22,7 +22,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * URL: ws://{server}:{muen-port}/control/websocket/{imeiAndImsi}
  * 作为Muen SDK与浏览器扩展之间的代理WebSocket服务器
  */
-@ServerEndpoint(value = "/control/websocket/{imeiAndImsi}")
+@ServerEndpoint("/control/websocket/{imeiAndImsi}") 
 @Component
 public class ExtensionSocketServer {
     private static final Logger log = LoggerFactory.getLogger(ExtensionSocketServer.class);
@@ -149,8 +149,8 @@ public class ExtensionSocketServer {
                     
                     // 根据Muen-SDK文档：二进制消息需要通过HWContext传递
                     // 创建HWContext并绑定ChromeDriver
-                    com.huawei.browsergateway.sdk.HWContext hwContext = 
-                            new com.huawei.browsergateway.sdk.HWContext();
+                    com.huawei.browsergateway.sdk.muen.HWContext hwContext = 
+                            new com.huawei.browsergateway.sdk.muen.HWContext();
                     hwContext.setChromeDriver(userChrome.getChromeDriver());
                     
                     // 调用MuenDriver的Handle方法处理二进制消息

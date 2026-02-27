@@ -2,12 +2,13 @@ package com.huawei.browsergateway.service.impl;
 
 import com.huawei.browsergateway.adapter.factory.EnvironmentAwareAdapterFactory;
 import com.huawei.browsergateway.adapter.interfaces.AlarmAdapter;
+import com.huawei.browsergateway.entity.plugin.ExtensionFilePaths;
 import com.huawei.browsergateway.entity.plugin.PluginActive;
+import com.huawei.browsergateway.entity.request.LoadExtensionRequest;
 import com.huawei.browsergateway.service.IFileStorage;
 import com.huawei.browsergateway.service.IPluginManage;
-import com.huawei.browsergateway.service.impl.HWCallbackImpl;
-import com.huawei.browsergateway.sdk.HWCallback;
-import com.huawei.browsergateway.sdk.MuenDriver;
+import com.huawei.browsergateway.sdk.muen.HWCallback;
+import com.huawei.browsergateway.sdk.muen.MuenDriver;
 import com.huawei.browsergateway.util.MuenPluginClassLoader;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -19,10 +20,8 @@ import java.util.HashMap;
 import java.util.Map;
 
 import javax.annotation.PostConstruct;
-import javax.annotation.PreDestroy;
 import java.io.File;
 import java.io.InputStream;
-import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -54,6 +53,9 @@ public class PluginManageImpl implements IPluginManage {
     
     @Value("${browsergw.plugin.local-jar-path:src/main/resources/lib/original-browser-module-sdk-api-0.0.22.jar}")
     private String localJarPath;
+    
+    @Value("${browsergw.workspace:/opt/host}")
+    private String workspace;
     
     // 插件类加载器
     private MuenPluginClassLoader muenPluginClassLoader;
@@ -156,18 +158,28 @@ public class PluginManageImpl implements IPluginManage {
     public void loadPlugin(String keyPath, String touchPath, String jarPath) {
         log.info("开始加载插件: keyPath={}, touchPath={}, jarPath={}", keyPath, touchPath, jarPath);
         
+        // 从pluginActive获取插件信息（应该在调用loadPlugin之前已经通过updatePluginActive设置）
+        String pluginName = "MoonSDK";
+        String pluginVersion = "Unknown";
+        String pluginType = "ChromeExtension";
+        
+        if (pluginActive != null) {
+            pluginName = pluginActive.getName() != null ? pluginActive.getName() : pluginName;
+            pluginVersion = pluginActive.getVersion() != null ? pluginActive.getVersion() : pluginVersion;
+            pluginType = pluginActive.getType() != null ? pluginActive.getType() : pluginType;
+        }
+        
         try {
             // 1. 参数验证
             if (jarPath == null || jarPath.trim().isEmpty()) {
                 throw new IllegalArgumentException("jarPath不能为空");
             }
             
-            // 2. 加载扩展文件（如果提供）
-            if (keyPath != null && !keyPath.trim().isEmpty()) {
-                loadExtensionFile(keyPath, "key");
-            }
-            if (touchPath != null && !touchPath.trim().isEmpty()) {
-                loadExtensionFile(touchPath, "touch");
+            // 2. 加载JS扩展（如果提供）
+            // 使用loadJSExtension方法，按照存量代码的实现方式
+            boolean jsExtensionSuccess = loadJSExtension(keyPath, touchPath);
+            if (!jsExtensionSuccess) {
+                log.warn("JS扩展加载失败，但继续加载SDK");
             }
             
             // 3. 验证JAR文件
@@ -177,9 +189,9 @@ public class PluginManageImpl implements IPluginManage {
             }
             
             // 4. 验证插件（签名、完整性等）
-            if (!validatePlugin(jarPath, "MoonSDK", "Unknown")) {
+            if (!validatePlugin(jarPath, pluginName, pluginVersion)) {
                 log.error("插件验证失败: {}", jarPath);
-                sendPluginLoadFailureAlarm("MoonSDK", "Unknown", "插件验证失败");
+                sendPluginLoadFailureAlarm(pluginName, pluginVersion, "插件验证失败");
                 updateStatus("FAILED");
                 throw new RuntimeException("插件验证失败");
             }
@@ -190,20 +202,22 @@ public class PluginManageImpl implements IPluginManage {
             
             if (!success) {
                 log.error("插件类加载器初始化失败: {}", jarPath);
-                sendPluginLoadFailureAlarm("MoonSDK", "Unknown", "类加载器初始化失败");
+                sendPluginLoadFailureAlarm(pluginName, pluginVersion, "类加载器初始化失败");
                 updateStatus("FAILED");
                 throw new RuntimeException("插件类加载器初始化失败");
             }
             
-            // 6. 更新插件状态
-            updatePluginActive("MoonSDK", "Unknown", "ChromeExtension");
+            // 6. 更新插件状态（如果pluginActive还未设置，这里会设置；如果已设置，这里会更新状态）
+            if (pluginActive == null) {
+                updatePluginActive(pluginName, pluginVersion, pluginType);
+            }
             updateStatus("COMPLETE");
             
-            log.info("插件加载成功: jarPath={}", jarPath);
+            log.info("插件加载成功: name={}, version={}, jarPath={}", pluginName, pluginVersion, jarPath);
             
         } catch (Exception e) {
             log.error("插件加载失败", e);
-            sendPluginLoadFailureAlarm("MoonSDK", "Unknown", "插件加载异常: " + e.getMessage());
+            sendPluginLoadFailureAlarm(pluginName, pluginVersion, "插件加载异常: " + e.getMessage());
             updateStatus("FAILED");
             throw new RuntimeException("插件加载失败: " + e.getMessage(), e);
         }
@@ -516,6 +530,122 @@ public class PluginManageImpl implements IPluginManage {
         }
     }
     
+    /**
+     * 加载JavaScript扩展文件
+     * 按照存量代码的实现方式：删除旧扩展，复制新扩展到指定目录
+     * 
+     * @param keyPath 按键扩展文件路径
+     * @param touchPath 触控扩展文件路径
+     * @return 是否成功
+     */
+    @Override
+    public boolean loadJSExtension(String keyPath, String touchPath) {
+        log.info("开始加载JS扩展: keyPath={}, touchPath={}", keyPath, touchPath);
+        
+        try {
+            // 处理按键扩展
+            if (keyPath != null && !keyPath.trim().isEmpty()) {
+                String keyExtensionPath = getKeyExtensionPath();
+                // 删除旧扩展
+                Path keyTargetDir = Paths.get(keyExtensionPath);
+                if (Files.exists(keyTargetDir)) {
+                    deleteRecursively(keyTargetDir);
+                    log.info("已删除旧按键扩展: {}", keyExtensionPath);
+                }
+                
+                // 确保目标目录的父目录存在
+                Files.createDirectories(keyTargetDir.getParent());
+                
+                // 复制新扩展
+                Path keySource = Paths.get(keyPath);
+                if (!Files.exists(keySource)) {
+                    log.warn("按键扩展源文件不存在: {}", keyPath);
+                } else {
+                    if (Files.isDirectory(keySource)) {
+                        // 如果是目录，复制整个目录
+                        copyDirectory(keySource, keyTargetDir);
+                    } else {
+                        // 如果是文件，复制到目标目录
+                        Files.createDirectories(keyTargetDir);
+                        Path keyTarget = keyTargetDir.resolve(keySource.getFileName());
+                        Files.copy(keySource, keyTarget, StandardCopyOption.REPLACE_EXISTING);
+                    }
+                    log.info("按键扩展加载成功: {} -> {}", keyPath, keyExtensionPath);
+                }
+            }
+            
+            // 处理触控扩展
+            if (touchPath != null && !touchPath.trim().isEmpty()) {
+                String touchExtensionPath = getTouchExtensionPath();
+                // 删除旧扩展
+                Path touchTargetDir = Paths.get(touchExtensionPath);
+                if (Files.exists(touchTargetDir)) {
+                    deleteRecursively(touchTargetDir);
+                    log.info("已删除旧触控扩展: {}", touchExtensionPath);
+                }
+                
+                // 确保目标目录的父目录存在
+                Files.createDirectories(touchTargetDir.getParent());
+                
+                // 复制新扩展
+                Path touchSource = Paths.get(touchPath);
+                if (!Files.exists(touchSource)) {
+                    log.warn("触控扩展源文件不存在: {}", touchPath);
+                } else {
+                    if (Files.isDirectory(touchSource)) {
+                        // 如果是目录，复制整个目录
+                        copyDirectory(touchSource, touchTargetDir);
+                    } else {
+                        // 如果是文件，复制到目标目录
+                        Files.createDirectories(touchTargetDir);
+                        Path touchTarget = touchTargetDir.resolve(touchSource.getFileName());
+                        Files.copy(touchSource, touchTarget, StandardCopyOption.REPLACE_EXISTING);
+                    }
+                    log.info("触控扩展加载成功: {} -> {}", touchPath, touchExtensionPath);
+                }
+            }
+            
+            log.info("JS扩展加载完成");
+            return true;
+            
+        } catch (Exception e) {
+            log.error("加载JS扩展失败: keyPath={}, touchPath={}", keyPath, touchPath, e);
+            return false;
+        }
+    }
+    
+    /**
+     * 获取按键扩展路径
+     * 路径格式: workspace/extension/keys/chrome
+     */
+    private String getKeyExtensionPath() {
+        return workspace + File.separator + "extension" + File.separator + "keys" + File.separator + "chrome";
+    }
+    
+    /**
+     * 获取触控扩展路径
+     * 路径格式: workspace/extension/touch/chrome
+     */
+    private String getTouchExtensionPath() {
+        return workspace + File.separator + "extension" + File.separator + "touch" + File.separator + "chrome";
+    }
+    
+    /**
+     * 获取录制扩展路径
+     * 路径格式: workspace/extension/record/chrome
+     */
+    private String getRecordExtensionPath() {
+        return workspace + File.separator + "extension" + File.separator + "record" + File.separator + "chrome";
+    }
+    
+    /**
+     * 获取JAR目录路径
+     * 路径格式: workspace/jar
+     */
+    private String getJarDirPath() {
+        return workspace + File.separator + "jar";
+    }
+    
     @Override
     public void shutdown() {
         log.info("插件管理器关闭，清理资源");
@@ -685,6 +815,98 @@ public class PluginManageImpl implements IPluginManage {
         } catch (Exception e) {
             log.warn("验证插件元数据异常: {}", jarPath, e);
             return false;
+        }
+    }
+    
+    @Override
+    public synchronized boolean loadExtension(LoadExtensionRequest request) {
+        log.info("reload extension, request params: {}", request);
+        try {
+            ExtensionFilePaths extensionFilePaths = downPlugin(request);
+            updatePluginActive(request.getName(), request.getVersion(), request.getType());
+            loadPlugin(extensionFilePaths.getKeyDir(), extensionFilePaths.getTouchDir(), extensionFilePaths.getJarPath());
+            postLoadingPlugin(extensionFilePaths);
+            log.info("success to load extension name:{} version:{}", request.getName(), request.getVersion());
+            return true;
+        } catch (Exception e) {
+            log.error("load extension failed", e);
+            updateStatus("FAILED");
+            return false;
+        }
+    }
+    
+    @Override
+    public ExtensionFilePaths downPlugin(LoadExtensionRequest request) {
+        log.info("开始下载插件: name={}, version={}, bucketName={}, extensionFilePath={}", 
+                request.getName(), request.getVersion(), request.getBucketName(), request.getExtensionFilePath());
+        
+        try {
+            // 1. 确保临时目录存在
+            Path tempDir = Paths.get(pluginTempDir);
+            if (!Files.exists(tempDir)) {
+                Files.createDirectories(tempDir);
+            }
+            
+            // 2. 构建本地JAR文件路径
+            String fileName = request.getName() + "-" + request.getVersion() + ".jar";
+            String localJarPath = Paths.get(pluginTempDir, fileName).toString();
+            
+            // 3. 构建远程路径（bucketName/extensionFilePath）
+            String remotePath = request.getBucketName() + "/" + request.getExtensionFilePath();
+            
+            // 4. 下载JAR文件
+            File downloadedFile = fileStorageService.downloadFile(localJarPath, remotePath);
+            if (downloadedFile == null || !downloadedFile.exists()) {
+                throw new RuntimeException("插件JAR文件下载失败: " + remotePath);
+            }
+            
+            log.info("插件JAR文件下载成功: localPath={}, remotePath={}", localJarPath, remotePath);
+            
+            // 5. 构建扩展文件路径对象
+            ExtensionFilePaths extensionFilePaths = new ExtensionFilePaths();
+            extensionFilePaths.setJarPath(localJarPath);
+            
+            // 6. 设置按键和触控扩展目录路径（从workspace配置获取）
+            String keyDir = workspace + File.separator + "extension" + File.separator + "keys" + File.separator + "chrome";
+            String touchDir = workspace + File.separator + "extension" + File.separator + "touch" + File.separator + "chrome";
+            
+            extensionFilePaths.setKeyDir(keyDir);
+            extensionFilePaths.setTouchDir(touchDir);
+            
+            log.info("扩展文件路径构建完成: jarPath={}, keyDir={}, touchDir={}", 
+                    localJarPath, keyDir, touchDir);
+            
+            return extensionFilePaths;
+            
+        } catch (Exception e) {
+            log.error("下载插件失败", e);
+            throw new RuntimeException("下载插件失败: " + e.getMessage(), e);
+        }
+    }
+    
+    @Override
+    public void postLoadingPlugin(ExtensionFilePaths extensionFilePaths) {
+        log.info("执行插件加载后处理: jarPath={}, keyDir={}, touchDir={}", 
+                extensionFilePaths.getJarPath(), extensionFilePaths.getKeyDir(), extensionFilePaths.getTouchDir());
+        
+        // 后置处理逻辑
+        // 1. 验证文件是否已正确加载
+        try {
+            Path jarPath = Paths.get(extensionFilePaths.getJarPath());
+            if (!Files.exists(jarPath)) {
+                log.warn("插件JAR文件在加载后不存在: {}", extensionFilePaths.getJarPath());
+            } else {
+                log.info("插件JAR文件验证通过: {}", extensionFilePaths.getJarPath());
+            }
+            
+            // 2. 可以在这里添加其他后置处理逻辑，比如：
+            // - 清理临时文件
+            // - 更新缓存
+            // - 发送通知等
+            
+        } catch (Exception e) {
+            log.error("插件加载后处理失败", e);
+            // 后置处理失败不影响主流程，只记录日志
         }
     }
 }

@@ -19,7 +19,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * WebSocket媒体流端点
  * URL: ws://{server}:{media-port}/browser/websocket/{imeiAndImsi}
  */
-@ServerEndpoint(value = "/browser/websocket/{imeiAndImsi}")
+@ServerEndpoint("/browser/websocket/{imeiAndImsi}")
 @Component
 public class MediaStreamSocketServer {
     private static final Logger log = LoggerFactory.getLogger(MediaStreamSocketServer.class);

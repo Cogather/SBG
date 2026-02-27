@@ -8,18 +8,14 @@ import com.huawei.browsergateway.entity.request.LoadExtensionRequest;
 import com.huawei.browsergateway.entity.response.LoadExtensionResponse;
 import com.huawei.browsergateway.entity.response.PluginInfoResponse;
 import com.huawei.browsergateway.exception.common.BusinessException;
-import com.huawei.browsergateway.service.IFileStorage;
 import com.huawei.browsergateway.service.IChromeSet;
+import com.huawei.browsergateway.service.IExtensionManage;
 import com.huawei.browsergateway.service.IPluginManage;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.*;
-
-import java.io.File;
-import java.nio.file.Paths;
 
 /**
  * 扩展管理API
@@ -37,10 +33,7 @@ public class ExtensionManageApi {
     private IChromeSet chromeSet;
     
     @Autowired
-    private IFileStorage fileStorageService;
-    
-    @Value("${browsergw.plugin.temp-dir:/tmp/browsergateway/plugins}")
-    private String pluginTempDir;
+    private IExtensionManage extensionManageService;
     
     /**
      * 加载扩展
@@ -53,38 +46,27 @@ public class ExtensionManageApi {
      */
     @PostMapping(value = "/load")
     public BaseResponse<LoadExtensionResponse> loadExtension(@RequestBody LoadExtensionRequest request) {
+        log.info("update muen plugin, reload extension, params:{}", request);
+        
         try {
             // 1. 参数验证
             validateLoadExtensionRequest(request);
-            
-            log.info("加载扩展请求: name={}, version={}, bucketName={}, extensionFilePath={}", 
-                    request.getName(), request.getVersion(), request.getBucketName(), request.getExtensionFilePath());
             
             // 2. 关闭所有现有浏览器实例（加载新扩展前必须关闭）
             log.info("关闭所有现有浏览器实例，准备加载新扩展");
             chromeSet.deleteAll();
             
-            // 3. 下载插件JAR文件到本地
-            String localJarPath = downloadPluginJar(request);
+            // 3. 调用扩展管理服务加载扩展
+            boolean result = extensionManageService.loadExtension(request);
             
-            // 4. 调用插件管理服务加载扩展
-            // loadPlugin 方法签名: void loadPlugin(String keyPath, String touchPath, String jarPath)
-            // keyPath 和 touchPath 在当前请求中未提供，传 null
-            try {
-                pluginManage.loadPlugin(null, null, localJarPath);
-                log.info("扩展加载成功: name={}, version={}", request.getName(), request.getVersion());
-            } catch (Exception e) {
-                log.error("扩展加载失败: name={}, version={}", request.getName(), request.getVersion(), e);
-                return BaseResponse.fail(ErrorCodeEnum.EXTENSION_LOAD_FAILED, 
-                        "扩展加载失败: " + e.getMessage());
+            if (result) {
+                LoadExtensionResponse response = new LoadExtensionResponse();
+                response.setBucketName(request.getBucketName());
+                response.setExtensionFilePath(request.getExtensionFilePath());
+                return BaseResponse.success(response);
+            } else {
+                return BaseResponse.fail(ErrorCodeEnum.EXTENSION_LOAD_FAILED, "reload extension failed");
             }
-            
-            // 4. 构建响应
-            LoadExtensionResponse response = new LoadExtensionResponse();
-            response.setBucketName(request.getBucketName());
-            response.setExtensionFilePath(request.getExtensionFilePath());
-            
-            return BaseResponse.success(response);
             
         } catch (BusinessException e) {
             log.warn("加载扩展业务异常: {}", e.getErrorMessage(), e);
@@ -169,33 +151,4 @@ public class ExtensionManageApi {
         }
     }
     
-    /**
-     * 下载插件JAR文件
-     * 
-     * @param request 加载扩展请求
-     * @return 本地JAR文件路径
-     */
-    private String downloadPluginJar(LoadExtensionRequest request) throws Exception {
-        // 确保临时目录存在
-        java.nio.file.Path tempDir = Paths.get(pluginTempDir);
-        if (!java.nio.file.Files.exists(tempDir)) {
-            java.nio.file.Files.createDirectories(tempDir);
-        }
-        
-        // 构建本地文件路径
-        String fileName = request.getName() + "-" + request.getVersion() + ".jar";
-        String localPath = Paths.get(pluginTempDir, fileName).toString();
-        
-        // 构建远程路径（bucketName/extensionFilePath）
-        String remotePath = request.getBucketName() + "/" + request.getExtensionFilePath();
-        
-        // 下载文件
-        File downloadedFile = fileStorageService.downloadFile(localPath, remotePath);
-        if (downloadedFile == null || !downloadedFile.exists()) {
-            throw new RuntimeException("插件JAR文件下载失败: " + remotePath);
-        }
-        
-        log.info("插件JAR文件下载成功: localPath={}, remotePath={}", localPath, remotePath);
-        return localPath;
-    }
 }

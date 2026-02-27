@@ -1,7 +1,7 @@
 package com.huawei.browsergateway.util;
 
-import com.huawei.browsergateway.sdk.HWCallback;
-import com.huawei.browsergateway.sdk.MuenDriver;
+import com.huawei.browsergateway.sdk.muen.HWCallback;
+import com.huawei.browsergateway.sdk.muen.MuenDriver;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 

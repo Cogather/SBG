@@ -28,9 +28,12 @@ adapter:
 # BrowserGateway 业务配置
 browsergw:
   workspace: /opt/host
+  context-limit: 40              # 上下文限制
+  
   chrome:
     headless: true
     record-mode: 1
+    record-extension-id: ""      # 录制扩展ID
     endpoint: http://127.0.0.1:8000
     executable-path: /usr/bin/chromium
     ttl: 360000000000  # 纳秒，约100小时
@@ -44,9 +47,13 @@ browsergw:
     heartbeat-ttl: 300000  # 毫秒
   
   tcp:
+    address: 0.0.0.0             # TCP地址
     control-port: 18601
     media-port: 18602
+    control-tls-port: 18603      # 控制TLS端口
+    media-tls-port: 18604        # 媒体TLS端口
     heartbeat-ttl: 360000000000  # 纳秒
+    enable-http: false           # 启用HTTP功能
   
   scheduled:
     check-browser-period: 1800000  # 30分钟
@@ -66,5 +73,7 @@ browsergw:
     chain-endpoints: ""         # 链路端点信息
     self-addr: ""               # 服务自身地址（如果为空，使用server.address）
     control-endpoint: ""        # 控制端点
+    control-tls-endpoint: ""    # 控制TLS端点（如果为空，默认使用41.203.73.4:30011）
     media-endpoint: ""          # 媒体端点
+    media-tls-endpoint: ""      # 媒体TLS端点（如果为空，默认使用41.203.73.4:30013）
     ttl: 120                    # 信息TTL（秒）

@@ -42,7 +42,65 @@ public class ChromeApi {
     
     @org.springframework.beans.factory.annotation.Value("${browsergw.workspace:/opt/host}")
     private String workspace;
-    
+
+    /**
+     * 删除用户数据
+     * DELETE /browsergw/browser/userdata/delete
+     *
+     * 功能说明：删除指定用户的浏览器实例和用户数据，如用户存在浏览器实例会先关闭再删除
+     *
+     * @param request 删除用户数据请求参数（包含imei和imsi）
+     * @return 删除结果
+     */
+    @DeleteMapping(value = "/userdata/delete")
+    public BaseResponse<DeleteUserDataRequest> deleteUserData(@RequestBody DeleteUserDataRequest request) {
+        try {
+            // 1. 参数验证
+            validateDeleteUserDataRequest(request);
+
+            log.info("删除用户数据请求: imei={}, imsi={}", request.getImei(), request.getImsi());
+
+            // 2. 生成用户ID
+            String userId = UserIdUtil.generateUserId(request.getImei(), request.getImsi());
+
+            // 3. 检查浏览器实例是否存在
+            if (chromeSet.get(userId) == null) {
+                log.warn("浏览器实例不存在，可能已删除: userId={}", userId);
+                // 即使不存在也返回成功，幂等操作
+                return BaseResponse.success(request);
+            }
+
+            // 4. 删除浏览器实例（会先关闭再删除，包括上传用户数据）
+            chromeSet.delete(userId);
+
+            // 5. 删除远程和本地用户数据
+            String userDataPath = Paths.get(workspace, userId).toString();
+            if (userDataManager != null) {
+                try {
+                    log.info("开始删除用户数据: userId={}, path={}", userId, userDataPath);
+                    userDataManager.deleteUserData(userId, userDataPath);
+                    log.info("用户数据删除成功: userId={}", userId);
+                } catch (Exception e) {
+                    log.error("删除用户数据失败: userId={}", userId, e);
+                    // 删除失败不影响整体流程，继续返回成功
+                }
+            } else {
+                log.warn("UserDataManager未注入，跳过用户数据删除: userId={}", userId);
+            }
+
+            log.info("删除用户数据成功: userId={}", userId);
+            return BaseResponse.success(request);
+
+        } catch (BusinessException e) {
+            log.warn("删除用户数据业务异常: {}", e.getErrorMessage(), e);
+            return BaseResponse.fail(e.getErrorCode(), e.getErrorMessage());
+        } catch (Exception e) {
+            log.error("删除用户数据失败", e);
+            return BaseResponse.fail(ErrorCodeEnum.USER_DATA_DELETE_FAILED,
+                    "删除用户数据失败: " + e.getMessage());
+        }
+    }
+
     /**
      * 预开浏览器
      * POST /browsergw/browser/preOpen
@@ -98,64 +156,6 @@ public class ChromeApi {
             log.error("预开浏览器失败", e);
             return BaseResponse.fail(ErrorCodeEnum.BROWSER_CREATE_FAILED, 
                     "预开浏览器失败: " + e.getMessage());
-        }
-    }
-    
-    /**
-     * 删除用户数据
-     * DELETE /browsergw/browser/userdata/delete
-     * 
-     * 功能说明：删除指定用户的浏览器实例和用户数据，如用户存在浏览器实例会先关闭再删除
-     * 
-     * @param request 删除用户数据请求参数（包含imei和imsi）
-     * @return 删除结果
-     */
-    @DeleteMapping(value = "/userdata/delete")
-    public BaseResponse<DeleteUserDataRequest> deleteUserData(@RequestBody DeleteUserDataRequest request) {
-        try {
-            // 1. 参数验证
-            validateDeleteUserDataRequest(request);
-            
-            log.info("删除用户数据请求: imei={}, imsi={}", request.getImei(), request.getImsi());
-            
-            // 2. 生成用户ID
-            String userId = UserIdUtil.generateUserId(request.getImei(), request.getImsi());
-            
-            // 3. 检查浏览器实例是否存在
-            if (chromeSet.get(userId) == null) {
-                log.warn("浏览器实例不存在，可能已删除: userId={}", userId);
-                // 即使不存在也返回成功，幂等操作
-                return BaseResponse.success(request);
-            }
-            
-            // 4. 删除浏览器实例（会先关闭再删除，包括上传用户数据）
-            chromeSet.delete(userId);
-            
-            // 5. 删除远程和本地用户数据
-            String userDataPath = Paths.get(workspace, userId).toString();
-            if (userDataManager != null) {
-                try {
-                    log.info("开始删除用户数据: userId={}, path={}", userId, userDataPath);
-                    userDataManager.deleteUserData(userId, userDataPath);
-                    log.info("用户数据删除成功: userId={}", userId);
-                } catch (Exception e) {
-                    log.error("删除用户数据失败: userId={}", userId, e);
-                    // 删除失败不影响整体流程，继续返回成功
-                }
-            } else {
-                log.warn("UserDataManager未注入，跳过用户数据删除: userId={}", userId);
-            }
-            
-            log.info("删除用户数据成功: userId={}", userId);
-            return BaseResponse.success(request);
-            
-        } catch (BusinessException e) {
-            log.warn("删除用户数据业务异常: {}", e.getErrorMessage(), e);
-            return BaseResponse.fail(e.getErrorCode(), e.getErrorMessage());
-        } catch (Exception e) {
-            log.error("删除用户数据失败", e);
-            return BaseResponse.fail(ErrorCodeEnum.USER_DATA_DELETE_FAILED, 
-                    "删除用户数据失败: " + e.getMessage());
         }
     }
     

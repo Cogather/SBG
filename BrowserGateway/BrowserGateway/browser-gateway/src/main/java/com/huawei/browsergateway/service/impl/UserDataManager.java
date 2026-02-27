@@ -1,6 +1,6 @@
 package com.huawei.browsergateway.service.impl;
 
-import com.huawei.browsergateway.common.constant.Constants;
+import com.huawei.browsergateway.common.Constants;
 import com.huawei.browsergateway.common.utils.ZstdUtil;
 import com.huawei.browsergateway.service.IFileStorage;
 import com.huawei.browsergateway.util.UserdataSlimmer;

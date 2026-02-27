@@ -9,7 +9,7 @@ import com.huawei.browsergateway.entity.remote.UserBind;
 import com.huawei.browsergateway.entity.request.InitBrowserRequest;
 import com.huawei.browsergateway.service.IChromeSet;
 import com.huawei.browsergateway.service.IRemote;
-import com.huawei.browsergateway.sdk.MuenDriver;
+import com.huawei.browsergateway.sdk.muen.MuenDriver;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -179,7 +179,7 @@ public class RemoteImpl implements IRemote {
             
             // 2. 创建HWContext上下文对象
             // 根据Moon-SDK文档：需要创建HWContext并绑定ChromeDriver
-            com.huawei.browsergateway.sdk.HWContext hwContext = new com.huawei.browsergateway.sdk.HWContext();
+            com.huawei.browsergateway.sdk.muen.HWContext hwContext = new com.huawei.browsergateway.sdk.muen.HWContext();
             hwContext.setChromeDriver(userChrome.getChromeDriver());
             
             // 3. 获取MuenDriver并处理事件

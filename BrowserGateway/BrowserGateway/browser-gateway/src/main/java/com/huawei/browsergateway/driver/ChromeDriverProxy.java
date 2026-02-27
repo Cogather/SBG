@@ -29,6 +29,12 @@ public class ChromeDriverProxy {
     private volatile boolean closed = false;
     
     /**
+     * 代理上下文ID
+     * 用于健康检查时识别浏览器实例
+     */
+    private String proxyContextId;
+    
+    /**
      * 构造函数
      * 
      * @param userId 用户ID
@@ -120,5 +126,44 @@ public class ChromeDriverProxy {
      */
     public boolean isAvailable() {
         return !closed && chromeDriver != null;
+    }
+    
+    /**
+     * 获取代理上下文ID
+     * 
+     * @return 代理上下文ID
+     */
+    public String getProxyContextId() {
+        if (proxyContextId == null && chromeDriver != null) {
+            // 尝试从ChromeDriver获取上下文ID
+            try {
+                // 使用反射获取上下文ID（如果ChromeDriver有该方法）
+                java.lang.reflect.Method getContextIdMethod = chromeDriver.getClass().getMethod("getProxyContextId");
+                Object contextId = getContextIdMethod.invoke(chromeDriver);
+                if (contextId != null) {
+                    proxyContextId = contextId.toString();
+                }
+            } catch (NoSuchMethodException e) {
+                // 如果没有该方法，使用userId作为默认值
+                proxyContextId = userId;
+            } catch (Exception e) {
+                log.debug("获取代理上下文ID失败，使用userId作为默认值: userId={}", userId, e);
+                proxyContextId = userId;
+            }
+        }
+        // 如果仍然为null，使用userId作为默认值
+        if (proxyContextId == null) {
+            proxyContextId = userId;
+        }
+        return proxyContextId;
+    }
+    
+    /**
+     * 设置代理上下文ID
+     * 
+     * @param proxyContextId 代理上下文ID
+     */
+    public void setProxyContextId(String proxyContextId) {
+        this.proxyContextId = proxyContextId;
     }
 }

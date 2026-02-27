@@ -5,7 +5,7 @@ import com.huawei.browsergateway.entity.event.EventInfo;
 import com.huawei.browsergateway.service.IFileStorage;
 import com.huawei.browsergateway.service.IChromeSet;
 import com.huawei.browsergateway.service.IRemote;
-import com.huawei.browsergateway.sdk.HWCallback;
+import com.huawei.browsergateway.sdk.muen.HWCallback;
 import com.huawei.browsergateway.tcpserver.control.ControlClientSet;
 import com.huawei.browsergateway.websocket.extension.ExtensionSocketServer;
 import org.slf4j.Logger;
