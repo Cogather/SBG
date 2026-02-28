@@ -1,63 +1,44 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<assembly xmlns="http://maven.apache.org/ASSEMBLY/2.1.0"
-         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-         xsi:schemaLocation="http://maven.apache.org/ASSEMBLY/2.1.0 
-         http://maven.apache.org/xsd/assembly-2.1.0.xsd">
-    
-    <id>package</id>
+<assembly>
+    <id>full</id>
+    <!-- 最终打包成一个用于发布的zip文件 -->
     <formats>
-        <format>tar.gz</format>
         <format>zip</format>
     </formats>
-    
     <includeBaseDirectory>false</includeBaseDirectory>
-    
     <fileSets>
-        <!-- 包含 Spring Boot 打包后的可执行 JAR -->
+        <!-- 把项目自己编译出来的jar文件，打包进zip文件的根目录  -->
         <fileSet>
             <directory>${project.build.directory}</directory>
+            <outputDirectory></outputDirectory>
             <includes>
-                <include>${project.build.finalName}.jar</include>
+                <include>*.jar</include>
             </includes>
-            <outputDirectory>/</outputDirectory>
         </fileSet>
-        
-        <!-- 包含依赖库目录 -->
+
         <fileSet>
             <directory>${project.build.directory}/lib</directory>
             <outputDirectory>lib</outputDirectory>
             <includes>
-                <include>**/*.jar</include>
+                <include>*.jar</include>
+                <include>*.so</include>
             </includes>
+            <excludes>
+                <exclude>*mock*.jar</exclude>
+                <exclude>*junit*.jar</exclude>
+            </excludes>
         </fileSet>
-        
-        <!-- 包含配置文件（可选，如果需要外部配置文件） -->
+
         <fileSet>
             <directory>${project.basedir}/src/main/resources</directory>
             <outputDirectory>conf</outputDirectory>
-            <includes>
-                <include>application*.yaml</include>
-            </includes>
+            <excludes>
+                <exclude>i18n/**</exclude>
+            </excludes>
         </fileSet>
-        
-        <!-- 包含启动脚本 -->
+
         <fileSet>
-            <directory>${project.basedir}</directory>
-            <outputDirectory>/</outputDirectory>
-            <includes>
-                <include>start.sh</include>
-            </includes>
-            <fileMode>755</fileMode>
-        </fileSet>
-        
-        <!-- 包含 README 文档 -->
-        <fileSet>
-            <directory>${project.basedir}</directory>
-            <outputDirectory>/</outputDirectory>
-            <includes>
-                <include>README.md</include>
-            </includes>
+            <directory>${project.basedir}/../build</directory>
+            <outputDirectory></outputDirectory>
         </fileSet>
     </fileSets>
-    
 </assembly>
