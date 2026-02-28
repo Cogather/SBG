@@ -6,6 +6,7 @@ import com.huawei.browsergateway.adapter.interfaces.CertificateAdapter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
 import javax.annotation.PostConstruct;
@@ -19,7 +20,8 @@ import java.util.concurrent.CopyOnWriteArrayList;
  * 证书适配器 - 自定义实现
  * 适用场景：外网环境，从本地文件加载证书或生成自签名证书
  */
-@Component
+@Component("customCertificateAdapter")
+@ConditionalOnProperty(name = "adapter.provider.type", havingValue = "CUSTOM")
 public class CustomCertificateAdapter implements CertificateAdapter {
     
     private static final Logger logger = LoggerFactory.getLogger(CustomCertificateAdapter.class);
@@ -47,14 +49,14 @@ public class CustomCertificateAdapter implements CertificateAdapter {
     
     @Override
     public boolean subscribeCertificates(String serviceName, List<CertScene> certScenes, 
-        String certPath, CertUpdateCallback callback) {
+            String certPath, CertUpdateCallback callback) {
         // 外网环境：生成自签名证书或使用本地证书
         logger.info("Certificate subscription for external environment (using local certificates)");
         
         if (callback != null) {
             callbacks.add(callback);
             // 立即触发一次回调
-            callback.onCertificateUpdate(caContent, deviceContent);
+            callback.onCertificateUpdate(caContent, deviceContent, privateKey);
         }
         return true;
     }
@@ -84,11 +86,13 @@ public class CustomCertificateAdapter implements CertificateAdapter {
     public boolean initialize() {
         // 生成自签名证书或加载本地证书
         try {
-            if (loadCertificatesFromFile() || generateSelfSignedCertificates()) {
-                logger.info("Certificates initialized successfully");
+            if (loadCertificatesFromFile()) {
+                logger.info("Certificates initialized successfully from files");
                 return true;
+            } else {
+                logger.warn("Failed to load certificates from files, using empty certificates");
+                return false;
             }
-            return false;
         } catch (Exception e) {
             logger.error("Failed to initialize certificates", e);
             return false;
@@ -99,24 +103,20 @@ public class CustomCertificateAdapter implements CertificateAdapter {
         try {
             if (caCertPath != null && !caCertPath.isEmpty()) {
                 caContent = new String(Files.readAllBytes(Paths.get(caCertPath)));
+                logger.info("Loaded CA certificate from: {}", caCertPath);
             }
             if (deviceCertPath != null && !deviceCertPath.isEmpty()) {
                 deviceContent = new String(Files.readAllBytes(Paths.get(deviceCertPath)));
+                logger.info("Loaded device certificate from: {}", deviceCertPath);
             }
             if (privateKeyPath != null && !privateKeyPath.isEmpty()) {
                 privateKey = new String(Files.readAllBytes(Paths.get(privateKeyPath)));
+                logger.info("Loaded private key from: {}", privateKeyPath);
             }
             return isCertificateReady();
         } catch (IOException e) {
             logger.warn("Failed to load certificates from file", e);
             return false;
         }
-    }
-    
-    private boolean generateSelfSignedCertificates() {
-        // TODO: 生成自签名证书的逻辑
-        // 可以使用Java的KeyTool或BouncyCastle生成
-        logger.info("Generated self-signed certificates");
-        return true;
     }
 }

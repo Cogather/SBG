@@ -8,6 +8,7 @@ public interface CertUpdateCallback {
      * 证书更新时的回调
      * @param caContent CA证书内容
      * @param deviceContent 设备证书内容
+     * @param privateKey 私钥内容
      */
-    void onCertificateUpdate(String caContent, String deviceContent);
+    void onCertificateUpdate(String caContent, String deviceContent, String privateKey);
 }

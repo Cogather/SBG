@@ -16,7 +16,7 @@ public class ChromeConfig {
     private Integer recordMode;
 
     @Value("${browsergw.chrome.headless:false}")
-    private boolean headless;
+    private boolean headless = false;
 
     @Value("${browsergw.chrome.record-extension-id:}")
     private String recordExtensionId;

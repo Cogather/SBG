@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <parent>
+        <groupId>com.moon</groupId>
+        <artifactId>browser-module-sdk</artifactId>
+        <version>${revision}</version>
+    </parent>
+    <!-- 华为核心网api包，该包下尽量不修改代码，华为侧逻辑：服务依赖api包，依赖完之后服务代码不做修改，业务测代码（biz包）做动态替换 -->
+    <artifactId>browser-module-sdk-api</artifactId>
+
+</project>

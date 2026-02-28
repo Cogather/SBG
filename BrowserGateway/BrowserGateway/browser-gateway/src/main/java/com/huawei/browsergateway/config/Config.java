@@ -1,7 +1,7 @@
 package com.huawei.browsergateway.config;
 
 import cn.hutool.core.io.FileUtil;
-import cn.hutool.http.HttpConfig;
+import com.huawei.browsergateway.entity.enums.RecordModeEnum;
 import lombok.Data;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Configuration;
@@ -39,23 +39,57 @@ public class Config {
     @Resource
     private TcpConfig tcp;
     @Resource
-    private HttpConfig chrome;
+    private ChromeConfig chrome;
 
-    public String getLocalStoragePath(){return FileUtil.file(workspace, LOCAL_STORAGE_PATH).getAbsolutePath();}
-    public String getUserDataPath(){return FileUtil.file(workspace, USER_DATA_PATH).getAbsolutePath();}
-    public String getBaseDataPath(){return FileUtil.file(workspace, USER_DATA_PATH).getAbsolutePath();}
-    public String getTmpPath(){return FileUtil.file(workspace, USER_DATA_PATH).getAbsolutePath();}
-    public String getExtensionPath(){return FileUtil.file(workspace, USER_DATA_PATH).getAbsolutePath();}
-    public String getKeyExtensionPath(){return FileUtil.file(workspace, USER_DATA_PATH).getAbsolutePath();}
-    public String getJarDirPath(){return FileUtil.file(workspace, USER_DATA_PATH).getAbsolutePath();}
-    public String getTouchExtensionPath(){return FileUtil.file(workspace, USER_DATA_PATH).getAbsolutePath();}
-    public String getRecordExtensionPath(){return FileUtil.file(workspace, USER_DATA_PATH).getAbsolutePath();}
-    public String getCodecMode(){return FileUtil.file(workspace, USER_DATA_PATH).getAbsolutePath();}
-    public String getRecordExtensionPate(){return FileUtil.file(workspace, USER_DATA_PATH).getAbsolutePath();}
-    public String getSelfAddr(){return FileUtil.file(workspace, USER_DATA_PATH).getAbsolutePath();}
-    public String getInnerMediaEndpoint(){return FileUtil.file(workspace, USER_DATA_PATH).getAbsolutePath();}
+    public String getLocalStoragePath() {
+        return FileUtil.file(workspace, LOCAL_STORAGE_PATH).getAbsolutePath();
+    }
 
+    public String getUserDataPath() {
+        return FileUtil.file(workspace, USER_DATA_PATH).getAbsolutePath();
+    }
 
+    public String getBaseDataPath() {
+        return FileUtil.file(workspace, BASE_DATA_PATH).getAbsolutePath();
+    }
 
+    public String getTmpPath() {
+        return FileUtil.file(workspace, TMP_PATH).getAbsolutePath();
+    }
 
+    public String getExtensionPath() {
+        return FileUtil.file(workspace, EXTENSION_PATH).getAbsolutePath();
+    }
+
+    public String getKeyExtensionPath() {
+        return FileUtil.file(workspace, EXTENSION_PATH, KEY).getAbsolutePath();
+    }
+
+    public String getJarDirPath() {
+        return FileUtil.file(workspace, JAR).getAbsolutePath();
+    }
+
+    public String getTouchExtensionPath() {
+        return FileUtil.file(workspace, EXTENSION_PATH, TOUCH).getAbsolutePath();
+    }
+
+    public String getRecordExtensionPath() {
+        return FileUtil.file(workspace, EXTENSION_PATH, RECORD).getAbsolutePath();
+    }
+
+    public String getCodecMode() {
+        return RecordModeEnum.getRecordNameByMode(chrome.getRecordMode());
+    }
+
+    public String getRecordExtensionPage() {
+        return String.format("chrome-extension://%s/offscreen.html", chrome.getRecordExtensionId());
+    }
+
+    public String getSelfAddr() {
+        return this.address + ":" + this.port;
+    }
+
+    public String getInnerMediaEndpoint() {
+        return this.address + ":" + this.websocket.getMediaPort();
+    }
 }

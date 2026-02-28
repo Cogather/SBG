@@ -1,16 +1,12 @@
 package com.huawei.browsergateway.adapter.impl.csp;
 
-import com.alibaba.fastjson.JSONObject;
 import com.huawei.browsergateway.adapter.dto.AlarmInfo;
 import com.huawei.browsergateway.adapter.dto.AlarmRequest;
 import com.huawei.browsergateway.adapter.interfaces.AlarmAdapter;
-import com.huawei.csp.jsf.api.CspRestTemplateBuilder;
-import com.huawei.csp.om.alarmsdk.alarmmanager.Alarm;
-import com.huawei.csp.om.alarmsdk.alarmmanager.AlarmSendManager;
-import com.huawei.csp.om.alarmsdk.alarmmodel.AlarmModel;
-import com.huawei.csp.om.alarmsdk.util.SystemUtil;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import com.huawei.browsergateway.adapter.interfaces.SystemUtilAdapter;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
@@ -18,6 +14,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestTemplate;
 
+import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -26,23 +23,20 @@ import java.util.concurrent.ConcurrentHashMap;
 /**
  * 告警适配器 - CSP SDK实现
  */
-@Component
+@Component("cspAlarmAdapter")
+@ConditionalOnProperty(name = "adapter.provider.type", havingValue = "CSP_SDK", matchIfMissing = true)
 public class CspAlarmAdapter implements AlarmAdapter {
     
-    private static final Logger logger = LoggerFactory.getLogger(CspAlarmAdapter.class);
+    private static final Logger logger = LogManager.getLogger(CspAlarmAdapter.class);
     
+    private static final String GET_ALARM_INTERFACE = "cse://FMService/fmOperation/v1/alarms/get_alarms";
     private static final long ALARM_DEDUPE_INTERVAL = 10 * 60 * 1000; // 10分钟
-    private static final String GETALARMINTERFACE = "cse://FMService/fmOperation/v1/alarms/get_alarms";
     
     private final Map<String, Long> lastAlarmTime = new ConcurrentHashMap<>();
+    private final SystemUtilAdapter systemUtilAdapter;
     
-    /**
-     * 转换告警类型
-     */
-    private AlarmModel.EuGenClearType convertAlarmType(AlarmType type) {
-        return type == AlarmType.GENERATE 
-            ? AlarmModel.EuGenClearType.GENERATE 
-            : AlarmModel.EuGenClearType.CLEAR;
+    public CspAlarmAdapter(SystemUtilAdapter systemUtilAdapter) {
+        this.systemUtilAdapter = systemUtilAdapter;
     }
     
     @Override
@@ -54,31 +48,40 @@ public class CspAlarmAdapter implements AlarmAdapter {
         }
         
         try {
-            // 使用CSP SDK的AlarmSendManager发送告警
-            AlarmModel.EuGenClearType alarmType = convertAlarmType(type);
-            Alarm alarm = new Alarm(alarmId, alarmType);
+            // 使用反射调用CSP SDK
+            Class<?> alarmModelClass = Class.forName("com.huawei.csp.om.alarmsdk.alarmmodel.AlarmModel");
+            Object alarmType = getAlarmTypeEnum(alarmModelClass, type);
             
-            // 添加系统参数
-            alarm.appendParameter("source", SystemUtil.getStringFromEnv("SERVICENAME"));
-            alarm.appendParameter("kind", "service");
-            alarm.appendParameter("name", SystemUtil.getStringFromEnv("PODNAME"));
-            alarm.appendParameter("namespace", SystemUtil.getStringFromEnv("NAMESPACE"));
+            Class<?> alarmClass = Class.forName("com.huawei.csp.om.alarmsdk.alarmmanager.Alarm");
+            Object alarm = alarmClass.getConstructor(String.class, alarmType.getClass())
+                    .newInstance(alarmId, alarmType);
             
-            // 添加用户自定义参数
+            // 设置默认参数
+            Method appendParameter = alarmClass.getMethod("appendParameter", String.class, String.class);
+            appendParameter.invoke(alarm, "source", systemUtilAdapter.getEnvString("SERVICENAME", "browser-gateway"));
+            appendParameter.invoke(alarm, "kind", "service");
+            appendParameter.invoke(alarm, "name", systemUtilAdapter.getEnvString("PODNAME", "unknown"));
+            appendParameter.invoke(alarm, "namespace", systemUtilAdapter.getEnvString("NAMESPACE", "default"));
+            appendParameter.invoke(alarm, "EventSource", "BrowserGateway Service");
+            appendParameter.invoke(alarm, "OriginalEventTime", String.valueOf(System.currentTimeMillis()));
+            
+            // 设置自定义参数
             if (parameters != null) {
-                parameters.forEach((key, value) -> alarm.appendParameter(key, value));
+                for (Map.Entry<String, String> entry : parameters.entrySet()) {
+                    appendParameter.invoke(alarm, entry.getKey(), entry.getValue());
+                }
             }
             
             // 发送告警
-            boolean success = AlarmSendManager.getInstance().sendAlarm(alarm);
+            Class<?> alarmSendManagerClass = Class.forName("com.huawei.csp.om.alarmsdk.alarmmanager.AlarmSendManager");
+            Method getInstance = alarmSendManagerClass.getMethod("getInstance");
+            Object manager = getInstance.invoke(null);
+            Method sendAlarm = alarmSendManagerClass.getMethod("sendAlarm", alarmClass);
+            Boolean success = (Boolean) sendAlarm.invoke(manager, alarm);
             
             if (success) {
                 lastAlarmTime.put(alarmId, System.currentTimeMillis());
-                logger.info("Alarm sent successfully: {}", alarmId);
-            } else {
-                logger.warn("Failed to send alarm: {}", alarmId);
             }
-            
             return success;
         } catch (Exception e) {
             logger.error("Failed to send alarm {}", alarmId, e);
@@ -93,24 +96,22 @@ public class CspAlarmAdapter implements AlarmAdapter {
         }
         
         try {
-            // 使用CSP SDK清除告警
-            Alarm alarm = new Alarm(alarmId, AlarmModel.EuGenClearType.CLEAR);
+            Class<?> alarmModelClass = Class.forName("com.huawei.csp.om.alarmsdk.alarmmodel.AlarmModel");
+            Object clearType = getAlarmTypeEnum(alarmModelClass, AlarmType.CLEAR);
             
-            // 添加系统参数
-            alarm.appendParameter("source", SystemUtil.getStringFromEnv("SERVICENAME"));
-            alarm.appendParameter("kind", "service");
-            alarm.appendParameter("name", SystemUtil.getStringFromEnv("PODNAME"));
-            alarm.appendParameter("namespace", SystemUtil.getStringFromEnv("NAMESPACE"));
+            Class<?> alarmClass = Class.forName("com.huawei.csp.om.alarmsdk.alarmmanager.Alarm");
+            Object alarm = alarmClass.getConstructor(String.class, clearType.getClass())
+                    .newInstance(alarmId, clearType);
             
-            boolean success = AlarmSendManager.getInstance().sendAlarm(alarm);
+            Class<?> alarmSendManagerClass = Class.forName("com.huawei.csp.om.alarmsdk.alarmmanager.AlarmSendManager");
+            Method getInstance = alarmSendManagerClass.getMethod("getInstance");
+            Object manager = getInstance.invoke(null);
+            Method sendAlarm = alarmSendManagerClass.getMethod("sendAlarm", alarmClass);
+            Boolean success = (Boolean) sendAlarm.invoke(manager, alarm);
             
             if (success) {
                 lastAlarmTime.remove(alarmId);
-                logger.info("Alarm cleared successfully: {}", alarmId);
-            } else {
-                logger.warn("Failed to clear alarm: {}", alarmId);
             }
-            
             return success;
         } catch (Exception e) {
             logger.error("Failed to clear alarm {}", alarmId, e);
@@ -122,7 +123,7 @@ public class CspAlarmAdapter implements AlarmAdapter {
     public int sendAlarmsBatch(List<AlarmRequest> alarms, int maxRetry) {
         int successCount = 0;
         for (AlarmRequest alarm : alarms) {
-            boolean success = sendAlarm(alarm.getAlarmId(), alarm.getType(), alarm.getParameters());
+            boolean success = sendAlarmWithRetry(alarm, maxRetry);
             if (success) {
                 successCount++;
             }
@@ -133,49 +134,64 @@ public class CspAlarmAdapter implements AlarmAdapter {
     @Override
     public List<AlarmInfo> queryHistoricalAlarms(List<String> alarmIds) {
         try {
-            // 使用CSP SDK查询历史告警
-            if (alarmIds == null || alarmIds.isEmpty()) {
-                return new ArrayList<>();
-            }
+            String appId = systemUtilAdapter.getEnvString("appId", "0");
+            String jsonParam = String.format("{\"cmd\":\"GET_ACTIVE_ALARMS\",\"language\":\"en-us\",\"data\":{\"appId\":\"%s\",\"alarmIds\":\"%s\"}}",
+                    appId, String.join(",", alarmIds));
             
-            // 构建查询参数
-            String alarmIdsStr = String.join(",", alarmIds);
-            String appId = SystemUtil.getStringFromEnv("APPID");
-            if (appId == null || appId.isEmpty()) {
-                appId = "0";
-            }
+            // 使用反射创建RestTemplate
+            Class<?> restTemplateBuilderClass = Class.forName("com.huawei.csp.jsf.api.CspRestTemplateBuilder");
+            Method create = restTemplateBuilderClass.getMethod("create");
+            RestTemplate restTemplate = (RestTemplate) create.invoke(null);
             
-            String jsonParam = String.format(
-                "{\"cmd\":\"GET_ACTIVE_ALARMS\",\"language\":\"en-us\",\"data\":{\"appId\":\"%s\",\"alarmIds\":\"%s\"}}",
-                appId, alarmIdsStr
-            );
-            
-            // 使用CSP RestTemplate创建HTTP客户端
-            RestTemplate restTemplate = CspRestTemplateBuilder.create();
             HttpEntity<String> requestEntity = new HttpEntity<>(jsonParam);
-            ResponseEntity<String> response = restTemplate.exchange(
-                GETALARMINTERFACE, HttpMethod.POST, requestEntity, String.class
-            );
+            ResponseEntity<String> response = restTemplate.exchange(GET_ALARM_INTERFACE, HttpMethod.POST, requestEntity, String.class);
             
-            int statusCode = response.getStatusCodeValue();
-            if (HttpStatus.OK.value() != statusCode) {
-                logger.error("Query historical alarms failed, status: {}, response: {}", statusCode, response.getBody());
+            if (response.getStatusCodeValue() == HttpStatus.OK.value()) {
+                // 解析响应并转换为AlarmInfo列表
+                // 这里需要根据实际响应格式进行解析
                 return new ArrayList<>();
             }
-            
-            // 解析响应
-            String message = response.getBody();
-            logger.info("Query historical alarms response: {}", message);
-            
-            // 解析告警数据（根据实际响应格式解析）
-            List<AlarmInfo> alarmInfoList = new ArrayList<>();
-            // TODO: 根据实际响应格式解析AlarmInfo列表
-            // 这里需要根据实际的响应格式进行解析
-            
-            return alarmInfoList;
+            return new ArrayList<>();
         } catch (Exception e) {
             logger.error("Failed to query historical alarms", e);
             return new ArrayList<>();
+        }
+    }
+    
+    private boolean sendAlarmWithRetry(AlarmRequest alarm, int maxRetry) {
+        int maxRetryCount = alarm.getMaxRetry() != null ? alarm.getMaxRetry() : maxRetry;
+        int retryCount = 0;
+        long retryDelay = 5000L; // 5秒
+        
+        while (retryCount < maxRetryCount) {
+            try {
+                if (sendAlarm(alarm.getAlarmId(), alarm.getType(), alarm.getParameters())) {
+                    return true;
+                }
+            } catch (Exception e) {
+                logger.error("Failed to send alarm {} on attempt {}/{}", 
+                    alarm.getAlarmId(), retryCount + 1, maxRetryCount, e);
+            }
+            
+            retryCount++;
+            if (retryCount < maxRetryCount) {
+                try {
+                    Thread.sleep(retryDelay);
+                } catch (InterruptedException ie) {
+                    Thread.currentThread().interrupt();
+                    break;
+                }
+            }
+        }
+        return false;
+    }
+    
+    private Object getAlarmTypeEnum(Class<?> alarmModelClass, AlarmType type) throws Exception {
+        Class<?> enumClass = Class.forName("com.huawei.csp.om.alarmsdk.alarmmodel.AlarmModel$EuGenClearType");
+        if (type == AlarmType.GENERATE) {
+            return Enum.valueOf((Class<Enum>) enumClass, "GENERATE");
+        } else {
+            return Enum.valueOf((Class<Enum>) enumClass, "CLEAR");
         }
     }
 }

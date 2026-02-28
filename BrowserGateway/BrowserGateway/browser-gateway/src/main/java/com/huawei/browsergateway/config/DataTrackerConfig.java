@@ -1,8 +1,8 @@
 package com.huawei.browsergateway.config;
 
-import com.huawei.browsergateway.common.Constants;
+import com.huawei.browsergateway.common.Constant;
 import com.huawei.browsergateway.service.IRemote;
-import com.huawei.browsergateway.service.impl.DataSizeTracker;
+import com.huawei.browsergateway.tcpserver.DataSizeTracker;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -20,11 +20,11 @@ public class DataTrackerConfig {
 
     @Bean
     public DataSizeTracker mediaDataSizeTracker() {
-        return new DataSizeTracker(remote, Constants.TCP_MEDIA);
+        return new DataSizeTracker(remote, Constant.TCP_MEDIA);
     }
 
     @Bean
     public DataSizeTracker controlDataSizeTracker() {
-        return new DataSizeTracker(remote, Constants.TCP_CONTROL);
+        return new DataSizeTracker(remote, Constant.TCP_CONTROL);
     }
 }

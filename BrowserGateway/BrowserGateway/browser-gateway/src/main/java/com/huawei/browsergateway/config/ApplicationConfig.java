@@ -3,6 +3,7 @@ package com.huawei.browsergateway.config;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.support.PropertySourcesPlaceholderConfigurer;
+import org.springframework.core.io.ClassPathResource;
 import org.springframework.core.io.FileSystemResource;
 import org.springframework.core.io.Resource;
 import org.springframework.beans.factory.config.YamlPropertiesFactoryBean;
@@ -27,47 +28,24 @@ public class ApplicationConfig {
      */
     @Bean
     public static PropertySourcesPlaceholderConfigurer propertySourcesPlaceholderConfigurer() {
-        try {
-            String osName = System.getProperty("os.name").toLowerCase();
-            String jarPath = new File(ApplicationConfig.class.getProtectionDomain()
-                    .getCodeSource().getLocation().getPath()).getParent();
-            
-            String configPath;
-            if (osName.contains("win")) {
-                // Windows环境：从jar路径的上级目录的src/main/resources加载
-                configPath = Paths.get(jarPath, "..", "src", "main", "resources")
-                        .resolve("application.yaml").toString();
-            } else {
-                // Linux环境：从jar路径的conf目录加载
-                configPath = Paths.get(jarPath, "conf").resolve("application.yaml").toString();
-            }
-            
-            Resource fileResource = new FileSystemResource(configPath);
-            
-            // 如果配置文件不存在，使用默认配置（从classpath加载）
-            if (!fileResource.exists()) {
-                PropertySourcesPlaceholderConfigurer configurer = new PropertySourcesPlaceholderConfigurer();
-                configurer.setIgnoreResourceNotFound(true);
-                return configurer;
-            }
-            
-            // 使用YamlPropertiesFactoryBean加载YAML配置并转换为Properties
-            YamlPropertiesFactoryBean yaml = new YamlPropertiesFactoryBean();
-            yaml.setResources(fileResource);
-            Properties properties = yaml.getObject();
-            
-            PropertySourcesPlaceholderConfigurer configurer = new PropertySourcesPlaceholderConfigurer();
-            configurer.setLocation(fileResource);
-            configurer.setProperties(properties);
-            configurer.setIgnoreResourceNotFound(false);
-            
-            return configurer;
-            
-        } catch (Exception e) {
-            // 如果加载失败，返回默认配置器（使用classpath配置）
-            PropertySourcesPlaceholderConfigurer configurer = new PropertySourcesPlaceholderConfigurer();
-            configurer.setIgnoreResourceNotFound(true);
-            return configurer;
-        }
+        String jarPath = new File(ApplicationConfig.class.getProtectionDomain().
+                getCodeSource().getLocation().getPath()).getParent();
+        String ap = Paths.get(jarPath, "conf").resolve("application.yaml").toString();
+        Resource fileResource = new FileSystemResource(ap);
+        Resource classpathResource = new ClassPathResource("application.yaml");
+        Resource[] resources = fileResource.exists() ? new Resource[] { fileResource } : new Resource[] { classpathResource };
+
+        System.out.println("------------------ application.yaml path is " + (fileResource.exists() ? ap : "classpath:application.yaml"));
+
+        YamlPropertiesFactoryBean yaml = new YamlPropertiesFactoryBean();
+        yaml.setResources(resources);
+        Properties properties = yaml.getObject();
+
+        System.out.println("------------------ application.yaml content is " + properties);
+
+        PropertySourcesPlaceholderConfigurer configurer = new PropertySourcesPlaceholderConfigurer();
+        configurer.setLocation(fileResource.exists() ? fileResource : classpathResource);
+        configurer.setProperties(properties);
+        return configurer;
     }
 }

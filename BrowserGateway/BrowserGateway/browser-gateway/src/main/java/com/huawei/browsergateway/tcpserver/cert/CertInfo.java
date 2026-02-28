@@ -1,43 +1,63 @@
 package com.huawei.browsergateway.tcpserver.cert;
+import org.bouncycastle.asn1.pkcs.PrivateKeyInfo;
+import org.bouncycastle.jce.provider.BouncyCastleProvider;
+import org.bouncycastle.openssl.PEMDecryptorProvider;
+import org.bouncycastle.openssl.PEMEncryptedKeyPair;
+import org.bouncycastle.openssl.PEMKeyPair;
+import org.bouncycastle.openssl.PEMParser;
+import org.bouncycastle.openssl.jcajce.JcaPEMKeyConverter;
+import org.bouncycastle.openssl.jcajce.JcePEMDecryptorProviderBuilder;
+import org.bouncycastle.util.io.pem.PemObject;
+import org.bouncycastle.util.io.pem.PemWriter;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import java.io.*;
+import java.security.PrivateKey;
+import java.security.Security;
 
-import java.util.concurrent.locks.ReadWriteLock;
-import java.util.concurrent.locks.ReentrantReadWriteLock;
-
-/**
- * 证书信息单例类
- * 用于存储和管理证书信息，支持线程安全的读写操作
- */
 public class CertInfo {
-    
-    private static final Logger log = LoggerFactory.getLogger(CertInfo.class);
-    
-    private static volatile CertInfo instance;
-    private static final ReadWriteLock lock = new ReentrantReadWriteLock();
-    
-    private String caContent;
-    private String deviceContent;
-    private String privateKey;
-    private long lastUpdateTime;
-    
-    /**
-     * 私有构造函数，防止外部实例化
-     */
-    private CertInfo() {
-        this.caContent = "";
-        this.deviceContent = "";
-        this.privateKey = "";
-        this.lastUpdateTime = 0L;
+    private static CertInfo instance;
+
+    private static String caContent = "" ;
+    private static String deviceContent = "" ;
+    private static String keyContent = "";
+    private static String keypwd = "" ;
+
+
+    public static synchronized void SetCaContent(String c) {
+        if (c == null) {
+            return;
+        }
+        caContent = c;
+    }
+    public static synchronized void SetDeviceContent(String deviceContent, String keyContent, String keypwd) {
+        if (deviceContent == null || keyContent == null) {
+            return;
+        }
+        CertInfo.deviceContent = deviceContent;
+        CertInfo.keyContent = keyContent;
+        CertInfo.keypwd = keypwd != null ? keypwd : "";
     }
     
-    /**
-     * 获取单例实例（双重检查锁定）
-     * 
-     * @return CertInfo实例
-     */
-    public static CertInfo getInstance() {
+    // 保留原方法签名以兼容CSP模式（通过反射调用）
+    public static synchronized void SetDeviceContent(Object cert) {
+        // 在custom模式下，此方法不会被调用
+        // 如果需要支持，可以通过反射获取字段值
+    }
+
+    public InputStream Ca() {
+        return new ByteArrayInputStream(caContent.getBytes());
+    }
+
+    public InputStream Device() {
+        return new ByteArrayInputStream(deviceContent.getBytes());
+    }
+
+    public InputStream Key() throws IOException {
+        PrivateKey privateKey = loadEncryptedPrivateKey(keyContent, keypwd.toCharArray());
+        return convertPkcs1ToPkcs8Stream(privateKey);
+    }
+
+    public static synchronized CertInfo getInstance() {
         if (instance == null) {
             synchronized (CertInfo.class) {
                 if (instance == null) {
@@ -47,159 +67,43 @@ public class CertInfo {
         }
         return instance;
     }
-    
-    /**
-     * 获取CA证书内容
-     * 
-     * @return CA证书内容
-     */
-    public String getCaContent() {
-        lock.readLock().lock();
-        try {
-            return caContent;
-        } finally {
-            lock.readLock().unlock();
+
+    public boolean isCertReady() {
+        return !caContent.isEmpty() && !keyContent.isEmpty();
+    }
+
+    private static PrivateKey loadEncryptedPrivateKey(String pemFile, char[] paasword) throws IOException {
+        Security.addProvider(new BouncyCastleProvider());
+        try (
+                Reader reader = new StringReader(pemFile);
+                PEMParser parser = new PEMParser(reader)) {
+            Object obj = parser.readObject();
+            JcaPEMKeyConverter converter = new JcaPEMKeyConverter().setProvider("BC");
+            PEMKeyPair keyPair;
+            if (obj instanceof PEMEncryptedKeyPair) {
+                PEMEncryptedKeyPair encryptedKeyPair = (PEMEncryptedKeyPair) obj;
+                if (paasword == null || paasword.length == 0) {
+                    throw new IllegalArgumentException("need paasword to encrypt the privateKey");
+                }
+                PEMDecryptorProvider decProv = new JcePEMDecryptorProviderBuilder().build(paasword);
+                keyPair = encryptedKeyPair.decryptKeyPair(decProv);
+            } else if (obj instanceof PEMKeyPair) {
+                keyPair = (PEMKeyPair) obj;
+            } else {
+                throw new IllegalArgumentException("Unsupported PEM object: " + obj);
+            }
+            return converter.getKeyPair(keyPair).getPrivate();
         }
     }
-    
-    /**
-     * 设置CA证书内容
-     * 
-     * @param caContent CA证书内容
-     */
-    public void setCaContent(String caContent) {
-        lock.writeLock().lock();
-        try {
-            this.caContent = caContent != null ? caContent : "";
-            this.lastUpdateTime = System.currentTimeMillis();
-            log.debug("CA证书内容已更新，时间戳: {}", this.lastUpdateTime);
-        } finally {
-            lock.writeLock().unlock();
+
+    private static InputStream convertPkcs1ToPkcs8Stream(PrivateKey privateKey) throws IOException {
+        PrivateKeyInfo pkInfo = PrivateKeyInfo.getInstance(privateKey.getEncoded());
+        byte[] der = pkInfo.getEncoded();
+        PemObject pemObject = new PemObject("PRIVATE KEY", der); // PKCS#8 标签
+        StringWriter sw = new StringWriter();
+        try (PemWriter pemWriter = new PemWriter(sw)) {
+            pemWriter.writeObject(pemObject);
         }
-    }
-    
-    /**
-     * 获取设备证书内容
-     * 
-     * @return 设备证书内容
-     */
-    public String getDeviceContent() {
-        lock.readLock().lock();
-        try {
-            return deviceContent;
-        } finally {
-            lock.readLock().unlock();
-        }
-    }
-    
-    /**
-     * 设置设备证书内容
-     * 
-     * @param deviceContent 设备证书内容
-     */
-    public void setDeviceContent(String deviceContent) {
-        lock.writeLock().lock();
-        try {
-            this.deviceContent = deviceContent != null ? deviceContent : "";
-            this.lastUpdateTime = System.currentTimeMillis();
-            log.debug("设备证书内容已更新，时间戳: {}", this.lastUpdateTime);
-        } finally {
-            lock.writeLock().unlock();
-        }
-    }
-    
-    /**
-     * 获取私钥内容
-     * 
-     * @return 私钥内容
-     */
-    public String getPrivateKey() {
-        lock.readLock().lock();
-        try {
-            return privateKey;
-        } finally {
-            lock.readLock().unlock();
-        }
-    }
-    
-    /**
-     * 设置私钥内容
-     * 
-     * @param privateKey 私钥内容
-     */
-    public void setPrivateKey(String privateKey) {
-        lock.writeLock().lock();
-        try {
-            this.privateKey = privateKey != null ? privateKey : "";
-            this.lastUpdateTime = System.currentTimeMillis();
-            log.debug("私钥内容已更新，时间戳: {}", this.lastUpdateTime);
-        } finally {
-            lock.writeLock().unlock();
-        }
-    }
-    
-    /**
-     * 获取最后更新时间
-     * 
-     * @return 最后更新时间（毫秒时间戳）
-     */
-    public long getLastUpdateTime() {
-        lock.readLock().lock();
-        try {
-            return lastUpdateTime;
-        } finally {
-            lock.readLock().unlock();
-        }
-    }
-    
-    /**
-     * 检查证书是否就绪
-     * 
-     * @return 证书是否就绪
-     */
-    public boolean isReady() {
-        lock.readLock().lock();
-        try {
-            return caContent != null && !caContent.isEmpty() 
-                && deviceContent != null && !deviceContent.isEmpty();
-        } finally {
-            lock.readLock().unlock();
-        }
-    }
-    
-    /**
-     * 更新所有证书信息
-     * 
-     * @param caContent CA证书内容
-     * @param deviceContent 设备证书内容
-     * @param privateKey 私钥内容
-     */
-    public void updateAll(String caContent, String deviceContent, String privateKey) {
-        lock.writeLock().lock();
-        try {
-            this.caContent = caContent != null ? caContent : "";
-            this.deviceContent = deviceContent != null ? deviceContent : "";
-            this.privateKey = privateKey != null ? privateKey : "";
-            this.lastUpdateTime = System.currentTimeMillis();
-            log.info("所有证书信息已更新，时间戳: {}", this.lastUpdateTime);
-        } finally {
-            lock.writeLock().unlock();
-        }
-    }
-    
-    /**
-     * 清空所有证书信息
-     */
-    public void clear() {
-        lock.writeLock().lock();
-        try {
-            this.caContent = "";
-            this.deviceContent = "";
-            this.privateKey = "";
-            this.lastUpdateTime = 0L;
-            log.info("证书信息已清空");
-        } finally {
-            lock.writeLock().unlock();
-        }
+        return new ByteArrayInputStream(sw.toString().getBytes());
     }
 }

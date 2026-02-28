@@ -1,7 +1,7 @@
 package com.huawei.browsergateway.service;
 
-import com.huawei.browsergateway.entity.browser.UserChrome;
 import com.huawei.browsergateway.entity.request.InitBrowserRequest;
+import com.huawei.browsergateway.service.impl.UserChrome;
 
 import java.util.Set;
 
@@ -24,6 +24,11 @@ public interface IChromeSet {
      * 删除用户浏览器实例
      */
     void delete(String userId);
+    
+    /**
+     * 为重启删除实例
+     */
+    void deleteForRestart(String userId);
     
     /**
      * 删除所有实例

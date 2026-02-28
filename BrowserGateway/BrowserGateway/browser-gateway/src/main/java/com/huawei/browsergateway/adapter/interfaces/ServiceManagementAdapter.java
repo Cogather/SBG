@@ -27,10 +27,12 @@ public interface ServiceManagementAdapter {
     
     /**
      * 查找服务实例
+     * @param applicationId 应用ID
      * @param serviceName 服务名称
+     * @param version 服务版本
      * @return 服务实例列表
      */
-    List<ServiceInstance> findServiceInstances(String serviceName);
+    List<ServiceInstance> findServiceInstances(String applicationId, String serviceName, String version);
     
     /**
      * 获取当前服务实例信息

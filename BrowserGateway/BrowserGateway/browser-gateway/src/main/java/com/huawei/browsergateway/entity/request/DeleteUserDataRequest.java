@@ -1,5 +1,6 @@
 package com.huawei.browsergateway.entity.request;
 
+import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Data;
 
 /**
@@ -7,6 +8,8 @@ import lombok.Data;
  */
 @Data
 public class DeleteUserDataRequest {
+    @Schema(description = "imsi", example = "用户设备imsi号")
     private String imei;
+    @Schema(description = "imei", example = "用户设备imei")
     private String imsi;
 }

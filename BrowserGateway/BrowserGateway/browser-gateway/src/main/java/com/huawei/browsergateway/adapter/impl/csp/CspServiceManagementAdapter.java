@@ -2,25 +2,21 @@ package com.huawei.browsergateway.adapter.impl.csp;
 
 import com.huawei.browsergateway.adapter.dto.ServiceInstance;
 import com.huawei.browsergateway.adapter.interfaces.ServiceManagementAdapter;
-import com.huawei.csp.csejsdk.common.utils.ServiceUtils;
-import org.apache.servicecomb.registry.api.registry.MicroserviceInstance;
-import org.apache.servicecomb.registry.api.registry.MicroserviceInstanceStatus;
-import org.apache.servicecomb.serviceregistry.RegistryUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
-import java.net.URI;
-import java.net.URISyntaxException;
+import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
 /**
  * 服务管理适配器 - CSP SDK实现
- * 适用场景：内网环境，使用ServiceComb的服务注册发现
  */
-@Component
+@Component("cspServiceManagementAdapter")
+@ConditionalOnProperty(name = "adapter.provider.type", havingValue = "CSP_SDK", matchIfMissing = true)
 public class CspServiceManagementAdapter implements ServiceManagementAdapter {
     
     private static final Logger logger = LoggerFactory.getLogger(CspServiceManagementAdapter.class);
@@ -28,16 +24,12 @@ public class CspServiceManagementAdapter implements ServiceManagementAdapter {
     @Override
     public boolean reportInstanceProperties(Map<String, String> properties) {
         try {
-            // 使用CSP SDK的ServiceUtils上报属性
-            boolean success = ServiceUtils.putInstanceProperties(properties);
-            if (success) {
-                logger.info("Instance properties reported successfully: {}", properties.keySet());
-            } else {
-                logger.warn("Failed to report instance properties");
-            }
-            return success;
+            Class<?> serviceUtilsClass = Class.forName("com.huawei.csp.csejsdk.common.utils.ServiceUtils");
+            Method putInstanceProperties = serviceUtilsClass.getMethod("putInstanceProperties", Map.class);
+            Boolean result = (Boolean) putInstanceProperties.invoke(null, properties);
+            return result != null && result;
         } catch (Exception e) {
-            logger.error("Failed to report instance properties", e);
+            logger.error("Failed to report instance properties via CSP SDK", e);
             return false;
         }
     }
@@ -45,39 +37,38 @@ public class CspServiceManagementAdapter implements ServiceManagementAdapter {
     @Override
     public String getInstanceProperty(String key) {
         try {
-            // 使用CSP SDK获取实例属性
-            return ServiceUtils.getInstanceProperty(key);
+            Class<?> serviceUtilsClass = Class.forName("com.huawei.csp.csejsdk.common.utils.ServiceUtils");
+            Method getInstanceProperty = serviceUtilsClass.getMethod("getInstanceProperty", String.class);
+            return (String) getInstanceProperty.invoke(null, key);
         } catch (Exception e) {
-            logger.error("Failed to get instance property: {}", key, e);
+            logger.error("Failed to get instance property via CSP SDK", e);
             return null;
         }
     }
     
     @Override
-    public List<ServiceInstance> findServiceInstances(String serviceName) {
+    public List<ServiceInstance> findServiceInstances(String applicationId, String serviceName, String version) {
         try {
-            // 使用CSP SDK的RegistryUtils查找服务实例
-            List<MicroserviceInstance> instances = RegistryUtils.findServiceInstance("0", serviceName, "0+");
+            Class<?> registryUtilsClass = Class.forName("org.apache.servicecomb.serviceregistry.RegistryUtils");
+            Method findServiceInstance = registryUtilsClass.getMethod("findServiceInstance", 
+                    String.class, String.class, String.class);
+            @SuppressWarnings("unchecked")
+            List<Object> instances = (List<Object>) findServiceInstance.invoke(null, applicationId, serviceName, version);
             
-            List<ServiceInstance> serviceInstances = new ArrayList<>();
-            if (instances != null) {
-                for (MicroserviceInstance instance : instances) {
-                    // 只返回状态为UP的实例
-                    if (instance.getStatus() != MicroserviceInstanceStatus.UP) {
-                        continue;
-                    }
-                    
-                    ServiceInstance serviceInstance = convertToServiceInstance(instance);
-                    if (serviceInstance != null) {
-                        serviceInstances.add(serviceInstance);
-                    }
-                }
+            if (instances == null) {
+                return new ArrayList<>();
             }
             
-            logger.info("Found {} service instances for service: {}", serviceInstances.size(), serviceName);
-            return serviceInstances;
+            List<ServiceInstance> result = new ArrayList<>();
+            for (Object instance : instances) {
+                ServiceInstance si = convertToServiceInstance(instance);
+                if (si != null) {
+                    result.add(si);
+                }
+            }
+            return result;
         } catch (Exception e) {
-            logger.error("Failed to find service instances: {}", serviceName, e);
+            logger.error("Failed to find service instances via CSP SDK", e);
             return new ArrayList<>();
         }
     }
@@ -85,71 +76,79 @@ public class CspServiceManagementAdapter implements ServiceManagementAdapter {
     @Override
     public ServiceInstance getCurrentInstance() {
         try {
-            // 使用CSP SDK获取当前实例
-            MicroserviceInstance instance = RegistryUtils.getMicroserviceInstance();
-            if (instance != null) {
-                return convertToServiceInstance(instance);
-            }
-            return null;
+            Class<?> registryUtilsClass = Class.forName("org.apache.servicecomb.serviceregistry.RegistryUtils");
+            Method getMicroserviceInstance = registryUtilsClass.getMethod("getMicroserviceInstance");
+            Object instance = getMicroserviceInstance.invoke(null);
+            
+            return convertToServiceInstance(instance);
         } catch (Exception e) {
-            logger.error("Failed to get current instance", e);
+            logger.error("Failed to get current instance via CSP SDK", e);
             return null;
         }
     }
     
     @Override
     public boolean registerRestService(String schemaId, Object serviceInstance) {
-        try {
-            // REST服务通过@RestSchema注解自动注册，这里仅记录日志
-            // @RestSchema注解会在Spring启动时自动处理服务注册
-            logger.info("REST service registered: {}", schemaId);
-            return true;
-        } catch (Exception e) {
-            logger.error("Failed to register REST service: {}", schemaId, e);
-            return false;
-        }
+        // REST服务通过@RestSchema注解自动注册，这里返回true表示支持
+        logger.info("REST service registration is handled by @RestSchema annotation");
+        return true;
     }
     
-    /**
-     * 将CSP SDK的MicroserviceInstance转换为ServiceInstance
-     */
-    private ServiceInstance convertToServiceInstance(MicroserviceInstance instance) {
+    private ServiceInstance convertToServiceInstance(Object instance) {
         if (instance == null) {
             return null;
         }
         
-        ServiceInstance serviceInstance = new ServiceInstance();
-        serviceInstance.setInstanceId(instance.getInstanceId());
-        serviceInstance.setServiceName(instance.getServiceName());
-        
-        // 转换状态
-        if (instance.getStatus() == MicroserviceInstanceStatus.UP) {
-            serviceInstance.setStatus(ServiceInstance.InstanceStatus.UP);
-        } else if (instance.getStatus() == MicroserviceInstanceStatus.DOWN) {
-            serviceInstance.setStatus(ServiceInstance.InstanceStatus.DOWN);
-        } else if (instance.getStatus() == MicroserviceInstanceStatus.STARTING) {
-            serviceInstance.setStatus(ServiceInstance.InstanceStatus.STARTING);
-        } else {
-            serviceInstance.setStatus(ServiceInstance.InstanceStatus.OUT_OF_SERVICE);
-        }
-        
-        // 解析端点信息
-        List<String> endpoints = instance.getEndpoints();
-        if (endpoints != null && !endpoints.isEmpty()) {
-            try {
-                String endpoint = endpoints.get(0);
-                URI uri = new URI(endpoint);
-                serviceInstance.setHost(uri.getHost());
-                serviceInstance.setPort(uri.getPort());
-                serviceInstance.setProtocol(uri.getScheme());
-            } catch (URISyntaxException e) {
-                logger.warn("Failed to parse endpoint: {}", endpoints.get(0), e);
+        try {
+            ServiceInstance si = new ServiceInstance();
+            
+            // 使用反射获取字段值
+            Method getInstanceId = instance.getClass().getMethod("getInstanceId");
+            Method getServiceName = instance.getClass().getMethod("getServiceName");
+            Method getEndpoints = instance.getClass().getMethod("getEndpoints");
+            Method getStatus = instance.getClass().getMethod("getStatus");
+            Method getProperties = instance.getClass().getMethod("getProperties");
+            
+            si.setInstanceId((String) getInstanceId.invoke(instance));
+            si.setServiceName((String) getServiceName.invoke(instance));
+            @SuppressWarnings("unchecked")
+            List<String> endpoints = (List<String>) getEndpoints.invoke(instance);
+            si.setEndpoints(endpoints);
+            
+            // 转换状态
+            Object status = getStatus.invoke(instance);
+            if (status != null) {
+                String statusStr = status.toString();
+                try {
+                    si.setStatus(ServiceInstance.InstanceStatus.valueOf(statusStr));
+                } catch (IllegalArgumentException e) {
+                    si.setStatus(ServiceInstance.InstanceStatus.UP);
+                }
             }
+            
+            @SuppressWarnings("unchecked")
+            Map<String, String> properties = (Map<String, String>) getProperties.invoke(instance);
+            si.setProperties(properties);
+            
+            // 从endpoints解析host和port
+            if (endpoints != null && !endpoints.isEmpty()) {
+                String endpoint = endpoints.get(0);
+                if (endpoint != null && endpoint.startsWith("http")) {
+                    try {
+                        java.net.URI uri = new java.net.URI(endpoint);
+                        si.setHost(uri.getHost());
+                        si.setPort(uri.getPort());
+                        si.setProtocol(uri.getScheme());
+                    } catch (Exception e) {
+                        logger.warn("Failed to parse endpoint: {}", endpoint, e);
+                    }
+                }
+            }
+            
+            return si;
+        } catch (Exception e) {
+            logger.error("Failed to convert instance to ServiceInstance", e);
+            return null;
         }
-        
-        // 设置属性
-        serviceInstance.setProperties(instance.getProperties());
-        
-        return serviceInstance;
     }
 }

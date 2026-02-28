@@ -6,6 +6,7 @@ import com.huawei.browsergateway.adapter.interfaces.AlarmAdapter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
 import java.io.FileWriter;
@@ -16,12 +17,14 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * 告警适配器 - 自定义实现
  * 适用场景：外网环境，将告警写入本地日志文件或发送到监控系统
  */
-@Component
+@Component("customAlarmAdapter")
+@ConditionalOnProperty(name = "adapter.provider.type", havingValue = "CUSTOM")
 public class CustomAlarmAdapter implements AlarmAdapter {
     
     private static final Logger logger = LoggerFactory.getLogger(CustomAlarmAdapter.class);
@@ -29,6 +32,7 @@ public class CustomAlarmAdapter implements AlarmAdapter {
     private static final long ALARM_DEDUPE_INTERVAL = 10 * 60 * 1000;
     
     private final Map<String, Long> lastAlarmTime = new ConcurrentHashMap<>();
+    private final AtomicInteger alarmCounter = new AtomicInteger(0);
     
     @Value("${adapter.custom.alarm.log-path:/tmp/browsergw_alarms.log}")
     private String logFilePath;
@@ -51,6 +55,7 @@ public class CustomAlarmAdapter implements AlarmAdapter {
             
             // 更新最后发送时间
             lastAlarmTime.put(alarmId, System.currentTimeMillis());
+            alarmCounter.incrementAndGet();
             
             return true;
         } catch (Exception e) {

@@ -3,118 +3,65 @@ package com.huawei.browsergateway.adapter.impl.csp;
 import com.huawei.browsergateway.adapter.dto.CertScene;
 import com.huawei.browsergateway.adapter.dto.CertUpdateCallback;
 import com.huawei.browsergateway.adapter.interfaces.CertificateAdapter;
-import com.huawei.csp.certsdk.certapiImpl.CertMgrApi;
-import com.huawei.csp.certsdk.certapiImpl.CertMgrApiImpl;
-import com.huawei.csp.certsdk.certapiImpl.ExCertMgrApi;
-import com.huawei.csp.certsdk.certapiImpl.ExCertMgrApiImpl;
-import com.huawei.csp.certsdk.enums.SceneType;
-import com.huawei.csp.certsdk.handler.IExCertHandler;
-import com.huawei.csp.certsdk.pojo.ExCertEntity;
-import com.huawei.csp.certsdk.pojo.ExCertInfo;
-import com.huawei.csp.certsdk.pojo.SubscribeEntity;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
+import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
  * 证书适配器 - CSP SDK实现
- * 适用场景：内网环境，从CSP证书中心订阅
  */
-@Component
+@Component("cspCertificateAdapter")
+@ConditionalOnProperty(name = "adapter.provider.type", havingValue = "CSP_SDK", matchIfMissing = true)
 public class CspCertificateAdapter implements CertificateAdapter {
     
     private static final Logger logger = LoggerFactory.getLogger(CspCertificateAdapter.class);
     
-    private volatile String caContent = "";
-    private volatile String deviceContent = "";
-    private volatile String privateKey = "";
-    
+    private String caContent = "";
+    private String deviceContent = "";
+    private String privateKey = "";
     private final List<CertUpdateCallback> callbacks = new CopyOnWriteArrayList<>();
     
     @Override
     public boolean subscribeCertificates(String serviceName, List<CertScene> certScenes, 
-        String certPath, CertUpdateCallback callback) {
+            String certPath, CertUpdateCallback callback) {
         try {
             // 初始化证书SDK
-            CertMgrApi certMgrApi = CertMgrApiImpl.getCertMgrApi();
-            certMgrApi.certSDKInit();
+            Class<?> certMgrApiImplClass = Class.forName("com.huawei.csp.certsdk.certapiImpl.CertMgrApiImpl");
+            Method getCertMgrApi = certMgrApiImplClass.getMethod("getCertMgrApi");
+            Object certMgrApi = getCertMgrApi.invoke(null);
+            Method certSDKInit = certMgrApi.getClass().getMethod("certSDKInit");
+            certSDKInit.invoke(certMgrApi);
             
-            // 构建订阅实体列表
-            ArrayList<SubscribeEntity> certList = new ArrayList<>();
-            for (CertScene scene : certScenes) {
-                SubscribeEntity entity = new SubscribeEntity();
-                entity.setSceneName(scene.getSceneName());
-                entity.setSceneDescCN(scene.getSceneDescCN());
-                entity.setSceneDescEN(scene.getSceneDescEN());
-                
-                // 转换场景类型
-                if (scene.getSceneType() == CertScene.SceneType.CA) {
-                    entity.setSceneType(SceneType.CA);
-                } else if (scene.getSceneType() == CertScene.SceneType.DEVICE) {
-                    entity.setSceneType(SceneType.DEVICE);
-                }
-                
-                entity.setFeature(scene.getFeature());
-                certList.add(entity);
-            }
+            // 订阅证书
+            Class<?> exCertMgrApiImplClass = Class.forName("com.huawei.csp.certsdk.certapiImpl.ExCertMgrApiImpl");
+            Method getExCertMgrApi = exCertMgrApiImplClass.getMethod("getExCertMgrApi");
+            Object exCertMgrApi = getExCertMgrApi.invoke(null);
             
-            // 注册回调
-            if (callback != null) {
+            // 转换CertScene到SubscribeEntity
+            List<Object> subscribeEntities = convertToSubscribeEntities(certScenes);
+            
+            // 创建证书处理器
+            Object handler = createCertHandler(callback);
+            
+            Method subscribeExCert = exCertMgrApi.getClass().getMethod("subscribeExCert", 
+                    String.class, List.class, 
+                    Class.forName("com.huawei.csp.certsdk.handler.IExCertHandler"), 
+                    String.class);
+            Boolean result = (Boolean) subscribeExCert.invoke(exCertMgrApi, serviceName, subscribeEntities, handler, certPath);
+            
+            if (result && callback != null) {
                 callbacks.add(callback);
             }
             
-            // 实现证书变更处理器
-            IExCertHandler handler = new IExCertHandler() {
-                @Override
-                public void handle(ExCertInfo certInfo) {
-                    logger.info("Certificate updated, sceneName: {}, key: {}", 
-                        certInfo.getKey(), certInfo.getKey());
-                    
-                    // 更新证书内容
-                    if (certInfo.getCaContent() != null && !certInfo.getCaContent().isEmpty()) {
-                        caContent = certInfo.getCaContent();
-                        logger.info("CA certificate content updated");
-                    }
-                    
-                    if (certInfo.getExCertEntity() != null) {
-                        ExCertEntity exCertEntity = certInfo.getExCertEntity();
-                        if (exCertEntity.getDeviceContent() != null) {
-                            deviceContent = exCertEntity.getDeviceContent();
-                        }
-                        if (exCertEntity.getPrivateKeyContent() != null) {
-                            privateKey = exCertEntity.getPrivateKeyContent();
-                        }
-                        logger.info("Device certificate content updated");
-                    }
-                    
-                    // 触发所有注册的回调
-                    for (CertUpdateCallback cb : callbacks) {
-                        try {
-                            cb.onCertificateUpdate(caContent, deviceContent);
-                        } catch (Exception e) {
-                            logger.error("Error in certificate update callback", e);
-                        }
-                    }
-                }
-            };
-            
-            // 订阅证书
-            ExCertMgrApi exCertMgrApi = ExCertMgrApiImpl.getExCertMgrApi();
-            boolean success = exCertMgrApi.subscribeExCert(serviceName, certList, handler, certPath);
-            
-            if (success) {
-                logger.info("Certificate subscription successful for service: {}", serviceName);
-            } else {
-                logger.error("Certificate subscription failed for service: {}", serviceName);
-            }
-            
-            return success;
+            return result != null && result;
         } catch (Exception e) {
-            logger.error("Failed to subscribe certificates", e);
+            logger.error("Failed to subscribe certificates via CSP SDK", e);
             return false;
         }
     }
@@ -143,14 +90,83 @@ public class CspCertificateAdapter implements CertificateAdapter {
     @Override
     public boolean initialize() {
         try {
-            // 初始化CSP证书SDK
-            CertMgrApi certMgrApi = CertMgrApiImpl.getCertMgrApi();
-            certMgrApi.certSDKInit();
+            Class<?> certMgrApiImplClass = Class.forName("com.huawei.csp.certsdk.certapiImpl.CertMgrApiImpl");
+            Method getCertMgrApi = certMgrApiImplClass.getMethod("getCertMgrApi");
+            Object certMgrApi = getCertMgrApi.invoke(null);
+            Method certSDKInit = certMgrApi.getClass().getMethod("certSDKInit");
+            certSDKInit.invoke(certMgrApi);
             logger.info("Certificate SDK initialized successfully");
             return true;
         } catch (Exception e) {
             logger.error("Failed to initialize certificate SDK", e);
             return false;
+        }
+    }
+    
+    private List<Object> convertToSubscribeEntities(List<CertScene> certScenes) throws Exception {
+        List<Object> entities = new ArrayList<>();
+        Class<?> subscribeEntityClass = Class.forName("com.huawei.csp.certsdk.pojo.SubscribeEntity");
+        Class<?> sceneTypeClass = Class.forName("com.huawei.csp.certsdk.enums.SceneType");
+        
+        for (CertScene scene : certScenes) {
+            Object entity = subscribeEntityClass.getDeclaredConstructor().newInstance();
+            Method setSceneName = subscribeEntityClass.getMethod("setSceneName", String.class);
+            Method setSceneDescCN = subscribeEntityClass.getMethod("setSceneDescCN", String.class);
+            Method setSceneDescEN = subscribeEntityClass.getMethod("setSceneDescEN", String.class);
+            Method setSceneType = subscribeEntityClass.getMethod("setSceneType", sceneTypeClass);
+            Method setFeature = subscribeEntityClass.getMethod("setFeature", int.class);
+            
+            setSceneName.invoke(entity, scene.getSceneName());
+            setSceneDescCN.invoke(entity, scene.getSceneDescCN());
+            setSceneDescEN.invoke(entity, scene.getSceneDescEN());
+            
+            // 转换SceneType
+            Object sceneType = Enum.valueOf((Class<Enum>) sceneTypeClass, scene.getSceneType().name());
+            setSceneType.invoke(entity, sceneType);
+            setFeature.invoke(entity, scene.getFeature());
+            
+            entities.add(entity);
+        }
+        return entities;
+    }
+    
+    private Object createCertHandler(CertUpdateCallback callback) {
+        // 创建匿名内部类实现IExCertHandler
+        try {
+            Class<?> handlerInterface = Class.forName("com.huawei.csp.certsdk.handler.IExCertHandler");
+            // 使用动态代理创建处理器
+            return java.lang.reflect.Proxy.newProxyInstance(
+                    handlerInterface.getClassLoader(),
+                    new Class[]{handlerInterface},
+                    (proxy, method, args) -> {
+                        if ("handle".equals(method.getName()) && args.length == 1) {
+                            Object certInfo = args[0];
+                            // 提取证书信息
+                            Method getCaContent = certInfo.getClass().getMethod("getCaContent");
+                            Method getExCertEntity = certInfo.getClass().getMethod("getExCertEntity");
+                            
+                            caContent = (String) getCaContent.invoke(certInfo);
+                            Object exCertEntity = getExCertEntity.invoke(certInfo);
+                            
+                            if (exCertEntity != null) {
+                                Method getDeviceContent = exCertEntity.getClass().getMethod("getDeviceContent");
+                                Method getPrivateKeyContent = exCertEntity.getClass().getMethod("getPrivateKeyContent");
+                                
+                                deviceContent = (String) getDeviceContent.invoke(exCertEntity);
+                                privateKey = (String) getPrivateKeyContent.invoke(exCertEntity);
+                            }
+                            
+                            // 触发回调
+                            if (callback != null) {
+                                callback.onCertificateUpdate(caContent, deviceContent, privateKey);
+                            }
+                            return null;
+                        }
+                        return null;
+                    });
+        } catch (Exception e) {
+            logger.error("Failed to create certificate handler", e);
+            return null;
         }
     }
 }

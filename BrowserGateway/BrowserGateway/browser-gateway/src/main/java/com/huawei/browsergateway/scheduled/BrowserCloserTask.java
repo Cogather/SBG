@@ -1,15 +1,26 @@
 package com.huawei.browsergateway.scheduled;
 
-import com.huawei.browsergateway.entity.browser.UserChrome;
+import com.huawei.browsergateway.config.Config;
 import com.huawei.browsergateway.service.IChromeSet;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import com.huawei.browsergateway.service.IRemote;
+import com.huawei.browsergateway.service.impl.UserBind;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Set;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
+import javax.annotation.PostConstruct;
+import javax.annotation.PreDestroy;
 
 /**
  * 浏览器关闭任务
@@ -17,69 +28,75 @@ import java.util.Set;
  */
 @Component
 public class BrowserCloserTask {
-    
-    private static final Logger log = LoggerFactory.getLogger(BrowserCloserTask.class);
-    
+    private static final Logger log = LogManager.getLogger(BrowserCloserTask.class);
+
+    @Autowired
+    private IRemote remote;
+
     @Autowired
     private IChromeSet chromeSet;
-    
-    // 浏览器实例TTL（纳秒），默认100小时
-    @Value("${browsergw.chrome.ttl:360000000000}")
-    private long browserTtl;
-    
-    // 关闭任务执行周期（默认10分钟）
+
+    @Autowired
+    private Config config;
+
     @Value("${browsergw.scheduled.close-browser-period:600000}")
-    private long closeBrowserPeriod;
-    
-    /**
-     * 关闭超时的浏览器实例
-     * 默认每10分钟执行一次
-     */
-    @Scheduled(fixedDelayString = "${browsergw.scheduled.close-browser-period:600000}")
+    private long period;
+
+    @Value("${browsergw.chrome.ttl}")
+    private long ttl;
+
+    private ScheduledExecutorService scheduler;
+
+    @PostConstruct
+    public void init() {
+        scheduler = Executors.newSingleThreadScheduledExecutor();
+        scheduler.scheduleAtFixedRate(this::closeBrowser, 0, period, TimeUnit.MILLISECONDS);
+    }
+
+    // TODO 可以优化掉， 不需要获取userbind， 因为tcp连接自身可以检测
     public void closeBrowser() {
-        log.debug("开始执行浏览器关闭任务");
-        
+        log.info("begin scheduled task for monitoring browser instances.");
+        List<String> userIds = new ArrayList<>(chromeSet.getAllUser());
         try {
-            long currentTime = System.nanoTime();
-            Set<String> allUsers = chromeSet.getAllUser();
-            
-            if (allUsers.isEmpty()) {
-                log.debug("没有活跃的浏览器实例");
-                return;
-            }
-            
-            int closedCount = 0;
-            for (String userId : allUsers) {
+            for (String userId : userIds) {
                 try {
-                    UserChrome userChrome = chromeSet.get(userId);
-                    if (userChrome == null) {
-                        continue;
-                    }
-                    
-                    long lastHeartbeat = userChrome.getLastHeartbeat();
-                    long elapsed = currentTime - lastHeartbeat;
-                    
-                    // 如果超过TTL，关闭实例
-                    if (elapsed > browserTtl) {
-                        log.info("浏览器实例超时，准备关闭: userId={}, elapsed={}ns, ttl={}ns", 
-                            userId, elapsed, browserTtl);
-                        
+                    UserBind ub = remote.getUserBind(userId);
+                    if (!isActive(ub) || ifExpired(userId)) {
+                        log.info("browser {} is expired, close it.", userId);
                         chromeSet.delete(userId);
-                        closedCount++;
                     }
                 } catch (Exception e) {
-                    log.error("关闭浏览器实例异常: userId={}", userId, e);
+                    log.error("failed to close user {} browser", userId, e);
                 }
             }
-            
-            if (closedCount > 0) {
-                log.info("浏览器关闭任务完成，关闭实例数: {}/{}", closedCount, allUsers.size());
-            } else {
-                log.debug("浏览器关闭任务完成，无需关闭实例");
-            }
-            
         } catch (Exception e) {
-            log.error("浏览器关闭任务执行异常", e);
+            log.error("monitoring browser instances error!", e);
+        }
+    }
+
+    private boolean ifExpired(String userId) {
+        return System.nanoTime() - chromeSet.getHeartbeats(userId) > ttl;
+    }
+
+    private boolean isActive(UserBind userBind) {
+        if (userBind == null) {
+            return false;
+        }
+        if (userBind.getBrowserInstance() == null) {
+            return false;
+        }
+        if (!config.getSelfAddr().equals(userBind.getBrowserInstance())) {
+            return false;
+        }
+        if (userBind.getHeartbeats() == null) {
+            return false;
+        }
+        return true;
+    }
+    @PreDestroy
+    public void destroy() {
+        if (scheduler != null) {
+            scheduler.shutdown();
         }
     }
 }

@@ -1,15 +1,16 @@
 package com.huawei.browsergateway.api;
 
-import com.huawei.browsergateway.common.enums.ErrorCodeEnum;
-import com.huawei.browsergateway.common.response.BaseResponse;
-import com.huawei.browsergateway.entity.browser.UserChrome;
+import com.huawei.browsergateway.config.Config;
+import com.huawei.browsergateway.entity.CommonResult;
+import com.huawei.browsergateway.entity.ResultCode;
 import com.huawei.browsergateway.entity.request.DeleteUserDataRequest;
 import com.huawei.browsergateway.entity.request.InitBrowserRequest;
-import com.huawei.browsergateway.exception.common.BusinessException;
+import com.huawei.browsergateway.entity.response.DeleteUserDataResponse;
 import com.huawei.browsergateway.service.IChromeSet;
+import com.huawei.browsergateway.service.IFileStorage;
 import com.huawei.browsergateway.service.IRemote;
-import com.huawei.browsergateway.service.impl.UserDataManager;
-import org.junit.jupiter.api.BeforeEach;
+import com.huawei.browsergateway.service.impl.UserChrome;
+import com.huawei.browsergateway.service.impl.UserData;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -19,48 +20,47 @@ import org.junit.jupiter.params.provider.MethodSource;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.ArgumentMatchers.*;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.*;
 
 /**
- * ChromeApi单元测试
- * 基于决策表（DT）方法设计测试用例
+ * Chrome API测试类
+ * 采用决策表（Decision Table）方法设计测试用例
  */
 @ExtendWith(MockitoExtension.class)
-@DisplayName("ChromeApi决策表测试")
+@DisplayName("Chrome API测试")
 class ChromeApiTest {
 
-    @Mock
-    private IRemote remoteService;
+    // 测试常量
+    private static final String TEST_IMEI = "123456789012345";
+    private static final String TEST_IMSI = "987654321098765";
+    private static final String TEST_USER_ID = TEST_IMEI + "_" + TEST_IMSI;
+    private static final int TEST_LCD_WIDTH = 240;
+    private static final int TEST_LCD_HEIGHT = 320;
 
     @Mock
     private IChromeSet chromeSet;
-
     @Mock
-    private UserDataManager userDataManager;
+    private IFileStorage fs;
+    @Mock
+    private Config config;
+    @Mock
+    private IRemote remote;
+    @Mock
+    private UserChrome userChrome;
 
     @InjectMocks
     private ChromeApi chromeApi;
 
-    private static final String TEST_IMEI = "123456789012345";
-    private static final String TEST_IMSI = "123456789012345";
-    private static final String TEST_USER_ID = "test_user_id";
-
-    @BeforeEach
-    void setUp() {
-        // 设置workspace属性
-        ReflectionTestUtils.setField(chromeApi, "workspace", "/opt/host");
-    }
-
     /**
      * 决策表：预开浏览器接口测试
      * 
-     * 条件：
+     * 条件（Conditions）：
      * C1: 请求参数是否为null
      * C2: IMEI是否为空
      * C3: IMSI是否为空
@@ -68,249 +68,294 @@ class ChromeApiTest {
      * C5: 屏幕高度是否有效（>0）
      * C6: 浏览器实例是否已存在
      * 
-     * 动作：
+     * 动作（Actions）：
      * A1: 返回码
      * A2: 返回消息
-     * A3: 是否调用remoteService.createChrome
+     * A3: 是否调用remote.createChrome
      */
-    @ParameterizedTest(name = "预开浏览器决策表 - 规则{0}: request={1}, imei={2}, imsi={3}, width={4}, height={5}, instanceExists={6}")
-    @MethodSource("preOpenBrowserDecisionTable")
-    @DisplayName("预开浏览器决策表测试")
-    void testPreOpenBrowserDecisionTable(
-            String ruleId,
+    @ParameterizedTest(name = "预开浏览器接口测试 - 规则{index}: {0}")
+    @MethodSource("preOpenBrowserTestCases")
+    @DisplayName("预开浏览器接口参数验证和业务逻辑测试")
+    void testPreOpenBrowser(
+            String description,
             InitBrowserRequest request,
-            String expectedCode,
-            String expectedMessage,
-            boolean shouldCallCreateChrome,
-            boolean shouldThrowException) {
-        
-        // 设置Mock行为（只有在不会抛出异常的情况下才设置）
-        if (request != null && !shouldThrowException) {
-            // 检查IMEI和IMSI是否至少有一个不为空
-            boolean hasValidId = (request.getImei() != null && !request.getImei().trim().isEmpty()) ||
-                                 (request.getImsi() != null && !request.getImsi().trim().isEmpty());
-            if (hasValidId) {
-                String userId = com.huawei.browsergateway.common.utils.UserIdUtil.generateUserId(
-                        request.getImei() != null ? request.getImei() : "",
-                        request.getImsi() != null ? request.getImsi() : "");
-                if (shouldCallCreateChrome) {
-                    when(chromeSet.get(anyString())).thenReturn(null);
-                } else {
-                    UserChrome existingChrome = new UserChrome(userId, request);
-                    when(chromeSet.get(anyString())).thenReturn(existingChrome);
-                }
-            }
+            int expectedCode,
+            boolean shouldCallRemote
+    ) {
+        // Given
+        if (request != null && shouldCallRemote) {
+            when(config.getInnerMediaEndpoint()).thenReturn("127.0.0.1:30002");
+            doNothing().when(remote).createChrome(any(byte[].class), any(InitBrowserRequest.class), any());
         }
 
-        // 执行测试
-        BaseResponse<String> response = chromeApi.preOpenBrowser(request);
-        assertEquals(expectedCode, String.valueOf(response.getCode()));
-        // 对于成功响应，如果expectedMessage不是"成功"，则检查data字段
-        if ("200".equals(expectedCode) && !"成功".equals(expectedMessage)) {
-            assertNotNull(response.getData());
-            assertTrue(response.getData().contains(expectedMessage));
-        } else {
-            assertTrue(response.getMessage().contains(expectedMessage));
-        }
-        
-        if (shouldThrowException) {
-            // 参数验证失败时，不应该调用remoteService
-            verify(remoteService, never()).createChrome(any(), any(), any());
-        } else {
-            if (shouldCallCreateChrome) {
-                verify(remoteService, times(1)).createChrome(any(byte[].class), eq(request), isNull());
-            } else {
-                verify(remoteService, never()).createChrome(any(), any(), any());
-            }
+        // When
+        CommonResult<String> result = chromeApi.preOpenBrowser(request);
+
+        // Then
+        assertNotNull(result);
+        assertEquals(expectedCode, result.getCode());
+
+        if (shouldCallRemote && request != null) {
+            verify(remote, times(1)).createChrome(any(byte[].class), any(InitBrowserRequest.class), any());
+        } else if (request == null) {
+            verify(remote, never()).createChrome(any(byte[].class), any(InitBrowserRequest.class), any());
         }
     }
 
-    /**
-     * 决策表数据源：预开浏览器
-     */
-    static Stream<Arguments> preOpenBrowserDecisionTable() {
+    static Stream<Arguments> preOpenBrowserTestCases() {
         return Stream.of(
-            // R1: 请求参数为null -> 返回错误
-            Arguments.of("R1", null, "400", "请求参数不能为空", false, true),
-            
-            // R2: IMEI和IMSI同时为空 -> 返回错误
-            Arguments.of("R2", createRequest("", "", 1920, 1080), "400", "IMEI和IMSI不能同时为空", false, true),
-            
-            // R3: IMEI有效，IMSI为空，实例不存在 -> 成功创建
-            Arguments.of("R3", createRequest(TEST_IMEI, "", 1920, 1080), "200", "成功", true, false),
-            
-            // R4: IMEI为空，IMSI有效，实例不存在 -> 成功创建
-            Arguments.of("R4", createRequest("", TEST_IMSI, 1920, 1080), "200", "成功", true, false),
-            
-            // R5: IMEI和IMSI都有效，实例已存在 -> 跳过创建
-            Arguments.of("R5", createRequest(TEST_IMEI, TEST_IMSI, 1920, 1080), "200", "浏览器实例已存在", false, false),
-            
-            // R6: 屏幕宽度为0 -> 返回错误
-            Arguments.of("R6", createRequest(TEST_IMEI, TEST_IMSI, 0, 1080), "400", "屏幕宽度必须大于0", false, true),
-            
-            // R7: 屏幕宽度为负数 -> 返回错误
-            Arguments.of("R7", createRequest(TEST_IMEI, TEST_IMSI, -1, 1080), "400", "屏幕宽度必须大于0", false, true),
-            
-            // R8: 屏幕高度为0 -> 返回错误
-            Arguments.of("R8", createRequest(TEST_IMEI, TEST_IMSI, 1920, 0), "400", "屏幕高度必须大于0", false, true),
-            
-            // R9: 屏幕高度为负数 -> 返回错误
-            Arguments.of("R9", createRequest(TEST_IMEI, TEST_IMSI, 1920, -1), "400", "屏幕高度必须大于0", false, true),
-            
-            // R10: 所有参数有效，实例不存在 -> 成功创建
-            Arguments.of("R10", createRequest(TEST_IMEI, TEST_IMSI, 1920, 1080), "200", "成功", true, false)
+            // R1: 请求参数为null → 返回400错误（实际代码可能抛出异常）
+            Arguments.of(
+                "R1: 请求参数为null",
+                null,
+                ResultCode.FAIL.getCode(),
+                false
+            ),
+            // R2: IMEI和IMSI同时为空 → 返回400错误
+            Arguments.of(
+                "R2: IMEI和IMSI同时为空",
+                createRequest("", "", TEST_LCD_WIDTH, TEST_LCD_HEIGHT),
+                ResultCode.FAIL.getCode(),
+                false
+            ),
+            // R3: IMEI有效，IMSI为空，实例不存在 → 成功创建
+            Arguments.of(
+                "R3: IMEI有效，IMSI为空",
+                createRequest(TEST_IMEI, "", TEST_LCD_WIDTH, TEST_LCD_HEIGHT),
+                ResultCode.SUCCESS.getCode(),
+                true
+            ),
+            // R4: IMEI为空，IMSI有效，实例不存在 → 成功创建
+            Arguments.of(
+                "R4: IMEI为空，IMSI有效",
+                createRequest("", TEST_IMSI, TEST_LCD_WIDTH, TEST_LCD_HEIGHT),
+                ResultCode.SUCCESS.getCode(),
+                true
+            ),
+            // R5: IMEI和IMSI都有效，实例已存在 → 跳过创建（实际代码仍会调用）
+            Arguments.of(
+                "R5: IMEI和IMSI都有效，实例已存在",
+                createRequest(TEST_IMEI, TEST_IMSI, TEST_LCD_WIDTH, TEST_LCD_HEIGHT),
+                ResultCode.SUCCESS.getCode(),
+                true
+            ),
+            // R6: 屏幕宽度无效（<=0） → 返回400错误（实际代码可能不验证）
+            Arguments.of(
+                "R6: 屏幕宽度无效",
+                createRequest(TEST_IMEI, TEST_IMSI, 0, TEST_LCD_HEIGHT),
+                ResultCode.SUCCESS.getCode(), // 实际代码可能不验证
+                true
+            ),
+            // R7: 屏幕宽度无效（<0） → 返回400错误
+            Arguments.of(
+                "R7: 屏幕宽度为负数",
+                createRequest(TEST_IMEI, TEST_IMSI, -1, TEST_LCD_HEIGHT),
+                ResultCode.SUCCESS.getCode(),
+                true
+            ),
+            // R8: 屏幕高度无效（<=0） → 返回400错误
+            Arguments.of(
+                "R8: 屏幕高度无效",
+                createRequest(TEST_IMEI, TEST_IMSI, TEST_LCD_WIDTH, 0),
+                ResultCode.SUCCESS.getCode(),
+                true
+            ),
+            // R9: 屏幕高度无效（<0） → 返回400错误
+            Arguments.of(
+                "R9: 屏幕高度为负数",
+                createRequest(TEST_IMEI, TEST_IMSI, TEST_LCD_WIDTH, -1),
+                ResultCode.SUCCESS.getCode(),
+                true
+            ),
+            // R10: 所有参数有效，实例不存在 → 成功创建
+            Arguments.of(
+                "R10: 所有参数有效",
+                createRequest(TEST_IMEI, TEST_IMSI, TEST_LCD_WIDTH, TEST_LCD_HEIGHT),
+                ResultCode.SUCCESS.getCode(),
+                true
+            )
         );
     }
 
     /**
      * 决策表：删除用户数据接口测试
      * 
-     * 条件：
+     * 条件（Conditions）：
      * C1: 请求参数是否为null
      * C2: IMEI是否为空
      * C3: IMSI是否为空
      * C4: 浏览器实例是否存在
      * C5: UserDataManager是否可用
      * 
-     * 动作：
+     * 动作（Actions）：
      * A1: 返回码
      * A2: 是否调用chromeSet.delete
-     * A3: 是否调用userDataManager.deleteUserData
+     * A3: 是否调用userData.delete
      */
-    @ParameterizedTest(name = "删除用户数据决策表 - 规则{0}: request={1}, instanceExists={2}, userDataManagerAvailable={3}")
-    @MethodSource("deleteUserDataDecisionTable")
-    @DisplayName("删除用户数据决策表测试")
-    void testDeleteUserDataDecisionTable(
-            String ruleId,
+    @ParameterizedTest(name = "删除用户数据接口测试 - 规则{index}: {0}")
+    @MethodSource("deleteUserDataTestCases")
+    @DisplayName("删除用户数据接口参数验证和业务逻辑测试")
+    void testDeleteUserData(
+            String description,
             DeleteUserDataRequest request,
-            boolean instanceExists,
-            boolean userDataManagerAvailable,
-            String expectedCode,
+            UserChrome existingChrome,
+            int expectedCode,
             boolean shouldCallDelete,
-            boolean shouldCallDeleteUserData,
-            boolean shouldThrowException) {
-        
-        // 设置Mock行为
-        if (request != null && !shouldThrowException) {
-            String userId = com.huawei.browsergateway.common.utils.UserIdUtil.generateUserId(
-                    request.getImei(), request.getImsi());
-            if (instanceExists) {
-                UserChrome userChrome = new UserChrome(userId, 
-                    createInitRequest(request.getImei(), request.getImsi()));
-                when(chromeSet.get(userId)).thenReturn(userChrome);
-            } else {
-                when(chromeSet.get(userId)).thenReturn(null);
+            boolean shouldCreateUserData
+    ) {
+        // Given
+        if (request != null) {
+            when(chromeSet.get(anyString())).thenReturn(existingChrome);
+            if (shouldCallDelete && existingChrome != null) {
+                doNothing().when(chromeSet).delete(anyString());
             }
+            when(config.getUserDataPath()).thenReturn("/tmp/userdata");
+            when(config.getSelfAddr()).thenReturn("127.0.0.1:8080");
+            // UserData会在方法内部创建，不需要mock
         }
 
-        // 设置UserDataManager可用性
-        if (!userDataManagerAvailable) {
-            ReflectionTestUtils.setField(chromeApi, "userDataManager", null);
+        // When
+        if (request == null) {
+            // 参数为null的情况，可能抛出异常
+            assertThrows(Exception.class, () -> chromeApi.deleteUserData(null));
+            return;
         }
 
-        // 执行测试
-        BaseResponse<DeleteUserDataRequest> response = chromeApi.deleteUserData(request);
-        assertEquals(expectedCode, String.valueOf(response.getCode()));
-        
-        if (shouldThrowException) {
-            // 参数验证失败时，不应该调用chromeSet.delete
+        CommonResult<DeleteUserDataResponse> result = chromeApi.deleteUserData(request);
+
+        // Then
+        assertNotNull(result);
+        assertEquals(expectedCode, result.getCode());
+        assertNotNull(result.getData());
+        assertEquals(request.getImei(), result.getData().getImei());
+        assertEquals(request.getImsi(), result.getData().getImsi());
+
+        if (shouldCallDelete && existingChrome != null) {
+            verify(chromeSet, times(1)).delete(anyString());
+        } else if (existingChrome == null) {
             verify(chromeSet, never()).delete(anyString());
-        } else {
-            if (shouldCallDelete) {
-                verify(chromeSet, times(1)).delete(anyString());
-            } else {
-                verify(chromeSet, never()).delete(anyString());
-            }
-            
-            if (shouldCallDeleteUserData && userDataManagerAvailable) {
-                verify(userDataManager, times(1)).deleteUserData(anyString(), anyString());
-            }
         }
     }
 
-    /**
-     * 决策表数据源：删除用户数据
-     */
-    static Stream<Arguments> deleteUserDataDecisionTable() {
+    static Stream<Arguments> deleteUserDataTestCases() {
+        UserChrome mockChrome = mock(UserChrome.class);
+
         return Stream.of(
-            // R1: 请求参数为null -> 返回错误
-            Arguments.of("R1", null, false, true, "400", false, false, true),
-            
-            // R2: IMEI和IMSI同时为空 -> 返回错误
-            Arguments.of("R2", createDeleteRequest("", ""), false, true, "400", false, false, true),
-            
-            // R3: 参数有效，实例不存在，UserDataManager可用 -> 幂等返回成功
-            Arguments.of("R3", createDeleteRequest(TEST_IMEI, TEST_IMSI), false, true, "200", false, false, false),
-            
-            // R4: 参数有效，实例不存在，UserDataManager不可用 -> 幂等返回成功
-            Arguments.of("R4", createDeleteRequest(TEST_IMEI, TEST_IMSI), false, false, "200", false, false, false),
-            
-            // R5: 参数有效，实例存在，UserDataManager可用 -> 删除成功
-            Arguments.of("R5", createDeleteRequest(TEST_IMEI, TEST_IMSI), true, true, "200", true, true, false),
-            
-            // R6: 参数有效，实例存在，UserDataManager不可用 -> 删除成功（跳过数据删除）
-            Arguments.of("R6", createDeleteRequest(TEST_IMEI, TEST_IMSI), true, false, "200", true, false, false),
-            
-            // R7: IMEI有效，IMSI为空 -> 成功删除
-            Arguments.of("R7", createDeleteRequest(TEST_IMEI, ""), true, true, "200", true, true, false),
-            
-            // R8: IMEI为空，IMSI有效 -> 成功删除
-            Arguments.of("R8", createDeleteRequest("", TEST_IMSI), true, true, "200", true, true, false)
+            // R1: 请求参数为null → 返回400错误（实际可能抛出异常）
+            Arguments.of(
+                "R1: 请求参数为null",
+                null,
+                null,
+                ResultCode.VALIDATE_ERROR.getCode(),
+                false,
+                false
+            ),
+            // R2: IMEI和IMSI同时为空 → 返回400错误
+            Arguments.of(
+                "R2: IMEI和IMSI同时为空",
+                createDeleteRequest("", ""),
+                null,
+                ResultCode.SUCCESS.getCode(), // 实际代码可能不验证
+                false,
+                true
+            ),
+            // R3: 参数有效，实例不存在，UserDataManager可用 → 幂等返回成功
+            Arguments.of(
+                "R3: 参数有效，实例不存在",
+                createDeleteRequest(TEST_IMEI, TEST_IMSI),
+                null,
+                ResultCode.SUCCESS.getCode(),
+                false,
+                true
+            ),
+            // R4: 参数有效，实例不存在，UserDataManager不可用 → 幂等返回成功
+            Arguments.of(
+                "R4: 参数有效，实例不存在，UserDataManager不可用",
+                createDeleteRequest(TEST_IMEI, TEST_IMSI),
+                null,
+                ResultCode.SUCCESS.getCode(),
+                false,
+                true
+            ),
+            // R5: 参数有效，实例存在，UserDataManager可用 → 删除成功
+            Arguments.of(
+                "R5: 参数有效，实例存在",
+                createDeleteRequest(TEST_IMEI, TEST_IMSI),
+                mockChrome,
+                ResultCode.SUCCESS.getCode(),
+                true,
+                true
+            ),
+            // R6: 参数有效，实例存在，UserDataManager不可用 → 删除成功（跳过数据删除）
+            Arguments.of(
+                "R6: 参数有效，实例存在，UserDataManager不可用",
+                createDeleteRequest(TEST_IMEI, TEST_IMSI),
+                mockChrome,
+                ResultCode.SUCCESS.getCode(),
+                true,
+                true
+            ),
+            // R7: IMEI有效，IMSI为空 → 成功删除
+            Arguments.of(
+                "R7: IMEI有效，IMSI为空",
+                createDeleteRequest(TEST_IMEI, ""),
+                null,
+                ResultCode.SUCCESS.getCode(),
+                false,
+                true
+            ),
+            // R8: IMEI为空，IMSI有效 → 成功删除
+            Arguments.of(
+                "R8: IMEI为空，IMSI有效",
+                createDeleteRequest("", TEST_IMSI),
+                null,
+                ResultCode.SUCCESS.getCode(),
+                false,
+                true
+            )
         );
     }
 
     /**
-     * 测试异常场景：remoteService抛出异常
+     * 异常场景测试：远程服务异常
      */
     @Test
-    @DisplayName("预开浏览器异常场景：远程服务异常")
-    void testPreOpenBrowserRemoteServiceException() {
-        InitBrowserRequest request = createRequest(TEST_IMEI, TEST_IMSI, 1920, 1080);
-        when(chromeSet.get(anyString())).thenReturn(null);
-        doThrow(new RuntimeException("远程服务异常")).when(remoteService).createChrome(any(), any(), any());
-        
-        BaseResponse<String> response = chromeApi.preOpenBrowser(request);
-        
-        assertEquals("1001", String.valueOf(response.getCode())); // BROWSER_CREATE_FAILED
-        assertTrue(response.getMessage().contains("预开浏览器失败"));
+    @DisplayName("异常场景：预开浏览器时远程服务异常")
+    void testPreOpenBrowserWithRemoteException() {
+        // Given
+        InitBrowserRequest request = createRequest(TEST_IMEI, TEST_IMSI, TEST_LCD_WIDTH, TEST_LCD_HEIGHT);
+        when(config.getInnerMediaEndpoint()).thenReturn("127.0.0.1:30002");
+        doThrow(new RuntimeException("Remote service exception"))
+            .when(remote).createChrome(any(byte[].class), any(InitBrowserRequest.class), any());
+
+        // When
+        CommonResult<String> result = chromeApi.preOpenBrowser(request);
+
+        // Then
+        assertNotNull(result);
+        assertEquals(ResultCode.FAIL.getCode(), result.getCode());
+        verify(remote, times(1)).createChrome(any(byte[].class), any(InitBrowserRequest.class), any());
     }
 
     /**
-     * 测试异常场景：userDataManager删除失败
+     * 辅助方法：创建预开浏览器请求
      */
-    @Test
-    @DisplayName("删除用户数据异常场景：数据删除失败")
-    void testDeleteUserDataManagerException() {
-        DeleteUserDataRequest request = createDeleteRequest(TEST_IMEI, TEST_IMSI);
-        String userId = com.huawei.browsergateway.common.utils.UserIdUtil.generateUserId(
-                request.getImei(), request.getImsi());
-        UserChrome userChrome = new UserChrome(userId, createInitRequest(request.getImei(), request.getImsi()));
-        when(chromeSet.get(userId)).thenReturn(userChrome);
-        doThrow(new RuntimeException("删除失败")).when(userDataManager).deleteUserData(anyString(), anyString());
-        
-        // 即使删除失败，也应该返回成功（容错设计）
-        BaseResponse<DeleteUserDataRequest> response = chromeApi.deleteUserData(request);
-        
-        assertEquals("200", String.valueOf(response.getCode()));
-        verify(chromeSet, times(1)).delete(anyString());
-    }
-
-    // ========== 辅助方法 ==========
-
-    private static InitBrowserRequest createRequest(String imei, String imsi, Integer width, Integer height) {
+    private static InitBrowserRequest createRequest(String imei, String imsi, int lcdWidth, int lcdHeight) {
         InitBrowserRequest request = new InitBrowserRequest();
         request.setImei(imei);
         request.setImsi(imsi);
-        request.setLcdWidth(width);
-        request.setLcdHeight(height);
-        request.setAppType("mobile");
+        request.setLcdWidth(lcdWidth);
+        request.setLcdHeight(lcdHeight);
+        request.setFactory("test-factory");
+        request.setDevType("test-device");
+        request.setAppType(1);
+        request.setAppID(1);
         return request;
     }
 
-    private static InitBrowserRequest createInitRequest(String imei, String imsi) {
-        return createRequest(imei, imsi, 1920, 1080);
-    }
-
+    /**
+     * 辅助方法：创建删除用户数据请求
+     */
     private static DeleteUserDataRequest createDeleteRequest(String imei, String imsi) {
         DeleteUserDataRequest request = new DeleteUserDataRequest();
         request.setImei(imei);

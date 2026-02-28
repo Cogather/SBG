@@ -14,26 +14,23 @@ public interface IFileStorage {
      * 
      * @param localPath 本地文件路径
      * @param remotePath 远程存储路径
-     * @return String 文件的访问URL，失败返回null
      */
-    String uploadFile(String localPath, String remotePath);
+     void uploadFile(String localPath, String remotePath);
     
     /**
      * 下载文件到本地
      * 
      * @param localPath 本地保存路径
      * @param remotePath 远程文件路径
-     * @return File 本地文件对象，失败返回null
      */
-    File downloadFile(String localPath, String remotePath);
+    void downloadFile(String localPath, String remotePath);
     
     /**
      * 删除文件
      * 
      * @param path 文件路径
-     * @return boolean 删除是否成功
      */
-    boolean deleteFile(String path);
+    void deleteFile(String path);
     
     /**
      * 检查文件是否存在

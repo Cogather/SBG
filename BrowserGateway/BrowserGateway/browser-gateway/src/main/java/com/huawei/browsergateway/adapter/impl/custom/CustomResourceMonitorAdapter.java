@@ -4,75 +4,94 @@ import com.huawei.browsergateway.adapter.dto.ResourceStatistics;
 import com.huawei.browsergateway.adapter.interfaces.ResourceMonitorAdapter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
 import java.lang.management.ManagementFactory;
 import java.lang.management.MemoryMXBean;
 import java.lang.management.MemoryUsage;
+import java.lang.management.OperatingSystemMXBean;
 
 /**
  * 资源监控适配器 - 自定义实现
- * 适用场景：外网环境，使用JMX获取系统资源
  */
-@Component
+@Component("customResourceMonitorAdapter")
+@ConditionalOnProperty(name = "adapter.provider.type", havingValue = "CUSTOM")
 public class CustomResourceMonitorAdapter implements ResourceMonitorAdapter {
     
     private static final Logger logger = LoggerFactory.getLogger(CustomResourceMonitorAdapter.class);
     
     @Override
     public float getCpuUsage() {
-        try {
-            // 使用JMX获取CPU使用率
-            com.sun.management.OperatingSystemMXBean osBean = 
-                (com.sun.management.OperatingSystemMXBean) ManagementFactory.getOperatingSystemMXBean();
-            double cpuUsage = osBean.getProcessCpuLoad() * 100;
-            return (float) cpuUsage;
-        } catch (Exception e) {
-            logger.error("Failed to get CPU usage", e);
-            return 0.0f;
-        }
+        ResourceStatistics stats = getStatistics("cpu");
+        return stats != null ? stats.getRatio() : 0.0f;
     }
     
     @Override
     public float getMemoryUsage() {
-        try {
-            // 使用JMX获取内存使用率
-            MemoryMXBean memoryBean = ManagementFactory.getMemoryMXBean();
-            MemoryUsage heapUsage = memoryBean.getHeapMemoryUsage();
-            long used = heapUsage.getUsed();
-            long max = heapUsage.getMax();
-            
-            if (max > 0) {
-                return (float) (used * 100.0 / max);
-            }
-            return 0.0f;
-        } catch (Exception e) {
-            logger.error("Failed to get memory usage", e);
-            return 0.0f;
-        }
+        ResourceStatistics stats = getStatistics("memory");
+        return stats != null ? stats.getRatio() : 0.0f;
     }
     
     @Override
     public float getNetworkUsage() {
-        // 外网环境暂不支持网络使用率监控
+        // 外网环境暂不支持网络监控
         return 0.0f;
     }
     
     @Override
     public ResourceStatistics getStatistics(String metricType) {
         ResourceStatistics stats = new ResourceStatistics();
-        stats.setSuccess(true);
         stats.setTimestamp(System.currentTimeMillis());
         
-        switch (metricType.toLowerCase()) {
-            case "cpu":
-                stats.setRatio(getCpuUsage());
-                break;
-            case "memory":
-                stats.setRatio(getMemoryUsage());
-                break;
-            default:
+        try {
+            if ("cpu".equals(metricType)) {
+                OperatingSystemMXBean osBean = ManagementFactory.getOperatingSystemMXBean();
+                if (osBean instanceof com.sun.management.OperatingSystemMXBean) {
+                    com.sun.management.OperatingSystemMXBean sunOsBean = 
+                            (com.sun.management.OperatingSystemMXBean) osBean;
+                    double cpuLoad = sunOsBean.getProcessCpuLoad();
+                    if (cpuLoad >= 0) {
+                        stats.setSuccess(true);
+                        stats.setRatio((float) (cpuLoad * 100));
+                    } else {
+                        stats.setSuccess(false);
+                        stats.setRatio(0.0f);
+                    }
+                } else {
+                    // 使用系统负载平均值
+                    double loadAverage = osBean.getSystemLoadAverage();
+                    if (loadAverage >= 0) {
+                        stats.setSuccess(true);
+                        stats.setRatio((float) (loadAverage * 10)); // 简单转换
+                    } else {
+                        stats.setSuccess(false);
+                        stats.setRatio(0.0f);
+                    }
+                }
+            } else if ("memory".equals(metricType)) {
+                MemoryMXBean memoryBean = ManagementFactory.getMemoryMXBean();
+                MemoryUsage heapUsage = memoryBean.getHeapMemoryUsage();
+                long used = heapUsage.getUsed();
+                long max = heapUsage.getMax();
+                
+                if (max > 0) {
+                    stats.setSuccess(true);
+                    stats.setRatio((float) (used * 100.0 / max));
+                    stats.setAvailable(max - used);
+                    stats.setCapacity(max);
+                } else {
+                    stats.setSuccess(false);
+                    stats.setRatio(0.0f);
+                }
+            } else {
                 stats.setSuccess(false);
+                stats.setRatio(0.0f);
+            }
+        } catch (Exception e) {
+            logger.error("Failed to get resource statistics", e);
+            stats.setSuccess(false);
+            stats.setRatio(0.0f);
         }
         
         return stats;

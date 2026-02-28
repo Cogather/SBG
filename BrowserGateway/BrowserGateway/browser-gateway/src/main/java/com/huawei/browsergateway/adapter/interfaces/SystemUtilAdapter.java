@@ -23,6 +23,22 @@ public interface SystemUtilAdapter {
     int getEnvInteger(String key, int defaultValue);
     
     /**
+     * 从环境变量获取长整型值
+     * @param key 环境变量键
+     * @param defaultValue 默认值
+     * @return 环境变量值
+     */
+    long getEnvLong(String key, long defaultValue);
+    
+    /**
+     * 从环境变量获取布尔值
+     * @param key 环境变量键
+     * @param defaultValue 默认值
+     * @return 环境变量值
+     */
+    boolean getEnvBoolean(String key, boolean defaultValue);
+    
+    /**
      * 设置环境变量（用于测试）
      * @param key 键
      * @param value 值

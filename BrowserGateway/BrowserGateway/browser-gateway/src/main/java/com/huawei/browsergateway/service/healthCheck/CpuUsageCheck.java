@@ -2,11 +2,9 @@ package com.huawei.browsergateway.service.healthCheck;
 
 import com.huawei.browsergateway.adapter.dto.ResourceStatistics;
 import com.huawei.browsergateway.adapter.interfaces.ResourceMonitorAdapter;
-import com.huawei.browsergateway.service.healthCheck.dto.HealthCheckResult;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 /**
@@ -14,90 +12,45 @@ import org.springframework.stereotype.Component;
  */
 @Component
 public class CpuUsageCheck implements ICheckStrategy {
-    
     private static final Logger log = LoggerFactory.getLogger(CpuUsageCheck.class);
-    
-    private static final String STRATEGY_NAME = "CPU使用率检查";
+    private boolean inHighUsage = false;
+    private final float triggerThreshold;
+    private final float recoverThreshold;
     
     @Autowired
     private ResourceMonitorAdapter resourceMonitorAdapter;
-    
-    // CPU告警触发阈值（默认90%）
-    @Value("${browsergw.healthCheck.cpu-trigger-threshold:90}")
-    private float cpuTriggerThreshold;
-    
-    // CPU恢复阈值（默认80%）
-    @Value("${browsergw.healthCheck.cpu-recover-threshold:80}")
-    private float cpuRecoverThreshold;
-    
+
+    public CpuUsageCheck(float triggerThreshold, float recoverThreshold) {
+        this.triggerThreshold = triggerThreshold;
+        this.recoverThreshold = recoverThreshold;
+        log.info("start to check cpu usage, triggerThreshold: {}, recoverThreshold:{}", triggerThreshold, recoverThreshold);
+    }
+
     @Override
     public HealthCheckResult check() {
-        try {
-            // 获取CPU使用率
-            float cpuUsage = resourceMonitorAdapter.getCpuUsage();
-            
-            // 获取详细统计信息
-            ResourceStatistics stats = resourceMonitorAdapter.getStatistics("cpu");
-            if (stats != null && stats.isSuccess()) {
-                cpuUsage = stats.getRatio();
-            }
-            
-            // 判断是否健康
-            boolean healthy = cpuUsage < cpuRecoverThreshold;
-            
-            String message = healthy 
-                ? String.format("CPU使用率正常: %.2f%%", cpuUsage)
-                : String.format("CPU使用率过高: %.2f%%, 阈值: %.2f%%", cpuUsage, cpuTriggerThreshold);
-            
-            log.debug("CPU健康检查完成: usage={}%, healthy={}, threshold={}%", 
-                cpuUsage, healthy, cpuTriggerThreshold);
-            
-            return HealthCheckResult.builder()
-                .metricName("cpu_usage")
-                .value(cpuUsage)
-                .healthy(healthy)
-                .message(message)
-                .timestamp(System.currentTimeMillis())
-                .threshold(cpuTriggerThreshold)
-                .recoverThreshold(cpuRecoverThreshold)
-                .build();
-                
-        } catch (Exception e) {
-            log.error("CPU健康检查异常", e);
-            return HealthCheckResult.builder()
-                .metricName("cpu_usage")
-                .value(0.0f)
-                .healthy(false)
-                .message("CPU健康检查失败: " + e.getMessage())
-                .timestamp(System.currentTimeMillis())
-                .threshold(cpuTriggerThreshold)
-                .recoverThreshold(cpuRecoverThreshold)
-                .build();
+        HealthCheckResult result = new HealthCheckResult();
+        result.setCheckItem("CpuUsageCheck");
+        result.setHealthy(true);
+        
+        if (resourceMonitorAdapter == null) {
+            log.warn("ResourceMonitorAdapter is not available");
+            return result;
         }
-    }
-    
-    @Override
-    public String getStrategyName() {
-        return STRATEGY_NAME;
-    }
-    
-    /**
-     * 检查是否需要触发告警
-     * 
-     * @return true表示需要触发告警
-     */
-    public boolean shouldTriggerAlarm() {
-        HealthCheckResult result = check();
-        return !result.isHealthy() && result.getValue() >= cpuTriggerThreshold;
-    }
-    
-    /**
-     * 检查是否可以恢复告警
-     * 
-     * @return true表示可以恢复告警
-     */
-    public boolean shouldRecoverAlarm() {
-        HealthCheckResult result = check();
-        return result.isHealthy() && result.getValue() < cpuRecoverThreshold;
+        
+        ResourceStatistics cpuStatistics = resourceMonitorAdapter.getStatistics("cpu");
+        if (!cpuStatistics.isSuccess()) {
+            return result;
+        }
+        
+        if (inHighUsage) {
+            result.setHealthy(cpuStatistics.getRatio() < recoverThreshold);
+        } else {
+            result.setHealthy(cpuStatistics.getRatio() < triggerThreshold);
+        }
+        inHighUsage = !result.isHealthy();
+        if (inHighUsage) {
+            result.setErrorMsg(String.format("cpu in high usage[%f];", cpuStatistics.getRatio()));
+        }
+        return result;
     }
 }

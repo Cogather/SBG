@@ -30,9 +30,9 @@ public class ReportConfig {
     @Value("${browsergw.report.ttl}")
     private Integer ttl;
 
-    @Value("${browsergw.report.chain-endpoints:}")
+    @Value("${browsergw.report.chain-endpoints}")
     private String chainEndpoints;
 
-    @Value("${browsergw.report.self-addr:}")
+    @Value("${browsergw.report.self-addr}")
     private String selfAddr;
 }
