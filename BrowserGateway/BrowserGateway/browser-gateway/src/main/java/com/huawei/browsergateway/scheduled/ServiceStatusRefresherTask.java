@@ -5,6 +5,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.stereotype.Component;
 
 import javax.annotation.PostConstruct;
 import javax.annotation.PreDestroy;
@@ -16,6 +17,7 @@ import java.util.concurrent.TimeUnit;
  * 会话清理任务
  * 清理过期的会话数据
  */
+@Component
 public class ServiceStatusRefresherTask {
     private static final Logger log = LogManager.getLogger(ServiceStatusRefresherTask.class);
 

@@ -2,6 +2,7 @@ package com.huawei.browsergateway.scheduled;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.stereotype.Component;
 
 import javax.annotation.PostConstruct;
 import javax.annotation.PreDestroy;
@@ -11,7 +12,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
-
+@Component
 public class BrowserProxyLogDump {
 
     private static final Logger log = LogManager.getLogger(BrowserProxyLogDump.class);
