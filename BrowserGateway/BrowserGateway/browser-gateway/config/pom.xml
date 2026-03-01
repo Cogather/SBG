@@ -14,14 +14,10 @@
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <log4j.version>2.23.1</log4j.version>
         <selenium.version>4.28.0</selenium.version>
-        <!-- CSP SDK 版本由 cspjsfpkg BOM 自动管理，无需手动指定 -->
-        <snakeyaml.version>2.2</snakeyaml.version>
-        <lombok.version>1.18.30</lombok.version>
     </properties>
 
     <dependencyManagement>
         <dependencies>
-            <!-- CSP SDK BOM - 内网环境使用，自动管理所有 CSP SDK 依赖版本 -->
             <dependency>
                 <groupId>com.huawei.csp</groupId>
                 <artifactId>cspjsfpkg</artifactId>
@@ -39,7 +35,6 @@
             <version>5.4.3</version>
         </dependency>
 
-        <!-- CSP SDK依赖 - 内网环境：版本由 cspjsfpkg BOM 自动管理，无需指定版本号 -->
         <dependency>
             <groupId>com.huawei.csp</groupId>
             <artifactId>log-sdk</artifactId>
@@ -77,13 +72,17 @@
 
         <dependency>
             <groupId>com.huawei.csp</groupId>
+            <artifactId>transport-sdk</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>com.huawei.csp</groupId>
             <artifactId>alarmsdk</artifactId>
         </dependency>
 
         <dependency>
             <groupId>org.yaml</groupId>
             <artifactId>snakeyaml</artifactId>
-            <version>${snakeyaml.version}</version>
         </dependency>
 
         <dependency>
@@ -105,7 +104,7 @@
             <version>2.2.15</version>
         </dependency>
 
-        <dependency>
+<dependency>
             <groupId>cn.hutool</groupId>
             <artifactId>hutool-all</artifactId>
             <version>5.8.25</version>
@@ -114,12 +113,6 @@
         <dependency>
             <groupId>org.mockito</groupId>
             <artifactId>mockito-core</artifactId>
-            <version>4.5.1</version>
-            <scope>test</scope>
-        </dependency>
-        <dependency>
-            <groupId>org.mockito</groupId>
-            <artifactId>mockito-junit-jupiter</artifactId>
             <version>4.5.1</version>
             <scope>test</scope>
         </dependency>
@@ -154,11 +147,11 @@
             <version>6.0-1.5.9</version>
         </dependency>
 
-        <!--        <dependency>-->
-        <!--            <groupId>org.bytedeco</groupId>-->
-        <!--            <artifactId>javacv-platform</artifactId>-->
-        <!--            <version>1.5.9</version>-->
-        <!--        </dependency>-->
+<!--        <dependency>-->
+<!--            <groupId>org.bytedeco</groupId>-->
+<!--            <artifactId>javacv-platform</artifactId>-->
+<!--            <version>1.5.9</version>-->
+<!--        </dependency>-->
 
         <dependency>
             <groupId>org.jsoup</groupId>
@@ -182,9 +175,9 @@
         <dependency>
             <groupId>com.moon.cloud</groupId>
             <artifactId>browser-module-sdk-api</artifactId>
-            <version>0.0.22</version>
+            <version>0.0.21</version>
             <scope>system</scope>
-            <systemPath>${project.basedir}/src/main/resources/lib/original-browser-module-sdk-api-0.0.22.jar</systemPath>
+            <systemPath>${project.basedir}/src/main/resources/lib/original-browser-module-sdk-api-0.0.21.jar</systemPath>
         </dependency>
 
         <dependency>
@@ -206,113 +199,20 @@
             <version>1.78</version>
         </dependency>
 
-        <!-- Lombok -->
-        <dependency>
-            <groupId>org.projectlombok</groupId>
-            <artifactId>lombok</artifactId>
-            <version>${lombok.version}</version>
-            <scope>provided</scope>
-        </dependency>
-
-        <!-- Spring Framework -->
-        <dependency>
-            <groupId>org.springframework</groupId>
-            <artifactId>spring-context</artifactId>
-            <version>5.3.31</version>
-        </dependency>
-        <dependency>
-            <groupId>org.springframework</groupId>
-            <artifactId>spring-beans</artifactId>
-            <version>5.3.31</version>
-        </dependency>
-        <dependency>
-            <groupId>org.springframework</groupId>
-            <artifactId>spring-core</artifactId>
-            <version>5.3.31</version>
-        </dependency>
-        <dependency>
-            <groupId>org.springframework</groupId>
-            <artifactId>spring-web</artifactId>
-            <version>5.3.31</version>
-        </dependency>
-        <dependency>
-            <groupId>org.springframework</groupId>
-            <artifactId>spring-webmvc</artifactId>
-            <version>5.3.31</version>
-        </dependency>
-        <dependency>
-            <groupId>org.springframework</groupId>
-            <artifactId>spring-test</artifactId>
-            <version>5.3.31</version>
-            <scope>test</scope>
-        </dependency>
-
-        <!-- Spring Boot -->
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot</artifactId>
-            <version>2.7.18</version>
-        </dependency>
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-autoconfigure</artifactId>
-            <version>2.7.18</version>
-        </dependency>
-
-        <!-- Apache HttpClient (旧版本，用于兼容现有代码) -->
-        <dependency>
-            <groupId>org.apache.httpcomponents</groupId>
-            <artifactId>httpclient</artifactId>
-            <version>4.5.14</version>
-        </dependency>
-
-        <!-- Log4j2 -->
-        <dependency>
-            <groupId>org.apache.logging.log4j</groupId>
-            <artifactId>log4j-api</artifactId>
-            <version>${log4j.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>org.apache.logging.log4j</groupId>
-            <artifactId>log4j-core</artifactId>
-            <version>${log4j.version}</version>
-        </dependency>
-        <!-- Log4j2 to SLF4J bridge (移除slf4j依赖，统一使用log4j2) -->
-        <dependency>
-            <groupId>org.apache.logging.log4j</groupId>
-            <artifactId>log4j-slf4j2-impl</artifactId>
-            <version>${log4j.version}</version>
-        </dependency>
-
-        <!-- Fastjson -->
-        <dependency>
-            <groupId>com.alibaba</groupId>
-            <artifactId>fastjson</artifactId>
-            <version>1.2.83</version>
-        </dependency>
-        <!-- Fastjson2 -->
-        <dependency>
-            <groupId>com.alibaba.fastjson2</groupId>
-            <artifactId>fastjson2</artifactId>
-            <version>2.0.47</version>
-        </dependency>
-
     </dependencies>
     <build>
         <plugins>
-            <plugin>
+<plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>
-                <version>3.13.0</version>
+                <version>3.11.0</version>
                 <configuration>
-                    <source>21</source>
-                    <target>21</target>
-                    <compilerArgs>
-                        <arg>-parameters</arg>
-                    </compilerArgs>
+                    <source>12</source>
+                    <target>12</target>
+                    <compilerArgument>-parameters</compilerArgument>
                 </configuration>
             </plugin>
-            <plugin>
+<plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-jar-plugin</artifactId>
                 <version>3.3.0</version>
@@ -346,7 +246,7 @@
                 </executions>
             </plugin>
 
-            <plugin>
+<plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-assembly-plugin</artifactId>
                 <version>3.6.0</version>
@@ -368,25 +268,5 @@
             </plugin>
         </plugins>
     </build>
-
-    <!-- 内网环境 Maven 仓库配置（可选） -->
-    <!-- 通常内网环境已在 ~/.m2/settings.xml 中配置了华为内部仓库 -->
-    <!-- 如果未配置，可以取消注释下面的 repositories 配置，并填入正确的仓库地址 -->
-    <!--
-    <repositories>
-        <repository>
-            <id>huawei-csp-repo</id>
-            <name>Huawei CSP Maven Repository</name>
-            <url>http://your-internal-maven-repo-url/repository/maven-public/</url>
-            <releases>
-                <enabled>true</enabled>
-            </releases>
-            <snapshots>
-                <enabled>false</enabled>
-            </snapshots>
-        </repository>
-    </repositories>
-    -->
-
 
 </project>

@@ -237,9 +237,10 @@ browser-gateway/
 ├── src/main/resources/
 │   ├── lib/                      # 第三方库
 │   ├── log/                      # 日志配置
-│   ├── application.yaml           # 主配置
-│   ├── application-csp.yaml       # 内网配置
-│   └── application-custom.yaml    # 外网配置
+│   └── application.yaml           # 主配置（外网版本）
+└── config/
+    ├── pom.xml                    # 内网版本 pom.xml
+    └── application.yaml           # 内网版本 application.yaml
 └── src/test/java/com/huawei/browsergateway/
     └── util/                     # 测试工具类
 ```
@@ -479,12 +480,43 @@ public class EnvironmentAwareAdapterFactory implements AdapterFactory {
 
 ### 3.3 配置管理
 
-#### 3.3.1 内网环境配置
+#### 3.3.1 外网环境配置
+
+使用根目录的 `pom.xml` 和 `src/main/resources/application.yaml`：
 
 ```yaml
 adapter:
   provider:
-    type: csp-sdk
+    type: CUSTOM
+    enable-mock: false
+
+adapter:
+  custom:
+    service-name: browser-gateway-external
+    pod-name: browser-gateway-pod-1
+    namespace: external
+    certificate:
+      ca-path: /etc/browsergw/ca.crt
+      cert-path: /etc/browsergw/device.crt
+      key-path: /etc/browsergw/device.key
+    alarm:
+      log-path: /var/log/browsergw/alarms.log
+    service:
+      mock-instances: true
+```
+
+#### 3.3.2 内网环境配置
+
+使用 `config/` 目录下的配置文件。内网编译时：
+1. 将 `config/pom.xml` 复制到根目录，覆盖 `pom.xml`
+2. 将 `config/application.yaml` 复制到 `src/main/resources/`，覆盖 `application.yaml`
+3. 执行编译，无需任何编译参数
+
+内网配置示例：
+```yaml
+adapter:
+  provider:
+    type: CSP_SDK
     enable-mock: false
 
 cse:
@@ -496,28 +528,6 @@ cse:
 
 cert:
   cert-path: /opt/csp/browsergw
-```
-
-#### 3.3.2 外网环境配置
-
-```yaml
-adapter:
-  provider:
-    type: custom
-    enable-mock: false
-
-custom:
-  service-name: browser-gateway-external
-  pod-name: browser-gateway-pod-1
-  namespace: external
-  certificate:
-    ca-path: /etc/browsergw/ca.crt
-    cert-path: /etc/browsergw/device.crt
-    key-path: /etc/browsergw/device.key
-  alarm:
-    log-path: /var/log/browsergw/alarms.log
-  service:
-    mock-instances: true
 ```
 
 ### 3.6 审计日志适配器（扩展适配器）
@@ -1709,10 +1719,12 @@ Type: HEARTBEATS
 
 #### 10.1.2 配置文件
 
+内网编译前，将 `config/pom.xml` 和 `config/application.yaml` 复制到对应位置：
+
 ```yaml
 adapter:
   provider:
-    type: csp-sdk
+    type: CSP_SDK
 
 cse:
   service:
@@ -1720,6 +1732,9 @@ cse:
       address: http://cse-registry:30100
   rest:
     address: 0.0.0.0:8090
+
+cert:
+  cert-path: /opt/csp/browsergw
 
 storage:
   s3:
@@ -1729,11 +1744,12 @@ storage:
 
 #### 10.1.3 部署步骤
 
-1. 打包应用：`mvn clean package`
-2. 上传到服务器
-3. 配置 `application-csp.yaml`
-4. 启动应用：`java -jar browser-gateway.jar --spring.profiles.active=csp`
-5. 验证服务状态
+1. 将 `config/pom.xml` 复制到根目录，覆盖 `pom.xml`
+2. 将 `config/application.yaml` 复制到 `src/main/resources/`，覆盖 `application.yaml`
+3. 打包应用：`mvn clean package`
+4. 上传到服务器
+5. 启动应用：`java -jar browser-gateway.jar`
+6. 验证服务状态
 
 ### 10.2 外网部署
 
@@ -1746,24 +1762,31 @@ storage:
 
 #### 10.2.2 配置文件
 
+使用根目录的 `pom.xml` 和 `src/main/resources/application.yaml`：
+
 ```yaml
 adapter:
   provider:
-    type: custom
+    type: CUSTOM
+
+adapter:
+  custom:
+    service-name: browser-gateway-external
+    pod-name: browser-gateway-pod-1
+    namespace: external
+    certificate:
+      ca-path: /etc/browsergw/ca.crt
+      cert-path: /etc/browsergw/device.crt
+      key-path: /etc/browsergw/device.key
+    alarm:
+      log-path: /var/log/browsergw/alarms.log
+    service:
+      mock-instances: true
 
 storage:
   s3:
     endpoint: https://s3.amazonaws.com
     bucket: browsergw-data-external
-
-custom:
-  certificate:
-    ca-path: /etc/browsergw/ca.crt
-    cert-path: /etc/browsergw/device.crt
-    key-path: /etc/browsergw/device.key
-
-  alarm:
-    log-path: /var/log/browsergw/alarms.log
 ```
 
 #### 10.2.3 部署步骤
@@ -1771,9 +1794,8 @@ custom:
 1. 打包应用：`mvn clean package -DskipTests`
 2. 上传到服务器
 3. 配置证书文件
-4. 配置 `application-custom.yaml`
-5. 启动应用：`java -jar browser-gateway.jar --spring.profiles.active=custom`
-6. 验证服务状态
+4. 启动应用：`java -jar browser-gateway.jar`
+5. 验证服务状态
 
 ### 10.3 容器化部署
 
@@ -1819,8 +1841,8 @@ spec:
         - containerPort: 18601
         - containerPort: 18602
         env:
-        - name: SPRING_PROFILES_ACTIVE
-          value: "csp"
+        - name: ADAPTER_PROVIDER_TYPE
+          value: "CSP_SDK"
         volumeMounts:
         - name: config
           mountPath: /opt/browsergw/conf
