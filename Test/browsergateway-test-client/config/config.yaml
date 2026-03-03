@@ -1,0 +1,21 @@
+server:
+  address: 127.0.0.1  # BrowserGateway 服务器地址
+  http_port: 8090
+  websocket:
+    media_port: 30002
+    control_port: 30005
+  tcp:
+    control_port: 30001      # TCP 控制流端口（非 TLS，不需要证书）
+    media_port: 30011        # TCP 媒体流端口（非 TLS，不需要证书）
+    control_tls_port: 30012  # TCP 控制流 TLS 端口（需要证书）
+    media_tls_port: 30013    # TCP 媒体流 TLS 端口（需要证书）
+  
+test:
+  imei: "123456789012345"
+  imsi: "987654321098765"
+  video:
+    width: 1920
+    height: 1080
+    fps: 30
+    codec: "H264"
+    gop_size: 29

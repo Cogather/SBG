@@ -1,0 +1,275 @@
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    min-height: 100vh;
+    padding: 20px;
+}
+
+.container {
+    max-width: 1400px;
+    margin: 0 auto;
+    background: white;
+    border-radius: 10px;
+    padding: 30px;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+}
+
+h1 {
+    color: #333;
+    margin-bottom: 30px;
+    text-align: center;
+    font-size: 2em;
+}
+
+h2 {
+    color: #555;
+    margin-bottom: 15px;
+    font-size: 1.3em;
+    border-bottom: 2px solid #667eea;
+    padding-bottom: 5px;
+}
+
+h3 {
+    color: #666;
+    margin-bottom: 10px;
+}
+
+.config-panel, .status-panel, .video-panel, .control-panel, .api-panel, .log-panel {
+    background: #f8f9fa;
+    border-radius: 8px;
+    padding: 20px;
+    margin-bottom: 20px;
+    border: 1px solid #e0e0e0;
+}
+
+.config-row {
+    display: flex;
+    align-items: center;
+    margin-bottom: 15px;
+}
+
+.config-row label {
+    width: 150px;
+    font-weight: 500;
+    color: #555;
+}
+
+.config-row input, .config-row select {
+    flex: 1;
+    padding: 8px 12px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 14px;
+}
+
+.config-row button {
+    margin-right: 10px;
+    padding: 10px 20px;
+    background: #667eea;
+    color: white;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 14px;
+    transition: background 0.3s;
+}
+
+.config-row button:hover {
+    background: #5568d3;
+}
+
+.config-row button:disabled {
+    background: #ccc;
+    cursor: not-allowed;
+}
+
+.status {
+    padding: 10px 20px;
+    border-radius: 5px;
+    font-weight: bold;
+    display: inline-block;
+}
+
+.status.connected {
+    background: #4caf50;
+    color: white;
+}
+
+.status.disconnected {
+    background: #f44336;
+    color: white;
+}
+
+#videoCanvas {
+    width: 100%;
+    max-width: 800px;
+    height: auto;
+    border: 2px solid #ddd;
+    border-radius: 5px;
+    background: #000;
+    display: block;
+    margin: 0 auto 15px;
+}
+
+.video-controls {
+    text-align: center;
+}
+
+.video-controls button {
+    margin: 0 10px;
+    padding: 10px 20px;
+    background: #667eea;
+    color: white;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 14px;
+}
+
+.video-controls button:hover {
+    background: #5568d3;
+}
+
+.virtual-keys {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 30px;
+}
+
+.virtual-keys > div {
+    display: flex;
+    gap: 10px;
+}
+
+.key-btn {
+    width: 80px;
+    height: 80px;
+    background: #667eea;
+    color: white;
+    border: none;
+    border-radius: 8px;
+    font-size: 18px;
+    font-weight: bold;
+    cursor: pointer;
+    transition: all 0.2s;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+}
+
+.key-btn:hover {
+    background: #5568d3;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+}
+
+.key-btn:active {
+    transform: translateY(0);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+
+.touch-area {
+    margin-top: 20px;
+}
+
+#touchCanvas {
+    width: 100%;
+    max-width: 800px;
+    height: 600px;
+    border: 2px solid #ddd;
+    border-radius: 5px;
+    background: #f0f0f0;
+    cursor: crosshair;
+    display: block;
+    margin: 0 auto;
+}
+
+.api-buttons {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+.api-buttons button {
+    padding: 10px 20px;
+    background: #764ba2;
+    color: white;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 14px;
+    transition: background 0.3s;
+}
+
+.api-buttons button:hover {
+    background: #5a3a7a;
+}
+
+.log-output {
+    background: #1e1e1e;
+    color: #d4d4d4;
+    padding: 15px;
+    border-radius: 5px;
+    height: 300px;
+    overflow-y: auto;
+    font-family: 'Consolas', 'Monaco', monospace;
+    font-size: 12px;
+    line-height: 1.6;
+    margin-bottom: 10px;
+}
+
+.log-output div {
+    margin-bottom: 5px;
+    word-wrap: break-word;
+}
+
+.log-panel button {
+    padding: 8px 16px;
+    background: #f44336;
+    color: white;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 14px;
+}
+
+.log-panel button:hover {
+    background: #d32f2f;
+}
+
+/* 响应式设计 */
+@media (max-width: 768px) {
+    .container {
+        padding: 15px;
+    }
+    
+    .config-row {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+    
+    .config-row label {
+        width: 100%;
+        margin-bottom: 5px;
+    }
+    
+    .virtual-keys {
+        gap: 5px;
+    }
+    
+    .key-btn {
+        width: 60px;
+        height: 60px;
+        font-size: 14px;
+    }
+    
+    #touchCanvas {
+        height: 400px;
+    }
+}
