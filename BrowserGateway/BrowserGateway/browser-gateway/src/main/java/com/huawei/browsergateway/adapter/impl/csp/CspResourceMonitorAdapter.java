@@ -4,7 +4,6 @@ import com.huawei.browsergateway.adapter.dto.ResourceStatistics;
 import com.huawei.browsergateway.adapter.interfaces.ResourceMonitorAdapter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
 import java.lang.reflect.Method;
@@ -13,7 +12,6 @@ import java.lang.reflect.Method;
  * 资源监控适配器 - CSP SDK实现
  */
 @Component("cspResourceMonitorAdapter")
-@ConditionalOnProperty(name = "adapter.provider.type", havingValue = "CSP_SDK", matchIfMissing = true)
 public class CspResourceMonitorAdapter implements ResourceMonitorAdapter {
     
     private static final Logger logger = LoggerFactory.getLogger(CspResourceMonitorAdapter.class);

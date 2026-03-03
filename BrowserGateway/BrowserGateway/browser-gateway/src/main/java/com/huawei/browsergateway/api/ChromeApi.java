@@ -50,14 +50,25 @@ public class ChromeApi {
     public CommonResult<DeleteUserDataResponse> deleteUserData(@RequestBody DeleteUserDataRequest param) {
         String userId = UserIdUtil.generateUserIdByImeiAndImsi(param.getImei(), param.getImsi());
         log.info("deleteUserData userId:{}", userId);
-        UserChrome userChromeInfo = chromeSet.get(userId);
-        if (userChromeInfo != null) {
-            log.info("deleteUserData userChromeInfo:{}", userChromeInfo);
-            chromeSet.delete(userId);
+        
+        try {
+            // 删除浏览器实例
+            UserChrome userChromeInfo = chromeSet.get(userId);
+            if (userChromeInfo != null) {
+                log.info("deleteUserData userChromeInfo:{}", userChromeInfo);
+                chromeSet.delete(userId);
+            }
+            
+            // 删除用户数据（本地和远程S3）
+            UserData userdata = new UserData(fs, config.getUserDataPath(), userId, config.getSelfAddr(), remote);
+            userdata.delete();
+            log.info("deleteUserData success, userId:{}", userId);
+            return CommonResult.success(new DeleteUserDataResponse().setImei(param.getImei()).setImsi(param.getImsi()));
+        } catch (Exception e) {
+            // 确保任何异常都不会导致500错误，始终返回响应（测试客户端只需要有响应即可）
+            log.error("deleteUserData failed, userId:{}, error:{}", userId, e.getMessage(), e);
+            return CommonResult.error(ResultCode.FAIL);
         }
-        UserData userdata = new UserData(fs, config.getUserDataPath(), userId, config.getSelfAddr(), remote);
-        userdata.delete();
-        return CommonResult.success(new DeleteUserDataResponse().setImei(param.getImei()).setImsi(param.getImsi()));
     }
 
     @PostMapping("/preOpen")

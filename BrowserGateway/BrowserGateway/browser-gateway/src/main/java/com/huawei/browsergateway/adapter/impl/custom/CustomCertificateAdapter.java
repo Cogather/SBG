@@ -6,7 +6,6 @@ import com.huawei.browsergateway.adapter.interfaces.CertificateAdapter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
 import javax.annotation.PostConstruct;
@@ -21,7 +20,6 @@ import java.util.concurrent.CopyOnWriteArrayList;
  * 适用场景：外网环境，从本地文件加载证书或生成自签名证书
  */
 @Component("customCertificateAdapter")
-@ConditionalOnProperty(name = "adapter.provider.type", havingValue = "CUSTOM")
 public class CustomCertificateAdapter implements CertificateAdapter {
     
     private static final Logger logger = LoggerFactory.getLogger(CustomCertificateAdapter.class);
@@ -102,16 +100,31 @@ public class CustomCertificateAdapter implements CertificateAdapter {
     private boolean loadCertificatesFromFile() {
         try {
             if (caCertPath != null && !caCertPath.isEmpty()) {
-                caContent = new String(Files.readAllBytes(Paths.get(caCertPath)));
-                logger.info("Loaded CA certificate from: {}", caCertPath);
+                java.nio.file.Path caPath = Paths.get(caCertPath);
+                if (Files.exists(caPath) && Files.isReadable(caPath)) {
+                    caContent = new String(Files.readAllBytes(caPath));
+                    logger.info("Loaded CA certificate from: {}", caCertPath);
+                } else {
+                    logger.warn("CA certificate file not found or not readable: {}", caCertPath);
+                }
             }
             if (deviceCertPath != null && !deviceCertPath.isEmpty()) {
-                deviceContent = new String(Files.readAllBytes(Paths.get(deviceCertPath)));
-                logger.info("Loaded device certificate from: {}", deviceCertPath);
+                java.nio.file.Path devicePath = Paths.get(deviceCertPath);
+                if (Files.exists(devicePath) && Files.isReadable(devicePath)) {
+                    deviceContent = new String(Files.readAllBytes(devicePath));
+                    logger.info("Loaded device certificate from: {}", deviceCertPath);
+                } else {
+                    logger.warn("Device certificate file not found or not readable: {}", deviceCertPath);
+                }
             }
             if (privateKeyPath != null && !privateKeyPath.isEmpty()) {
-                privateKey = new String(Files.readAllBytes(Paths.get(privateKeyPath)));
-                logger.info("Loaded private key from: {}", privateKeyPath);
+                java.nio.file.Path keyPath = Paths.get(privateKeyPath);
+                if (Files.exists(keyPath) && Files.isReadable(keyPath)) {
+                    privateKey = new String(Files.readAllBytes(keyPath));
+                    logger.info("Loaded private key from: {}", privateKeyPath);
+                } else {
+                    logger.warn("Private key file not found or not readable: {}", privateKeyPath);
+                }
             }
             return isCertificateReady();
         } catch (IOException e) {

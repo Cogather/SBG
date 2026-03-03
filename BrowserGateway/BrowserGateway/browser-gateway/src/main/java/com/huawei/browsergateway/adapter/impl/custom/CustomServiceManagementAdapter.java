@@ -5,7 +5,6 @@ import com.huawei.browsergateway.adapter.interfaces.ServiceManagementAdapter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
@@ -18,7 +17,6 @@ import java.util.concurrent.ConcurrentHashMap;
  * 服务管理适配器 - 自定义实现
  */
 @Component("customServiceManagementAdapter")
-@ConditionalOnProperty(name = "adapter.provider.type", havingValue = "CUSTOM")
 public class CustomServiceManagementAdapter implements ServiceManagementAdapter {
     
     private static final Logger logger = LoggerFactory.getLogger(CustomServiceManagementAdapter.class);

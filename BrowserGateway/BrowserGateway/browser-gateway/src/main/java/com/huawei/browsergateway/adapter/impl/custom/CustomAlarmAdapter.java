@@ -6,7 +6,6 @@ import com.huawei.browsergateway.adapter.interfaces.AlarmAdapter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
 import java.io.FileWriter;
@@ -24,7 +23,6 @@ import java.util.concurrent.atomic.AtomicInteger;
  * 适用场景：外网环境，将告警写入本地日志文件或发送到监控系统
  */
 @Component("customAlarmAdapter")
-@ConditionalOnProperty(name = "adapter.provider.type", havingValue = "CUSTOM")
 public class CustomAlarmAdapter implements AlarmAdapter {
     
     private static final Logger logger = LoggerFactory.getLogger(CustomAlarmAdapter.class);

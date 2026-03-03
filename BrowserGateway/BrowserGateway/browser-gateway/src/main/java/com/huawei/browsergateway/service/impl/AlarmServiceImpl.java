@@ -3,7 +3,6 @@ package com.huawei.browsergateway.service.impl;
 import cn.hutool.json.JSONException;
 import cn.hutool.json.JSONUtil;
 
-import com.alibaba.fastjson.JSONObject;
 import com.huawei.browsergateway.adapter.dto.AlarmInfo;
 import com.huawei.browsergateway.adapter.interfaces.AlarmAdapter;
 import com.huawei.browsergateway.adapter.interfaces.SystemUtilAdapter;
@@ -36,7 +35,7 @@ public class AlarmServiceImpl implements IAlarm {
 
     @Autowired
     private AlarmAdapter alarmAdapter;
-    
+
     @Autowired
     private SystemUtilAdapter systemUtilAdapter;
 
@@ -47,18 +46,18 @@ public class AlarmServiceImpl implements IAlarm {
             log.info("An alarm was already reported within 10 minute; skipping this operation.");
             return false;
         }
-        
+
         Map<String, String> parameters = new HashMap<>();
         parameters.put("EventMessage", alarmEvent.getEventMessage());
         parameters.put("EventSource", "BrowserGW Service");
         parameters.put("OriginalEventTime", TimeUtil.getCurrentDate());
-        
+
         boolean result = alarmAdapter.sendAlarm(
-            alarmEvent.getAlarmCodeEnum().getAlarmId(), 
-            AlarmAdapter.AlarmType.GENERATE, 
-            parameters
+                alarmEvent.getAlarmCodeEnum().getAlarmId(),
+                AlarmAdapter.AlarmType.GENERATE,
+                parameters
         );
-        
+
         if (result) {
             alarmMap.put(alarmEvent.getAlarmCodeEnum().getAlarmId(), System.currentTimeMillis());
             log.info("send alarm successfully.");
@@ -73,7 +72,7 @@ public class AlarmServiceImpl implements IAlarm {
         if (!alarmMap.containsKey(alarmId)) {
             return false;
         }
-        
+
         boolean result = alarmAdapter.clearAlarm(alarmId);
         if (result) {
             alarmMap.remove(alarmId);
@@ -114,7 +113,7 @@ public class AlarmServiceImpl implements IAlarm {
                 parameters.put("EventMessage", alarmInfo.getMessage());
                 parameters.put("EventSource", "BrowserGW Service");
                 parameters.put("OriginalEventTime", String.valueOf(alarmInfo.getTimestamp()));
-                
+
                 boolean result = alarmAdapter.clearAlarm(alarmInfo.getAlarmId());
                 if (result) {
                     log.info("send recover alarm successfully.");

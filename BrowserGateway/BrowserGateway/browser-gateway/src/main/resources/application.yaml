@@ -1,5 +1,9 @@
 # 外网环境配置（使用自定义实现）
 
+spring:
+  main:
+    allow-bean-definition-overriding: true
+
 adapter:
   provider:
     type: CUSTOM
@@ -20,7 +24,7 @@ adapter:
 
 # https 地址/内部地址
 server:
-  address: {mbase_ip}
+  address: 127.0.0.1
   port: 8090
 
 logging:
@@ -39,12 +43,13 @@ browsergw:
   # 上报到redis的信息，其中endpoint可能是外部地址
   report:
     cap: 300
-    control-endpoint: {edge_control_extend_endpoint}
-    media-endpoint: {edge_media_extend_endpoint}
-    control-tls-endpoint: {edge_control_tls_extend_endpoint}
-    media-tls-endpoint: {edge_media_tls_extend_endpoint}
+    control-endpoint: ${edge_control_extend_endpoint:http://localhost:30001}
+    media-endpoint: ${edge_media_extend_endpoint:http://localhost:30002}
+    control-tls-endpoint: ${edge_control_tls_extend_endpoint:https://localhost:30003}
+    media-tls-endpoint: ${edge_media_tls_extend_endpoint:https://localhost:30004}
     ttl: 120 # 过期时间
-    chain-endpoints: {chain_endpoints}
+    chain-endpoints: ${chain_endpoints:}
+    self-addr: ${browsergw_report_self_addr:localhost:8090}
   # socket信息
   websocket:
     media-port: 30002
@@ -63,13 +68,13 @@ browsergw:
     data-size-report-period: 300000  #单位毫秒
   # 本地tcp服务地址
   tcp:
-    address: {sc_trunk_ip}
-    control-port: {control_port}
-    media-port: {media_port}
-    control-tls-port: {control_tls_port}
-    media-tls-port: {media_tls_port}
+    address: 127.0.0.1
+    control-port: 30001  # 非 TLS 控制流端口（启用 enable-http 后可用）
+    media-port: ${media_port:30011}  # 非 TLS 媒体流端口（启用 enable-http 后可用）
+    control-tls-port: ${control_tls_port:30012}  # TLS 控制流端口（需要证书）
+    media-tls-port: ${media_tls_port:30013}  # TLS 媒体流端口（需要证书）
     heartbeat-ttl: 360000000000 #ns 超过此时间无心跳的tcp连接会被关闭
-    enable-http: {enable_http}
+    enable-http: true  # 启用非 TLS TCP 服务器（不需要证书）
   drop-frame-multi: 0.0
   context-limit: 20
   healthCheck:

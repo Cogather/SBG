@@ -4,7 +4,6 @@ import com.huawei.browsergateway.adapter.interfaces.SystemUtilAdapter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
 import java.util.Map;
@@ -14,7 +13,6 @@ import java.util.concurrent.ConcurrentHashMap;
  * 系统工具适配器 - 自定义实现
  */
 @Component("customSystemUtilAdapter")
-@ConditionalOnProperty(name = "adapter.provider.type", havingValue = "CUSTOM")
 public class CustomSystemUtilAdapter implements SystemUtilAdapter {
     
     private static final Logger logger = LoggerFactory.getLogger(CustomSystemUtilAdapter.class);

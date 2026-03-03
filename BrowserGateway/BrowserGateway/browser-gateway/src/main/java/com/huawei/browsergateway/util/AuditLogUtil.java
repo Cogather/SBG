@@ -320,7 +320,7 @@ public class AuditLogUtil {
             log.error("rest connect failed, detail: {} ,Throwable:{}", auditLogInfo.getDetail(), e.getMessage());
         }
     }
-    
+
     /**
      * 检查CSP SDK是否可用
      */

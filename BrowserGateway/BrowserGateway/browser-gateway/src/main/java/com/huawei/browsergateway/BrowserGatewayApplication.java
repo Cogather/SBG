@@ -1,19 +1,37 @@
 package com.huawei.browsergateway;
 
 import com.alibaba.fastjson2.JSONObject;
+import com.huawei.browsergateway.adapter.interfaces.FrameworkAdapter;
+import com.huawei.browsergateway.config.FrameworkStartupConfig;
 import com.huawei.browsergateway.util.AuditLogUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.boot.ApplicationRunner;
 import org.springframework.boot.SpringApplication;
+import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.context.ApplicationContext;
+import org.springframework.context.annotation.Bean;
 
+@SpringBootApplication
 public class BrowserGatewayApplication {
     private static Logger log = LoggerFactory.getLogger(BrowserGatewayApplication.class);
 
     public static void main(String[] args){
-        // Framework和OM SDK的初始化已迁移到FrameworkStartupConfig
-        // 通过Spring Boot的ApplicationRunner在应用启动后自动执行
         log.info("BrowserGateway application starting...");
+        
+        // 启动Spring Boot应用
+        ApplicationContext context = SpringApplication.run(BrowserGatewayApplication.class, args);
+        
+        // Framework和OM SDK的初始化通过ApplicationRunner在应用启动后自动执行
+        // 获取FrameworkAdapter并初始化
+        try {
+            FrameworkAdapter frameworkAdapter = context.getBean(FrameworkAdapter.class);
+            FrameworkStartupConfig.initializeFramework(frameworkAdapter);
+        } catch (Exception e) {
+            log.warn("FrameworkAdapter not available, skipping framework initialization", e);
+        }
 
+        // 测试审计日志记录
         JSONObject operation = new JSONObject();
         operation.put("OP_EN", "test op");
         operation.put("OP_ZH", "测试操作");
@@ -46,8 +64,6 @@ public class BrowserGatewayApplication {
                 AuditLogUtil.OperateType.GET,
                 AuditLogUtil.AuditResult.SUCCESSFUL
         );
-        // 启动 Spring Boot 应用
-        SpringApplication.run(BrowserGatewayApplication.class, args);
 
         log.info("BrowserGateway application started successfully");
     }

@@ -6,7 +6,6 @@ import com.huawei.browsergateway.adapter.interfaces.AlarmAdapter;
 import com.huawei.browsergateway.adapter.interfaces.SystemUtilAdapter;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
@@ -24,7 +23,6 @@ import java.util.concurrent.ConcurrentHashMap;
  * 告警适配器 - CSP SDK实现
  */
 @Component("cspAlarmAdapter")
-@ConditionalOnProperty(name = "adapter.provider.type", havingValue = "CSP_SDK", matchIfMissing = true)
 public class CspAlarmAdapter implements AlarmAdapter {
     
     private static final Logger logger = LogManager.getLogger(CspAlarmAdapter.class);

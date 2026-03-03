@@ -5,7 +5,6 @@ import com.huawei.browsergateway.adapter.dto.CertUpdateCallback;
 import com.huawei.browsergateway.adapter.interfaces.CertificateAdapter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
 import java.lang.reflect.Method;
@@ -17,7 +16,6 @@ import java.util.concurrent.CopyOnWriteArrayList;
  * 证书适配器 - CSP SDK实现
  */
 @Component("cspCertificateAdapter")
-@ConditionalOnProperty(name = "adapter.provider.type", havingValue = "CSP_SDK", matchIfMissing = true)
 public class CspCertificateAdapter implements CertificateAdapter {
     
     private static final Logger logger = LoggerFactory.getLogger(CspCertificateAdapter.class);

@@ -3,7 +3,6 @@ package com.huawei.browsergateway.adapter.impl.csp;
 import com.huawei.browsergateway.adapter.interfaces.FrameworkAdapter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
 /**
@@ -11,7 +10,6 @@ import org.springframework.stereotype.Component;
  * 适用场景：内网环境，使用华为CSP SDK
  */
 @Component("cspFrameworkAdapter")
-@ConditionalOnProperty(name = "adapter.provider.type", havingValue = "CSP_SDK", matchIfMissing = true)
 public class CspFrameworkAdapter implements FrameworkAdapter {
     
     private static final Logger logger = LoggerFactory.getLogger(CspFrameworkAdapter.class);

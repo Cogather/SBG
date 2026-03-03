@@ -5,12 +5,10 @@ import com.huawei.browsergateway.adapter.interfaces.ResourceMonitorAdapter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Component;
 
 /**
  * CPU使用率检查策略
  */
-@Component
 public class CpuUsageCheck implements ICheckStrategy {
     private static final Logger log = LoggerFactory.getLogger(CpuUsageCheck.class);
     private boolean inHighUsage = false;

@@ -4,7 +4,6 @@ import com.huawei.browsergateway.adapter.dto.ServiceInstance;
 import com.huawei.browsergateway.adapter.interfaces.ServiceManagementAdapter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
 import java.lang.reflect.Method;
@@ -16,7 +15,6 @@ import java.util.Map;
  * 服务管理适配器 - CSP SDK实现
  */
 @Component("cspServiceManagementAdapter")
-@ConditionalOnProperty(name = "adapter.provider.type", havingValue = "CSP_SDK", matchIfMissing = true)
 public class CspServiceManagementAdapter implements ServiceManagementAdapter {
     
     private static final Logger logger = LoggerFactory.getLogger(CspServiceManagementAdapter.class);

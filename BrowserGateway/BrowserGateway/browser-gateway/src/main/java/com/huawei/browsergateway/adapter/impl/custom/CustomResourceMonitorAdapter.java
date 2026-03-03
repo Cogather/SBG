@@ -4,7 +4,6 @@ import com.huawei.browsergateway.adapter.dto.ResourceStatistics;
 import com.huawei.browsergateway.adapter.interfaces.ResourceMonitorAdapter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
 import java.lang.management.ManagementFactory;
@@ -16,7 +15,6 @@ import java.lang.management.OperatingSystemMXBean;
  * 资源监控适配器 - 自定义实现
  */
 @Component("customResourceMonitorAdapter")
-@ConditionalOnProperty(name = "adapter.provider.type", havingValue = "CUSTOM")
 public class CustomResourceMonitorAdapter implements ResourceMonitorAdapter {
     
     private static final Logger logger = LoggerFactory.getLogger(CustomResourceMonitorAdapter.class);

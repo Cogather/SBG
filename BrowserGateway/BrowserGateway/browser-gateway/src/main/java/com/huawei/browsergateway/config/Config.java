@@ -29,7 +29,7 @@ public class Config {
 
     @Value("${server.address}")
     private String address;
-    @Value("${browsergw.context-limit:40}")
+    @Value("${server.port}")
     private Integer port;
 
     @Resource
