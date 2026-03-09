@@ -14,11 +14,18 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
 /**
- * 会话清理任务
- * 清理过期的会话数据
+ * 服务状态刷新任务
+ * 定期上报浏览器实例使用情况
+ * 
+ * 功能说明：
+ * 1. 定期调用chromeSet.reportUsed()上报当前使用的浏览器实例数量
+ * 2. 用于服务监控和资源统计
+ * 
+ * @author BrowserGateway
  */
 @Component
 public class ServiceStatusRefresherTask {
+    
     private static final Logger log = LogManager.getLogger(ServiceStatusRefresherTask.class);
 
     @Autowired
@@ -29,12 +36,19 @@ public class ServiceStatusRefresherTask {
 
     private ScheduledExecutorService scheduler;
 
+    /**
+     * 初始化定时任务
+     */
     @PostConstruct
     public void init() {
         scheduler = Executors.newSingleThreadScheduledExecutor();
         scheduler.scheduleAtFixedRate(this::refreshServiceStatus, 0, period, TimeUnit.MILLISECONDS);
+        log.info("Service status refresher task initialized, period: {}ms", period);
     }
 
+    /**
+     * 刷新服务状态
+     */
     public void refreshServiceStatus() {
         try {
             chromeSet.reportUsed();
@@ -43,10 +57,14 @@ public class ServiceStatusRefresherTask {
         }
     }
 
+    /**
+     * 销毁定时任务
+     */
     @PreDestroy
     public void destroy() {
         if (scheduler != null) {
             scheduler.shutdown();
+            log.info("Service status refresher task destroyed.");
         }
     }
 }

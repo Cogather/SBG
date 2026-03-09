@@ -2,7 +2,7 @@ package com.huawei.browsergateway.adapter.impl.csp;
 
 import com.huawei.browsergateway.adapter.dto.CertScene;
 import com.huawei.browsergateway.adapter.dto.CertUpdateCallback;
-import com.huawei.browsergateway.adapter.interfaces.CertificateAdapter;
+import com.huawei.browsergateway.adapter.CertificateAdapter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
@@ -156,7 +156,8 @@ public class CspCertificateAdapter implements CertificateAdapter {
                             
                             // 触发回调
                             if (callback != null) {
-                                callback.onCertificateUpdate(caContent, deviceContent, privateKey);
+//
+//                                callback.onCertificateUpdate(caContent, deviceContent, privateKey);
                             }
                             return null;
                         }

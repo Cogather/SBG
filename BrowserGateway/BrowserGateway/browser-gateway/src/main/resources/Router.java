@@ -1,7 +1,7 @@
 package com.huawei.browsergateway.router;
 
 import com.huawei.browsergateway.adapter.dto.ServiceInstance;
-import com.huawei.browsergateway.adapter.interfaces.ServiceManagementAdapter;
+import com.huawei.browsergateway.adapter.ServiceManagementAdapter;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 

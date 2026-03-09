@@ -1,10 +1,9 @@
 package com.huawei.browsergateway.service.healthCheck;
 
 import com.huawei.browsergateway.adapter.dto.ResourceStatistics;
-import com.huawei.browsergateway.adapter.interfaces.ResourceMonitorAdapter;
+import com.huawei.browsergateway.adapter.ResourceMonitorAdapter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
 
 /**
  * CPU使用率检查策略
@@ -15,12 +14,12 @@ public class CpuUsageCheck implements ICheckStrategy {
     private final float triggerThreshold;
     private final float recoverThreshold;
     
-    @Autowired
-    private ResourceMonitorAdapter resourceMonitorAdapter;
+    private final ResourceMonitorAdapter resourceMonitorAdapter;
 
-    public CpuUsageCheck(float triggerThreshold, float recoverThreshold) {
+    public CpuUsageCheck(float triggerThreshold, float recoverThreshold, ResourceMonitorAdapter resourceMonitorAdapter) {
         this.triggerThreshold = triggerThreshold;
         this.recoverThreshold = recoverThreshold;
+        this.resourceMonitorAdapter = resourceMonitorAdapter;
         log.info("start to check cpu usage, triggerThreshold: {}, recoverThreshold:{}", triggerThreshold, recoverThreshold);
     }
 

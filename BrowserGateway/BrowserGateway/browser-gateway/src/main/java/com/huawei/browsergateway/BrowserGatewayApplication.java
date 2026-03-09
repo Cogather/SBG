@@ -1,16 +1,14 @@
 package com.huawei.browsergateway;
 
 import com.alibaba.fastjson2.JSONObject;
-import com.huawei.browsergateway.adapter.interfaces.FrameworkAdapter;
+import com.huawei.browsergateway.adapter.FrameworkAdapter;
 import com.huawei.browsergateway.config.FrameworkStartupConfig;
 import com.huawei.browsergateway.util.AuditLogUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.boot.ApplicationRunner;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.context.ApplicationContext;
-import org.springframework.context.annotation.Bean;
 
 @SpringBootApplication
 public class BrowserGatewayApplication {
@@ -19,7 +17,7 @@ public class BrowserGatewayApplication {
     public static void main(String[] args){
         log.info("BrowserGateway application starting...");
         
-        // 启动Spring Boot应用
+        // TODO internal模式下注掉：启动Spring Boot应用
         ApplicationContext context = SpringApplication.run(BrowserGatewayApplication.class, args);
         
         // Framework和OM SDK的初始化通过ApplicationRunner在应用启动后自动执行

@@ -1,4 +1,5 @@
 package com.huawei.browsergateway.sdk;
+
 import cn.hutool.core.util.StrUtil;
 import cn.hutool.log.Log;
 import cn.hutool.log.LogFactory;
@@ -26,8 +27,28 @@ import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.logging.Level;
 
+/**
+ * Chromium驱动代理类
+ * 继承自Selenium的ChromiumDriver，实现自定义的浏览器驱动功能
+ * 提供与CDP服务交互的代理层
+ */
 public class ChromiumDriverProxy extends ChromiumDriver implements WebDriver.TargetLocator {
 
+    private static final Log log = LogFactory.get();
+
+    /** 浏览器驱动实例 */
+    private final BrowserDriver driver;
+
+    /** DevTools代理实例 */
+    private final DevToolsProxy devTools;
+
+    /** 窗口代理实例 */
+    private final WindowProxy webDriver;
+
+    /**
+     * 命令执行器代理类
+     * 实现CommandExecutor接口，用于Selenium命令执行
+     */
     static class CommandExecutorProxy implements CommandExecutor {
         @Override
         public Response execute(Command command) {
@@ -35,23 +56,30 @@ public class ChromiumDriverProxy extends ChromiumDriver implements WebDriver.Tar
         }
     }
 
-    private static final Log log = LogFactory.get();
-
-    private final BrowserDriver driver;
-    private final DevToolsProxy devTools;
-    private final WindowProxy webDriver;
-
+    /**
+     * 构造函数
+     *
+     * @param options 浏览器配置选项
+     */
     public ChromiumDriverProxy(BrowserOptions options) {
         super(new CommandExecutorProxy(), new ChromeOptions(), "goog:chromeOptions");
-        driver = new BrowserDriver(options);
-        devTools = new DevToolsProxy(driver);
-        webDriver = new WindowProxy(driver);
+        this.driver = new BrowserDriver(options);
+        this.devTools = new DevToolsProxy(driver);
+        this.webDriver = new WindowProxy(driver);
     }
 
+    /**
+     * 获取代理上下文ID
+     *
+     * @return 上下文ID
+     */
     public String getProxyContextId() {
         return driver.getContext().getId();
     }
 
+    /**
+     * 保存用户数据
+     */
     public void saveUserdata() {
         driver.saveUserdata();
     }
@@ -71,7 +99,7 @@ public class ChromiumDriverProxy extends ChromiumDriver implements WebDriver.Tar
     @Override
     public Object executeScript(String script, Object... args) {
         log.info("chromium proxy execute script: {}", script);
-        if (StrUtil.contains(script,"window.history.go")) {
+        if (StrUtil.contains(script, "window.history.go")) {
             // fallback操作手动执行
             driver.gotoUrl("about:blank");
             driver.executeCdp("Page.resetNavigationHistory", Map.of());
@@ -84,18 +112,15 @@ public class ChromiumDriverProxy extends ChromiumDriver implements WebDriver.Tar
         return driver.executeScript(script);
     }
 
-
     @Override
     public void get(String url) {
         driver.gotoUrl(url);
     }
 
-
     @Override
     public void quit() {
         driver.close();
     }
-
 
     @Override
     public Options manage() {
@@ -107,25 +132,20 @@ public class ChromiumDriverProxy extends ChromiumDriver implements WebDriver.Tar
         return driver.executeCdp(commandName, parameters);
     }
 
-
     @Override
     public String getCurrentUrl() {
         return driver.getCurrentUrl();
     }
 
-
-    // 关闭当前页面
     @Override
     public void close() {
         driver.closeCurrentPage();
     }
 
-
     @Override
     public TargetLocator switchTo() {
         return this;
     }
-
 
     @Override
     public WebDriver window(String nameOrHandle) {
@@ -133,12 +153,10 @@ public class ChromiumDriverProxy extends ChromiumDriver implements WebDriver.Tar
         return this;
     }
 
-
     @Override
     public void perform(Collection<Sequence> actions) {
         log.info("ignore perform: {}", actions);
     }
-
 
     /***************************************************selenium 原生******************************************************/
 
@@ -161,7 +179,6 @@ public class ChromiumDriverProxy extends ChromiumDriver implements WebDriver.Tar
     public WebDriver parentFrame() {
         throw new UnsupportedOperationException("chromium proxy is not support");
     }
-
 
     @Override
     public WebDriver newWindow(WindowType typeHint) {
@@ -300,7 +317,7 @@ public class ChromiumDriverProxy extends ChromiumDriver implements WebDriver.Tar
 
     @Override
     protected void startSession(Capabilities capabilities) {
-
+        // 空实现
     }
 
     @Override
@@ -341,9 +358,9 @@ public class ChromiumDriverProxy extends ChromiumDriver implements WebDriver.Tar
     @Override
     public WebElement findElement(By locator) {
         if (locator instanceof By.ByTagName) {
-            //By.ByTagName类中，字段tagName私有无法直接获取，从toString结果中提取。
+            // By.ByTagName类中，字段tagName私有无法直接获取，从toString结果中提取
             String prefix = "By.tagName: ";
-            String  tagName = locator.toString().substring(prefix.length());
+            String tagName = locator.toString().substring(prefix.length());
             return driver.findElementByTagName(tagName);
         }
         throw new UnsupportedOperationException("chromium proxy is not support");
@@ -379,7 +396,6 @@ public class ChromiumDriverProxy extends ChromiumDriver implements WebDriver.Tar
     public Object executeAsyncScript(String script, Object... args) {
         throw new UnsupportedOperationException("chromium proxy is not support");
     }
-
 
     @Override
     public Navigation navigate() {

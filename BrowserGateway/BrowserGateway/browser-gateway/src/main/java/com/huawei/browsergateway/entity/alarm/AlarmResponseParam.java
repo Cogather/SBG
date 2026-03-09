@@ -5,6 +5,9 @@ import lombok.AllArgsConstructor;
 
 import java.util.List;
 
+/**
+ * 告警响应参数
+ */
 @Data
 public class AlarmResponseParam {
 

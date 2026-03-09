@@ -8,8 +8,7 @@ import org.apache.logging.log4j.Logger;
 import java.util.*;
 
 /**
- * 浏览器状态机工具类
- * 管理浏览器状态转换规则和验证
+ * 浏览器状态机
  */
 public class BrowserStateMachine {
     private static final Logger log = LogManager.getLogger(BrowserStateMachine.class);

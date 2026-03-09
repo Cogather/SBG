@@ -1,127 +1,87 @@
 package com.huawei.browsergateway.adapter.impl.custom;
 
+import com.huawei.browsergateway.adapter.AlarmAdapter;
 import com.huawei.browsergateway.adapter.dto.AlarmInfo;
 import com.huawei.browsergateway.adapter.dto.AlarmRequest;
-import com.huawei.browsergateway.adapter.interfaces.AlarmAdapter;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.stereotype.Component;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
-import java.io.FileWriter;
-import java.io.IOException;
-import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.atomic.AtomicInteger;
 
 /**
- * 告警适配器 - 自定义实现
- * 适用场景：外网环境，将告警写入本地日志文件或发送到监控系统
+ * 自定义告警适配器实现
+ * 用于外网环境，不依赖CSP SDK
  */
-@Component("customAlarmAdapter")
 public class CustomAlarmAdapter implements AlarmAdapter {
-    
-    private static final Logger logger = LoggerFactory.getLogger(CustomAlarmAdapter.class);
-    
-    private static final long ALARM_DEDUPE_INTERVAL = 10 * 60 * 1000;
-    
-    private final Map<String, Long> lastAlarmTime = new ConcurrentHashMap<>();
-    private final AtomicInteger alarmCounter = new AtomicInteger(0);
-    
-    @Value("${adapter.custom.alarm.log-path:/tmp/browsergw_alarms.log}")
-    private String logFilePath;
-    
+    private static final Logger log = LogManager.getLogger(CustomAlarmAdapter.class);
+    private static final Integer ONE_MINUTE = 10 * 60 * 1000;
+    private static final ConcurrentHashMap<String, Long> alarmMap = new ConcurrentHashMap<>();
+    private final com.huawei.browsergateway.util.DeployUtil deployUtil;
+
+    /**
+     * 默认构造函数
+     */
+    public CustomAlarmAdapter() {
+        this.deployUtil = new com.huawei.browsergateway.util.DeployUtil();
+    }
+
+    /**
+     * 构造函数,用于依赖注入
+     * @param deployUtil 部署工具类
+     */
+    public CustomAlarmAdapter(com.huawei.browsergateway.util.DeployUtil deployUtil) {
+        this.deployUtil = deployUtil;
+    }
+
     @Override
     public boolean sendAlarm(String alarmId, AlarmType type, Map<String, String> parameters) {
-        // 去重检查
-        if (System.currentTimeMillis() - lastAlarmTime.getOrDefault(alarmId, 0L) < ALARM_DEDUPE_INTERVAL) {
-            logger.warn("Alarm {} was already reported within 10 minutes; skipping", alarmId);
+        // 告警去重
+        if (type == AlarmType.GENERATE &&
+            System.currentTimeMillis() - alarmMap.getOrDefault(alarmId, 0L) < ONE_MINUTE) {
+            log.info("An alarm was already reported within 10 minute; skipping this operation.");
             return false;
         }
-        
-        try {
-            // 记录告警到日志文件
-            String alarmLog = formatAlarmLog(alarmId, type, parameters);
-            writeAlarmLog(alarmLog);
-            
-            // 同时记录到应用日志
-            logger.warn("ALARM TRIGGERED: {}", alarmLog);
-            
-            // 更新最后发送时间
-            lastAlarmTime.put(alarmId, System.currentTimeMillis());
-            alarmCounter.incrementAndGet();
-            
-            return true;
-        } catch (Exception e) {
-            logger.error("Failed to send alarm {}", alarmId, e);
-            return false;
+
+        // 外网环境只记录日志，不发送告警
+        log.info("Alarm (external environment) - ID: {}, Type: {}, Parameters: {}",
+                alarmId, type, parameters);
+
+        if (type == AlarmType.GENERATE) {
+            alarmMap.put(alarmId, System.currentTimeMillis());
+        } else if (type == AlarmType.CLEAR) {
+            alarmMap.remove(alarmId);
         }
+
+        return true;
     }
-    
+
     @Override
     public boolean clearAlarm(String alarmId) {
-        if (!lastAlarmTime.containsKey(alarmId)) {
-            return false;
-        }
-        
-        try {
-            String clearLog = formatClearLog(alarmId);
-            writeAlarmLog(clearLog);
-            logger.info("Alarm cleared: {}", alarmId);
-            
-            lastAlarmTime.remove(alarmId);
+        if (!alarmMap.containsKey(alarmId)) {
             return true;
-        } catch (Exception e) {
-            logger.error("Failed to clear alarm {}", alarmId, e);
-            return false;
         }
+        return sendAlarm(alarmId, AlarmType.CLEAR, null);
     }
-    
+
     @Override
     public int sendAlarmsBatch(List<AlarmRequest> alarms, int maxRetry) {
         int successCount = 0;
-        for (AlarmRequest alarm : alarms) {
-            boolean success = sendAlarm(alarm.getAlarmId(), alarm.getType(), alarm.getParameters());
+        for (AlarmRequest request : alarms) {
+            boolean success = sendAlarm(request.getAlarmId(), request.getType(), request.getParameters());
             if (success) {
                 successCount++;
             }
         }
         return successCount;
     }
-    
+
     @Override
     public List<AlarmInfo> queryHistoricalAlarms(List<String> alarmIds) {
-        // 外网环境不支持历史告警查询，返回空列表
+        // 外网环境返回空列表
+        log.info("Query historical alarms skipped (external environment)");
         return new ArrayList<>();
-    }
-    
-    private String formatAlarmLog(String alarmId, AlarmType type, Map<String, String> parameters) {
-        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
-        StringBuilder sb = new StringBuilder();
-        sb.append("[").append(LocalDateTime.now().format(formatter)).append("] ");
-        sb.append("ALARM_ID=").append(alarmId).append(" ");
-        sb.append("TYPE=").append(type).append(" ");
-        
-        if (parameters != null) {
-            parameters.forEach((k, v) -> sb.append(k).append("=").append(v).append(" "));
-        }
-        
-        return sb.toString();
-    }
-    
-    private String formatClearLog(String alarmId) {
-        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
-        return String.format("[%s] ALARM_CLEARED: ALARM_ID=%s", 
-            LocalDateTime.now().format(formatter), alarmId);
-    }
-    
-    private void writeAlarmLog(String logMessage) throws IOException {
-        try (FileWriter writer = new FileWriter(logFilePath, true)) {
-            writer.write(logMessage + "\n");
-        }
     }
 }

@@ -3,6 +3,9 @@ package com.huawei.browsergateway.entity.operate;
 import cn.hutool.core.annotation.Alias;
 import lombok.Data;
 
+/**
+ * 会话信息
+ */
 @Data
 public class Session {
     @Alias("session_id")

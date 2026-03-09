@@ -1,11 +1,9 @@
 package com.huawei.browsergateway.service.healthCheck;
 
 import com.huawei.browsergateway.adapter.dto.ResourceStatistics;
-import com.huawei.browsergateway.adapter.interfaces.ResourceMonitorAdapter;
+import com.huawei.browsergateway.adapter.ResourceMonitorAdapter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
-
 /**
  * 内存使用率检查策略
  */
@@ -17,12 +15,12 @@ public class MemoryUsageCheck implements ICheckStrategy {
     private final float triggerThreshold;
     private final float recoveryThreshold;
     
-    @Autowired
-    private ResourceMonitorAdapter resourceMonitorAdapter;
+    private final ResourceMonitorAdapter resourceMonitorAdapter;
 
-    public MemoryUsageCheck(float triggerThreshold, float recoveryThreshold) {
+    public MemoryUsageCheck(float triggerThreshold, float recoveryThreshold, ResourceMonitorAdapter resourceMonitorAdapter) {
         this.triggerThreshold = triggerThreshold;
         this.recoveryThreshold = recoveryThreshold;
+        this.resourceMonitorAdapter = resourceMonitorAdapter;
         log.info("start to check memory usage, triggerThreshold: {}, recoveryThreshold: {}", triggerThreshold, recoveryThreshold);
     }
 

@@ -2,6 +2,9 @@ package com.huawei.browsergateway.entity.event;
 
 import com.huawei.browsergateway.util.encode.Message;
 
+/**
+ * 基础事件
+ */
 public class BaseEvent {
     private String imei;
     private String imsi;

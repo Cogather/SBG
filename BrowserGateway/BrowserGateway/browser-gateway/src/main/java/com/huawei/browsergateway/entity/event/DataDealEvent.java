@@ -5,6 +5,9 @@ import lombok.Data;
 
 import java.util.Date;
 
+/**
+ * 数据处理事件
+ */
 @Data
 public class DataDealEvent extends BaseEvent{
     private Date loginTime;

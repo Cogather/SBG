@@ -1,7 +1,7 @@
 package com.huawei.browsergateway.adapter.impl.csp;
 
 import com.huawei.browsergateway.adapter.dto.ServiceInstance;
-import com.huawei.browsergateway.adapter.interfaces.ServiceManagementAdapter;
+import com.huawei.browsergateway.adapter.ServiceManagementAdapter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
@@ -111,7 +111,7 @@ public class CspServiceManagementAdapter implements ServiceManagementAdapter {
             si.setServiceName((String) getServiceName.invoke(instance));
             @SuppressWarnings("unchecked")
             List<String> endpoints = (List<String>) getEndpoints.invoke(instance);
-            si.setEndpoints(endpoints);
+//            si.setEndpoints(endpoints);
             
             // 转换状态
             Object status = getStatus.invoke(instance);

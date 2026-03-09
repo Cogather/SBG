@@ -3,6 +3,9 @@ package com.huawei.browsergateway.entity.alarm;
 import lombok.Data;
 import lombok.AllArgsConstructor;
 
+/**
+ * 告警数据参数
+ */
 @Data
 public class DataParam {
 

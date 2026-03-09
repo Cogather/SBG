@@ -1,7 +1,7 @@
 package com.huawei.browsergateway.adapter.impl.csp;
 
 import com.huawei.browsergateway.adapter.dto.ResourceStatistics;
-import com.huawei.browsergateway.adapter.interfaces.ResourceMonitorAdapter;
+import com.huawei.browsergateway.adapter.ResourceMonitorAdapter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;

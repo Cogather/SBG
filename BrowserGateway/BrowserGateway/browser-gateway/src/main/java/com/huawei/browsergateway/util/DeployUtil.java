@@ -1,25 +1,30 @@
 package com.huawei.browsergateway.util;
 
-import com.huawei.browsergateway.adapter.interfaces.SystemUtilAdapter;
+import com.huawei.browsergateway.adapter.SystemUtilAdapter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Component;
 import software.amazon.awssdk.utils.StringUtils;
 
-@Component
 public class DeployUtil {
     private static final Logger log= LoggerFactory.getLogger(DeployUtil.class);
     private static final String APP_ID_KEY="appId";
     private static final String APP_NAME_KEY="APPNAME";
     
     private static SystemUtilAdapter systemUtilAdapter;
-    
-    @Autowired
-    public void setSystemUtilAdapter(SystemUtilAdapter systemUtilAdapter) {
+
+    public DeployUtil(SystemUtilAdapter systemUtilAdapter) {
         DeployUtil.systemUtilAdapter = systemUtilAdapter;
     }
 
+    /**
+     * 默认构造函数,用于非Spring环境
+     * 会根据环境自动选择适配器
+     */
+    public DeployUtil() {
+        systemUtilAdapter = com.huawei.browsergateway.adapter.config.AdapterConfig
+                .getAdapterFactory(com.huawei.browsergateway.adapter.config.AdapterConfig.getAdapterEnvironment())
+                .createSystemUtilAdapter();
+    }
     public static String getCurrentAppID() {
         if (systemUtilAdapter == null) {
             log.warn("SystemUtilAdapter is not initialized, returning default appId");

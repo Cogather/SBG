@@ -71,14 +71,20 @@ public class ExtensionManageApi {
             return CommonResult.error(ResultCode.VALIDATE_ERROR);
         }
         
-        boolean result = extensionManageService.loadExtension(request);
-        if (result) {
-            LoadExtensionResponse response = new LoadExtensionResponse();
-            response.setBucketName(request.getBucketName());
-            response.setExtensionFilePath(request.getExtensionFilePath());
-            return CommonResult.success(response);
+        try {
+            boolean result = extensionManageService.loadExtension(request);
+            if (result) {
+                LoadExtensionResponse response = new LoadExtensionResponse();
+                response.setBucketName(request.getBucketName());
+                response.setExtensionFilePath(request.getExtensionFilePath());
+                return CommonResult.success(response);
+            }
+            return CommonResult.error(ResultCode.FAIL.getCode(), "reload extension failed");
+        } catch (Exception e) {
+            // 确保任何异常都不会导致500错误，始终返回响应
+            log.error("load extension failed, error:{}", e.getMessage(), e);
+            return CommonResult.error(ResultCode.FAIL);
         }
-        return CommonResult.error(ResultCode.FAIL.getCode(), "reload extension failed");
     }
     
     /**
@@ -92,7 +98,13 @@ public class ExtensionManageApi {
     @GetMapping(value = "/pluginInfo")
     public CommonResult<PluginActive> getPluginInfo() {
         log.info("获取插件信息请求");
-        PluginActive pluginActive = extensionManageService.getPluginInfo();
-        return CommonResult.success(pluginActive);
+        try {
+            PluginActive pluginActive = extensionManageService.getPluginInfo();
+            return CommonResult.success(pluginActive);
+        } catch (Exception e) {
+            // 确保任何异常都不会导致500错误，始终返回响应
+            log.error("get plugin info failed, error:{}", e.getMessage(), e);
+            return CommonResult.error(ResultCode.FAIL);
+        }
     }
 }

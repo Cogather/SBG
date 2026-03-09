@@ -1,36 +1,50 @@
 package com.huawei.browsergateway.sdk;
 
 import org.openqa.selenium.WebDriver;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import java.net.URL;
 
 /**
- * 导航管理代理
+ * 导航管理代理类
+ * 实现WebDriver的Navigation接口，提供浏览器导航功能
+ * 包括前进、后退、刷新、跳转等操作
  */
 public class NavigationProxy implements WebDriver.Navigation {
+
+    /** 浏览器驱动实例 */
     private final BrowserDriver browserDriver;
+
+    /**
+     * 构造函数
+     *
+     * @param browserDriver 浏览器驱动实例
+     */
     public NavigationProxy(BrowserDriver browserDriver) {
         this.browserDriver = browserDriver;
     }
+
     @Override
-    public void back() { browserDriver.back(); }
+    public void back() {
+        browserDriver.back();
+    }
 
     @Override
     public void forward() {
         browserDriver.forward();
     }
+
     @Override
     public void to(String url) {
         browserDriver.gotoUrl(url);
     }
+
     @Override
-    public void to(URL url){
+    public void to(URL url) {
         browserDriver.gotoUrl(url.toString());
     }
+
     @Override
-    public void refresh(){
+    public void refresh() {
         browserDriver.gotoUrl(browserDriver.getCurrentUrl());
     }
 }

@@ -22,9 +22,17 @@ import java.util.concurrent.TimeUnit;
 /**
  * TCP连接监控任务
  * 监控TCP连接的心跳状态，清理超时连接，统计流量
+ * 
+ * 功能说明：
+ * 1. 定期检查控制通道和媒体通道的TCP连接
+ * 2. 根据心跳时间判断连接是否超时
+ * 3. 清理超时的连接
+ * 
+ * @author BrowserGateway
  */
 @Component
 public class TcpChannelMonitor {
+    
     private static final Logger log = LogManager.getLogger(TcpChannelMonitor.class);
 
     @Autowired
@@ -41,12 +49,19 @@ public class TcpChannelMonitor {
 
     private ScheduledExecutorService scheduler;
 
+    /**
+     * 初始化定时任务
+     */
     @PostConstruct
     public void init() {
         scheduler = Executors.newSingleThreadScheduledExecutor();
         scheduler.scheduleAtFixedRate(this::tcpClientMonitor, 0, period, TimeUnit.MILLISECONDS);
+        log.info("TCP channel monitor task initialized, period: {}ms", period);
     }
 
+    /**
+     * 监控TCP客户端心跳
+     */
     public void tcpClientMonitor() {
         log.info("begin scheduled task for monitoring TCP client heartbeats.");
         try {
@@ -58,27 +73,41 @@ public class TcpChannelMonitor {
         }
     }
 
+    /**
+     * 检查TCP连接心跳
+     * 
+     * @param clientSet 客户端集合
+     * @param ttl 心跳超时时间（纳秒）
+     */
     private static void checkTcpHeartbeat(ClientSet clientSet, long ttl) {
         Set<String> deleteKeys = new HashSet<>();
+        long currentTime = System.nanoTime();
+        
         clientSet.allClient().forEach(key -> {
             Client client = clientSet.get(key);
             if (client == null) {
                 return;
             }
-            if (System.nanoTime() - client.getTime(Client.VAL_HEARTBEAT_TIME) > ttl) {
+            
+            long heartbeatTime = client.getTime(Client.VAL_HEARTBEAT_TIME);
+            if (currentTime - heartbeatTime > ttl) {
                 log.info("client {} is expired, close it.", key);
                 deleteKeys.add(key);
             }
         });
 
+        // 删除超时的连接
         deleteKeys.forEach(clientSet::del);
     }
 
+    /**
+     * 销毁定时任务
+     */
     @PreDestroy
     public void destroy() {
         if (scheduler != null) {
             scheduler.shutdown();
+            log.info("TCP channel monitor task destroyed.");
         }
     }
-
 }

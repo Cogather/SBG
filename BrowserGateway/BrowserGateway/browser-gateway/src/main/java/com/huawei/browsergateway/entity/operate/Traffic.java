@@ -3,6 +3,9 @@ package com.huawei.browsergateway.entity.operate;
 import cn.hutool.core.annotation.Alias;
 import lombok.Data;
 
+/**
+ * 流量统计
+ */
 @Data
 public class Traffic {
     @Alias("session_id")

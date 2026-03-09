@@ -5,8 +5,7 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 
 /**
  * 定时任务配置类
- * 对应存量代码中的SchedulingConfig类
- * 启用Spring的定时任务功能
+ * 通过@EnableScheduling注解启用Spring框架的定时任务调度功能
  */
 @Configuration
 @EnableScheduling

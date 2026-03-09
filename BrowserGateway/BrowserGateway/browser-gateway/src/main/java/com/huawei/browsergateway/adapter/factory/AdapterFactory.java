@@ -1,6 +1,6 @@
 package com.huawei.browsergateway.adapter.factory;
 
-import com.huawei.browsergateway.adapter.interfaces.*;
+import com.huawei.browsergateway.adapter.*;
 
 /**
  * 适配器工厂接口
@@ -43,4 +43,10 @@ public interface AdapterFactory {
      * @return 资源监控适配器实例
      */
     ResourceMonitorAdapter createResourceMonitorAdapter();
+
+    /**
+     * 创建审计日志适配器
+     * @return 审计日志适配器实例
+     */
+    AuditLogAdapter createAuditLogAdapter();
 }

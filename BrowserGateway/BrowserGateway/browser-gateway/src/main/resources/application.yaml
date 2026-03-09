@@ -3,11 +3,6 @@
 spring:
   main:
     allow-bean-definition-overriding: true
-
-adapter:
-  provider:
-    type: CUSTOM
-    enable-mock: false
   
   custom:
     service-name: browser-gateway-external
@@ -101,3 +96,8 @@ management:
         readiness:
           include:
             - redis
+
+
+csp:
+  adapter:
+    environment: external

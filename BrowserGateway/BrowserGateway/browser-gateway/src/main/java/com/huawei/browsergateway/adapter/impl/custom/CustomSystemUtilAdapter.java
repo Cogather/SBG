@@ -1,10 +1,8 @@
 package com.huawei.browsergateway.adapter.impl.custom;
 
-import com.huawei.browsergateway.adapter.interfaces.SystemUtilAdapter;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.stereotype.Component;
+import com.huawei.browsergateway.adapter.SystemUtilAdapter;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -12,22 +10,12 @@ import java.util.concurrent.ConcurrentHashMap;
 /**
  * 系统工具适配器 - 自定义实现
  */
-@Component("customSystemUtilAdapter")
 public class CustomSystemUtilAdapter implements SystemUtilAdapter {
     
-    private static final Logger logger = LoggerFactory.getLogger(CustomSystemUtilAdapter.class);
+    private static final Logger logger = LogManager.getLogger(CustomSystemUtilAdapter.class);
     
     private final Map<String, String> mockEnvVars = new ConcurrentHashMap<>();
-    
-    @Value("${adapter.custom.service-name:browser-gateway}")
-    private String defaultServiceName;
-    
-    @Value("${adapter.custom.pod-name:browser-gateway-pod-1}")
-    private String defaultPodName;
-    
-    @Value("${adapter.custom.namespace:external}")
-    private String defaultNamespace;
-    
+
     @Override
     public String getEnvString(String key, String defaultValue) {
         // 首先检查mock环境变量
@@ -35,22 +23,13 @@ public class CustomSystemUtilAdapter implements SystemUtilAdapter {
         if (value != null) {
             return value;
         }
-        
+
         // 检查系统环境变量
         value = System.getenv(key);
         if (value != null && !value.isEmpty()) {
             return value;
         }
-        
-        // 使用默认值或配置的默认值
-        if ("SERVICENAME".equals(key)) {
-            return defaultServiceName;
-        } else if ("PODNAME".equals(key)) {
-            return defaultPodName;
-        } else if ("NAMESPACE".equals(key)) {
-            return defaultNamespace;
-        }
-        
+
         return defaultValue;
     }
     

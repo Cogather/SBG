@@ -4,6 +4,9 @@ import lombok.Data;
 
 import java.util.Date;
 
+/**
+ * 事件信息
+ */
 @Data
 public class EventInfo<T> {
     private String service;

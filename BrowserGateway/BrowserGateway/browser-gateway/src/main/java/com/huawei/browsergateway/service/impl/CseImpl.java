@@ -2,7 +2,7 @@ package com.huawei.browsergateway.service.impl;
 
 import cn.hutool.core.collection.CollectionUtil;
 import com.huawei.browsergateway.adapter.dto.ServiceInstance;
-import com.huawei.browsergateway.adapter.interfaces.ServiceManagementAdapter;
+import com.huawei.browsergateway.adapter.ServiceManagementAdapter;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -37,16 +37,16 @@ public class CseImpl implements com.huawei.browsergateway.service.ICse {
             if (instance.getStatus() != ServiceInstance.InstanceStatus.UP) {
                 continue;
             }
-            List<String> instanceEndpoints = instance.getEndpoints();
-            if (instanceEndpoints != null) {
-                for (String endpoint : instanceEndpoints) {
-                    String ipPort = extractIPPort(endpoint);
-                    if (ipPort == null) {
-                        continue;
-                    }
-                    endpoints.add(ipPort);
+//            List<String> instanceEndpoints = instance.getEndpoints();
+//            if (instanceEndpoints != null) {
+            for (String endpoint : instances.getEndpoints()) {
+                String ipPort = extractIPPort(endpoint);
+                if (ipPort == null) {
+                    continue;
                 }
+                endpoints.add(ipPort);
             }
+
         }
         if (endpoints.isEmpty()) {
             return "";

@@ -1,6 +1,6 @@
 package com.huawei.browsergateway.config;
 
-import com.huawei.browsergateway.adapter.interfaces.FrameworkAdapter;
+import com.huawei.browsergateway.adapter.FrameworkAdapter;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 

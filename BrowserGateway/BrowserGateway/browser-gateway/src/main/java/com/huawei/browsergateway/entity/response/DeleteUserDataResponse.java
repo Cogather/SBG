@@ -2,6 +2,9 @@ package com.huawei.browsergateway.entity.response;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 
+/**
+ * 删除用户数据响应
+ */
 public class DeleteUserDataResponse {
     @Schema(description = "imsi", example = "用户设备imsi号")
     private String imsi;

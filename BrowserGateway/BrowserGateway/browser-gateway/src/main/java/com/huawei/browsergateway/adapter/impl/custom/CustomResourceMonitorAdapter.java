@@ -1,10 +1,10 @@
 package com.huawei.browsergateway.adapter.impl.custom;
 
 import com.huawei.browsergateway.adapter.dto.ResourceStatistics;
-import com.huawei.browsergateway.adapter.interfaces.ResourceMonitorAdapter;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.springframework.stereotype.Component;
+import com.huawei.browsergateway.adapter.ResourceMonitorAdapter;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
 
 import java.lang.management.ManagementFactory;
 import java.lang.management.MemoryMXBean;
@@ -14,11 +14,10 @@ import java.lang.management.OperatingSystemMXBean;
 /**
  * 资源监控适配器 - 自定义实现
  */
-@Component("customResourceMonitorAdapter")
 public class CustomResourceMonitorAdapter implements ResourceMonitorAdapter {
     
-    private static final Logger logger = LoggerFactory.getLogger(CustomResourceMonitorAdapter.class);
-    
+    private static final Logger logger = LogManager.getLogger(CustomResourceMonitorAdapter.class);
+
     @Override
     public float getCpuUsage() {
         ResourceStatistics stats = getStatistics("cpu");

@@ -13,14 +13,21 @@ import javax.annotation.Nullable;
 import java.util.Set;
 
 /**
- * 窗口管理代理
+ * 窗口管理代理类
+ * 实现WebDriver的Options和Window接口，提供浏览器窗口和选项的管理功能
  */
-public class WindowProxy implements WebDriver.Options,WebDriver.Window {
-    
+public class WindowProxy implements WebDriver.Options, WebDriver.Window {
+
     private static final Logger log = LoggerFactory.getLogger(WindowProxy.class);
-    
+
+    /** 浏览器驱动实例 */
     private final BrowserDriver driver;
 
+    /**
+     * 构造函数
+     *
+     * @param driver 浏览器驱动实例
+     */
     public WindowProxy(BrowserDriver driver) {
         this.driver = driver;
     }
@@ -31,7 +38,6 @@ public class WindowProxy implements WebDriver.Options,WebDriver.Window {
         return this;
     }
 
-
     @Override
     public void setSize(@Nonnull Dimension targetSize) {
         log.info("webdriver proxy set size: {}", targetSize);
@@ -41,22 +47,22 @@ public class WindowProxy implements WebDriver.Options,WebDriver.Window {
 
     @Override
     public void addCookie(Cookie cookie) {
-
+        // 空实现
     }
 
     @Override
     public void deleteCookieNamed(String name) {
-
+        // 空实现
     }
 
     @Override
     public void deleteCookie(Cookie cookie) {
-
+        // 空实现
     }
 
     @Override
     public void deleteAllCookies() {
-
+        // 空实现
     }
 
     @Override
@@ -84,7 +90,6 @@ public class WindowProxy implements WebDriver.Options,WebDriver.Window {
         return null;
     }
 
-
     @Override
     public Point getPosition() {
         return null;
@@ -92,21 +97,21 @@ public class WindowProxy implements WebDriver.Options,WebDriver.Window {
 
     @Override
     public void setPosition(Point targetPosition) {
-
+        // 空实现
     }
 
     @Override
     public void maximize() {
-
+        // 空实现
     }
 
     @Override
     public void minimize() {
-
+        // 空实现
     }
 
     @Override
     public void fullscreen() {
-
+        // 空实现
     }
 }

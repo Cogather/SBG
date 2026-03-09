@@ -1,6 +1,6 @@
 package com.huawei.browsergateway.adapter.impl.csp;
 
-import com.huawei.browsergateway.adapter.interfaces.SystemUtilAdapter;
+import com.huawei.browsergateway.adapter.SystemUtilAdapter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;

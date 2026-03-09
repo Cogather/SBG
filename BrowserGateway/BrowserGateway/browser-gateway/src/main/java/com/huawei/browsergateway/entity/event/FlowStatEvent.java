@@ -5,6 +5,9 @@ import lombok.Data;
 
 import java.util.Date;
 
+/**
+ * 流量统计事件
+ */
 @Data
 public class FlowStatEvent extends BaseEvent{
     private String extendModel;

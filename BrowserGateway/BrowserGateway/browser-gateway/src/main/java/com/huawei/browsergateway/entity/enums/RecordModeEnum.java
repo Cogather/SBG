@@ -2,6 +2,9 @@ package com.huawei.browsergateway.entity.enums;
 
 import lombok.Getter;
 
+/**
+ * 录制模式枚举
+ */
 @Getter
 public enum RecordModeEnum {
     FFMPEG(0, "ffmpeg"),

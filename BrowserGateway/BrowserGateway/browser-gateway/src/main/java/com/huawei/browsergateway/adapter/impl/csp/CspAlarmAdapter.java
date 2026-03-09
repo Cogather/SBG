@@ -2,15 +2,14 @@ package com.huawei.browsergateway.adapter.impl.csp;
 
 import com.huawei.browsergateway.adapter.dto.AlarmInfo;
 import com.huawei.browsergateway.adapter.dto.AlarmRequest;
-import com.huawei.browsergateway.adapter.interfaces.AlarmAdapter;
-import com.huawei.browsergateway.adapter.interfaces.SystemUtilAdapter;
+import com.huawei.browsergateway.adapter.AlarmAdapter;
+import com.huawei.browsergateway.util.DeployUtil;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestTemplate;
 
 import java.lang.reflect.Method;
@@ -22,7 +21,6 @@ import java.util.concurrent.ConcurrentHashMap;
 /**
  * 告警适配器 - CSP SDK实现
  */
-@Component("cspAlarmAdapter")
 public class CspAlarmAdapter implements AlarmAdapter {
     
     private static final Logger logger = LogManager.getLogger(CspAlarmAdapter.class);
@@ -31,10 +29,10 @@ public class CspAlarmAdapter implements AlarmAdapter {
     private static final long ALARM_DEDUPE_INTERVAL = 10 * 60 * 1000; // 10分钟
     
     private final Map<String, Long> lastAlarmTime = new ConcurrentHashMap<>();
-    private final SystemUtilAdapter systemUtilAdapter;
+    private final com.huawei.browsergateway.util.DeployUtil deployUtil;
     
-    public CspAlarmAdapter(SystemUtilAdapter systemUtilAdapter) {
-        this.systemUtilAdapter = systemUtilAdapter;
+    public CspAlarmAdapter(DeployUtil deployUtil) {
+        this.deployUtil = new com.huawei.browsergateway.util.DeployUtil();
     }
     
     @Override
@@ -56,11 +54,11 @@ public class CspAlarmAdapter implements AlarmAdapter {
             
             // 设置默认参数
             Method appendParameter = alarmClass.getMethod("appendParameter", String.class, String.class);
-            appendParameter.invoke(alarm, "source", systemUtilAdapter.getEnvString("SERVICENAME", "browser-gateway"));
-            appendParameter.invoke(alarm, "kind", "service");
-            appendParameter.invoke(alarm, "name", systemUtilAdapter.getEnvString("PODNAME", "unknown"));
-            appendParameter.invoke(alarm, "namespace", systemUtilAdapter.getEnvString("NAMESPACE", "default"));
-            appendParameter.invoke(alarm, "EventSource", "BrowserGateway Service");
+//            appendParameter.invoke(alarm, "source", systemUtilAdapter.getEnvString("SERVICENAME", "browser-gateway"));
+//            appendParameter.invoke(alarm, "kind", "service");
+//            appendParameter.invoke(alarm, "name", systemUtilAdapter.getEnvString("PODNAME", "unknown"));
+//            appendParameter.invoke(alarm, "namespace", systemUtilAdapter.getEnvString("NAMESPACE", "default"));
+//            appendParameter.invoke(alarm, "EventSource", "BrowserGateway Service");
             appendParameter.invoke(alarm, "OriginalEventTime", String.valueOf(System.currentTimeMillis()));
             
             // 设置自定义参数
@@ -132,7 +130,7 @@ public class CspAlarmAdapter implements AlarmAdapter {
     @Override
     public List<AlarmInfo> queryHistoricalAlarms(List<String> alarmIds) {
         try {
-            String appId = systemUtilAdapter.getEnvString("appId", "0");
+            String appId = String.join(",", alarmIds);
             String jsonParam = String.format("{\"cmd\":\"GET_ACTIVE_ALARMS\",\"language\":\"en-us\",\"data\":{\"appId\":\"%s\",\"alarmIds\":\"%s\"}}",
                     appId, String.join(",", alarmIds));
             

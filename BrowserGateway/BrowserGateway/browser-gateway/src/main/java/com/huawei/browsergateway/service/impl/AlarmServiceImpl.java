@@ -1,17 +1,13 @@
 package com.huawei.browsergateway.service.impl;
 
-import cn.hutool.json.JSONException;
 import cn.hutool.json.JSONUtil;
 
 import com.huawei.browsergateway.adapter.dto.AlarmInfo;
-import com.huawei.browsergateway.adapter.interfaces.AlarmAdapter;
-import com.huawei.browsergateway.adapter.interfaces.SystemUtilAdapter;
+import com.huawei.browsergateway.adapter.AlarmAdapter;
+import com.huawei.browsergateway.adapter.SystemUtilAdapter;
 import com.huawei.browsergateway.entity.alarm.AlarmEvent;
-import com.huawei.browsergateway.entity.alarm.AlarmResponseParam;
-import com.huawei.browsergateway.entity.alarm.DataParam;
 import com.huawei.browsergateway.entity.enums.AlarmEnum;
 import com.huawei.browsergateway.service.IAlarm;
-import com.huawei.browsergateway.util.DeployUtil;
 import com.huawei.browsergateway.util.TimeUtil;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;

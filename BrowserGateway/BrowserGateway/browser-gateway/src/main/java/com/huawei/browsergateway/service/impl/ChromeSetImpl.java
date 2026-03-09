@@ -1,6 +1,7 @@
 package com.huawei.browsergateway.service.impl;
 
 import cn.hutool.json.JSONUtil;
+import com.huawei.browsergateway.adapter.ServiceManagementAdapter;
 import com.huawei.browsergateway.config.Config;
 import com.huawei.browsergateway.entity.request.InitBrowserRequest;
 import com.huawei.browsergateway.service.*;
@@ -44,7 +45,7 @@ public class ChromeSetImpl implements IChromeSet {
     private IPluginManage pluginManage;
     
     @Autowired
-    private com.huawei.browsergateway.adapter.interfaces.ServiceManagementAdapter serviceManagementAdapter;
+    private ServiceManagementAdapter serviceManagementAdapter;
 
 
     public synchronized void reportUsed() {

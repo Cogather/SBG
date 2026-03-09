@@ -1,5 +1,8 @@
 package com.huawei.browsergateway.entity;
 
+/**
+ * 通用响应结果
+ */
 public class CommonResult<T> {
     /**
      * 状态码 (默认 SUCCESS = 200)

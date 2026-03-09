@@ -1,5 +1,8 @@
 package com.huawei.browsergateway.entity;
 
+/**
+ * 结果码枚举
+ */
 public enum ResultCode {
     SUCCESS(200, "success"),
     FAIL(500, "system error!"),

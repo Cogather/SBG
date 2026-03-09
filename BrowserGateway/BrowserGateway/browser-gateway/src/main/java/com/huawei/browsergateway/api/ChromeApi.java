@@ -1,7 +1,6 @@
 package com.huawei.browsergateway.api;
 
 import cn.hutool.json.JSONUtil;
-
 import com.huawei.browsergateway.config.Config;
 import com.huawei.browsergateway.entity.CommonResult;
 import com.huawei.browsergateway.entity.ResultCode;
@@ -13,10 +12,6 @@ import com.huawei.browsergateway.service.IFileStorage;
 import com.huawei.browsergateway.service.IRemote;
 import com.huawei.browsergateway.service.impl.UserChrome;
 import com.huawei.browsergateway.service.impl.UserData;
-
-
-import java.nio.ByteOrder;
-
 import com.huawei.browsergateway.util.UserIdUtil;
 import com.huawei.browsergateway.util.encode.Message;
 import com.huawei.browsergateway.util.encode.Tlv;
@@ -28,24 +23,38 @@ import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.*;
 
 import javax.annotation.Resource;
+import java.nio.ByteOrder;
 
 /**
  * Chrome浏览器管理API
+ * 
+ * @author BrowserGateway
  */
 @RestController
 @RequestMapping(path = "/browsergw/browser", produces = MediaType.APPLICATION_JSON_VALUE)
 public class ChromeApi {
 
     private static final Logger log = LogManager.getLogger(ChromeApi.class);
+
     @Resource
     private IChromeSet chromeSet;
+
     @Autowired
     private IFileStorage fs;
+
     @Autowired
     private Config config;
+
     @Autowired
     private IRemote remote;
 
+    /**
+     * 删除用户数据
+     * 删除浏览器实例以及本地和远程S3的用户数据
+     * 
+     * @param param 删除用户数据请求参数，包含IMEI和IMSI
+     * @return 删除结果响应
+     */
     @DeleteMapping("/userdata/delete")
     public CommonResult<DeleteUserDataResponse> deleteUserData(@RequestBody DeleteUserDataRequest param) {
         String userId = UserIdUtil.generateUserIdByImeiAndImsi(param.getImei(), param.getImsi());
@@ -71,6 +80,13 @@ public class ChromeApi {
         }
     }
 
+    /**
+     * 预打开浏览器
+     * 验证参数并创建Chrome浏览器实例
+     * 
+     * @param param 初始化浏览器请求参数
+     * @return 操作结果
+     */
     @PostMapping("/preOpen")
     public CommonResult<String> preOpenBrowser(@RequestBody InitBrowserRequest param) {
         if (param == null) {
