@@ -1,11 +1,9 @@
 package com.huawei.browsergateway.service.impl;
 
 import cn.hutool.core.collection.CollectionUtil;
-import com.huawei.browsergateway.adapter.dto.ServiceInstance;
-import com.huawei.browsergateway.adapter.ServiceManagementAdapter;
+import org.apache.servicecomb.registry.api.registry.MicroserviceInstance;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.net.URI;
@@ -18,23 +16,17 @@ import java.util.Random;
 public class CseImpl implements com.huawei.browsergateway.service.ICse {
     private static final Logger log = LogManager.getLogger(CseImpl.class);
     private static final Random random = new Random();
-    
-    @Autowired
-    private ServiceManagementAdapter serviceManagementAdapter;
 
+
+    @Override
     public String getReportEndpoint() {
-        if (serviceManagementAdapter == null) {
-            log.warn("ServiceManagementAdapter is not available");
-            return "";
-        }
-        
-        List<ServiceInstance> instances = serviceManagementAdapter.findServiceInstances("0", "gids", "0+");
+        List<MicroserviceInstance> instances = RegistryUtils.findServiceInstances("0", "gids", "0+");
         if (CollectionUtil.isEmpty(instances)) {
             return "";
         }
         HashSet<String> endpoints = new HashSet<>();
-        for (ServiceInstance instance : instances) {
-            if (instance.getStatus() != ServiceInstance.InstanceStatus.UP) {
+        for (MicroserviceInstance instance : instances) {
+            if (instance.getStatus() != MicroserviceInstance.UP) {
                 continue;
             }
 //            List<String> instanceEndpoints = instance.getEndpoints();

@@ -27,56 +27,63 @@ public class AlarmServiceImpl implements IAlarm {
     private static final Logger log = LogManager.getLogger(AlarmServiceImpl.class);
 
     private static final Integer ONE_MINUTE = 10 * 60 * 1000;
+
+    private final AlarmAdapter alarmAdapter;
+    private final SystemUtilAdapter systemUtilAdapter;
+
     public static ConcurrentHashMap<String, Long> alarmMap = new ConcurrentHashMap<>();
 
     @Autowired
-    private AlarmAdapter alarmAdapter;
-
-    @Autowired
-    private SystemUtilAdapter systemUtilAdapter;
+    private AlarmServiceImpl(AlarmAdapter alarmAdapter, SystemUtilAdapter systemUtilAdapter) {
+        this.alarmAdapter = alarmAdapter;
+        this.systemUtilAdapter = systemUtilAdapter;
+    };
 
     @Override
-    public boolean sendAlarm(AlarmEvent alarmEvent) {
+    public void sendAlarm(AlarmEvent alarmEvent) {
         log.info("enter send alarm");
-        if (System.currentTimeMillis() - alarmMap.getOrDefault(alarmEvent.getAlarmCodeEnum().getAlarmId(), 0L) < ONE_MINUTE) {
-            log.info("An alarm was already reported within 10 minute; skipping this operation.");
-            return false;
-        }
-
-        Map<String, String> parameters = new HashMap<>();
-        parameters.put("EventMessage", alarmEvent.getEventMessage());
-        parameters.put("EventSource", "BrowserGW Service");
-        parameters.put("OriginalEventTime", TimeUtil.getCurrentDate());
-
         boolean result = alarmAdapter.sendAlarm(
                 alarmEvent.getAlarmCodeEnum().getAlarmId(),
                 AlarmAdapter.AlarmType.GENERATE,
-                parameters
+                buildAlarmParameters(alarmEvent)
         );
-
         if (result) {
-            alarmMap.put(alarmEvent.getAlarmCodeEnum().getAlarmId(), System.currentTimeMillis());
             log.info("send alarm successfully.");
         } else {
             log.info("Failed to send alarm.");
         }
-        return result;
     }
 
     @Override
-    public boolean clearAlarm(String alarmId) {
-        if (!alarmMap.containsKey(alarmId)) {
-            return false;
+    public void clearAlarm(AlarmEvent alarmEvent) {
+        if (!alarmMap.containsKey(alarmEvent.getAlarmCodeEnum().getAlarmId())) {
+            return;
         }
 
-        boolean result = alarmAdapter.clearAlarm(alarmId);
+        boolean result = alarmAdapter.clearAlarm(alarmEvent.getAlarmCodeEnum().getAlarmId());
         if (result) {
-            alarmMap.remove(alarmId);
+            alarmMap.remove(alarmEvent.getAlarmCodeEnum().getAlarmId());
             log.info("send recover alarm successfully.");
         } else {
             log.info("Failed to send recover alarm.");
         }
-        return result;
+    }
+
+    /**
+     * 构建告警参数
+     * @param alarmEvent 告警事件
+     * @return 告警参数Map
+     */
+    private Map<String, String> buildAlarmParameters(AlarmEvent alarmEvent) {
+        Map<String, String> parameters = new HashMap<>();
+        parameters.put("source", systemUtilAdapter.getEnvString("SERVICENAME", "browser-gateway"));
+        parameters.put("kind", "service");
+        parameters.put("name", systemUtilAdapter.getEnvString("PODNAME", "unknown"));
+        parameters.put("namespace", systemUtilAdapter.getEnvString("NAMESPACE", "default"));
+        parameters.put("EventMessage", alarmEvent.getEventMessage());
+        parameters.put("EventSource", "BrowserGW Service");
+        parameters.put("OriginalEventTime", TimeUtil.getCurrentDate());
+        return parameters;
     }
 
     private boolean isInitialized = false;
@@ -95,30 +102,25 @@ public class AlarmServiceImpl implements IAlarm {
 
     public void handleHistoryAlarm() {
         try {
-            String allCodes = AlarmEnum.getAllCodes();
-            List<String> alarmIds = Arrays.asList(allCodes.split("&"));
-            List<AlarmInfo> alarms = alarmAdapter.queryHistoricalAlarms(alarmIds);
+            String alarmIds = AlarmEnum.getAllCodes();
+            List<String> alarmIdList = Arrays.asList(alarmIds.split("&"));
+            List<AlarmInfo> alarms = alarmAdapter.queryHistoricalAlarms(alarmIdList);
             if (alarms == null || alarms.isEmpty()) {
-                log.info("get alarm fail or no active alarms, skip it");
+                log.info("No historical alarms found.");
                 return;
             }
             for (AlarmInfo alarmInfo : alarms) {
-                log.info("send history alarm: {}", JSONUtil.toJsonStr(alarmInfo));
-                // 清除告警
-                Map<String, String> parameters = new HashMap<>();
-                parameters.put("EventMessage", alarmInfo.getMessage());
-                parameters.put("EventSource", "BrowserGW Service");
-                parameters.put("OriginalEventTime", String.valueOf(alarmInfo.getTimestamp()));
-
+                log.info("Processing historical alarm: {}", alarmInfo.getAlarmId());
+                // 取消告警
                 boolean result = alarmAdapter.clearAlarm(alarmInfo.getAlarmId());
                 if (result) {
-                    log.info("send recover alarm successfully.");
+                    log.info("Send recover alarm successfully for alarmId: {}", alarmInfo.getAlarmId());
                 } else {
-                    log.info("Failed to send recover alarm.");
+                    log.warn("Failed to send recover alarm for alarmId: {}", alarmInfo.getAlarmId());
                 }
             }
         } catch (Exception e) {
-            log.info("ignore all exception", e);
+            log.error("Error processing historical alarms", e);
         }
     }
 }

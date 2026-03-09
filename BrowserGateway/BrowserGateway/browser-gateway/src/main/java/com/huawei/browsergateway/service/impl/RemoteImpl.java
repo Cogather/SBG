@@ -97,8 +97,8 @@ public class RemoteImpl implements IRemote {
             consumer.accept(null);
             this.handleEvent(receivedControlPackets, userId);
 
-            alarm.clearAlarm(AlarmEnum.ALARM_300033.getAlarmId());
-            alarm.clearAlarm(AlarmEnum.ALARM_300031.getAlarmId());
+            alarm.clearAlarm(new AlarmEvent(AlarmEnum.ALARM_300033, "the browser has return to normal"));
+            alarm.clearAlarm(new AlarmEvent(AlarmEnum.ALARM_300031, "the user interface has returned to normal"));
         } catch (Exception e) {
             if (e.getMessage() != null && e.getMessage().contains("failed to create browsers")) {
                 alarm.sendAlarm(new AlarmEvent(AlarmEnum.ALARM_300033, "Failed to create a browser"));

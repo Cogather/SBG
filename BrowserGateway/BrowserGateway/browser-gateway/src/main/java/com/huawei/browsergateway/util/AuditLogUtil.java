@@ -1,32 +1,39 @@
 package com.huawei.browsergateway.util;
 
-import com.alibaba.fastjson.JSONObject;
+import com.huawei.browsergateway.adapter.AuditLogAdapter;
+import com.huawei.browsergateway.adapter.dto.AuditLevel;
+import com.huawei.browsergateway.adapter.dto.AuditResult;
+import com.huawei.browsergateway.adapter.dto.AuditType;
+import com.huawei.browsergateway.adapter.dto.OperateType;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.springframework.http.HttpEntity;
-import org.springframework.http.HttpMethod;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
-import org.springframework.web.client.RestTemplate;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Component;
 
-
+@Component
 public class AuditLogUtil {
-    private static Logger log = LogManager.getLogger(AuditLogUtil.class);
+    private static final Logger log = LogManager.getLogger(AuditLogUtil.class);
 
-    private static final String OPER_LOG_PATH = "cse://AuditLog/plat/audit/v1/logs";
+    private static AuditLogUtil instance;
 
-    private static final String SECURITY_LOG_PATH = "cse://AuditLog/plat/audit/v1/seculogs";
+    private final AuditLogAdapter auditLogAdapter;
 
-    private static final String APPNAME = "browsergw";
-
-    private static final String SERVICENAME = "browsergw";
-
-
-    public enum AuditType {
-        OPERATION,
-        SECURITY
+    @Autowired
+    public AuditLogUtil(AuditLogAdapter auditLogAdapter) {
+        this.auditLogAdapter = auditLogAdapter;
+        AuditLogUtil.instance = this;
     }
 
+    /**
+     * 获取实例（用于非Spring环境）
+     */
+    public static AuditLogUtil getInstance() {
+        return instance;
+    }
+
+    /**
+     * 审计日志信息（保留用于向后兼容）
+     */
     public static class AuditLogInfo {
         /**
          * 操作名称
@@ -175,177 +182,69 @@ public class AuditLogUtil {
         }
     }
 
-    public enum AuditLevel {
-        /**
-         * 提示
-         */
-        WARNING(0),
-        /**
-         * 一般
-         */
-        MINOR(1),
-        /**
-         * 危险
-         */
-        RISK(2),
-        /**
-         * 自动查询
-         */
-        AUTOQUERY(3),
-        /**
-         * 手动查询
-         */
-        QUERY(4);
-
-        int codeLevel;
-
-        AuditLevel(int code) {
-            codeLevel = code;
-        }
-    }
-
     /**
-     * 操作类型
-     *
-     * @since 2022/7/28
+     * 写入审计日志（静态方法，保持向后兼容）
+     * @param auditType 审计日志类型
+     * @param auditLogInfo 审计日志信息
+     * @param level 日志级别
+     * @param operateType 操作类型
+     * @param result 操作结果
      */
-    public enum OperateType {
-        /**
-         * 查询
-         */
-        GET(0),
-        /**
-         * 提示
-         */
-        ADD(1),
-        /**
-         * 一般
-         */
-        MOD(2),
-        /**
-         * 危险
-         */
-        DELETE(3),
-        /**
-         * 自动查询
-         */
-        DOWNLOAD(4),
-        /**
-         * 手动查询
-         */
-        UPLOAD(5),
-        /**
-         * 手动查询
-         */
-        UPHOLD(6);
-
-        int codeType;
-
-        OperateType(int code) {
-            codeType = code;
-        }
-    }
-
-    /**
-     * 鉴权操作结果
-     *
-     * @since 2019/3/20
-     */
-    public enum AuditResult {
-        /**
-         * 成功
-         */
-        SUCCESSFUL(0),
-        /**
-         * 失败
-         */
-        FAILURE(1),
-        /**
-         * 部分成功
-         */
-        PARTIAL_SUCCESS(2);
-
-        int codeStaus;
-
-        AuditResult(int code) {
-            codeStaus = code;
-        }
-    }
-
     public static void writeAuditLog(
-            AuditType auditType, AuditLogInfo auditLogInfo, AuditLevel level, OperateType operateType, AuditResult result) {
-        // 默认为操作日志
-        String path = OPER_LOG_PATH;
-        // 安全日志场景
-        if (AuditType.SECURITY.equals(auditType)) {
-            path = SECURITY_LOG_PATH;
+            AuditType auditType, AuditLogInfo auditLogInfo,
+            AuditLevel level, OperateType operateType, AuditResult result) {
+        if (instance != null) {
+            instance.writeAuditLogInstance(auditType, auditLogInfo, level, operateType, result);
+        } else {
+            log.warn("AuditLogUtil instance not initialized, skipping audit log write");
         }
+    }
 
-        // 填充日志消息体
-        JSONObject body = new JSONObject();
-        body.put("operation", auditLogInfo.getOperation());
-        body.put("level", (level != null) ? level.codeLevel : AuditLevel.MINOR);
-        body.put("userName", auditLogInfo.getUserName());
-        body.put("dateTime", System.currentTimeMillis());
-        body.put("appId", 0);
-        body.put("appName", APPNAME);
-        body.put("terminal", auditLogInfo.getTerminal());
-        body.put("serviceName", SERVICENAME);
-        body.put("result", (result != null) ? result.codeStaus : AuditResult.SUCCESSFUL);
-        body.put("detail", auditLogInfo.getDetail());
-        body.put("detail_zh", auditLogInfo.getDetailZh());
-        if (!AuditType.SECURITY.equals(auditType)) {
-            body.put("operateType", (operateType != null) ? operateType.codeType : OperateType.UPHOLD);
-        }
-
-        // 如果使用 cse:// 协议但 CSP SDK 不可用，则跳过审计日志记录
-        if (path.startsWith("cse://") && !isCspSdkAvailable()) {
-            log.debug("CSP SDK not available, skipping audit log with cse:// protocol: {}", path);
-            return;
-        }
-
+    /**
+     * 写入审计日志（实例方法）
+     * @param auditType 审计日志类型
+     * @param auditLogInfo 审计日志信息
+     * @param level 日志级别
+     * @param operateType 操作类型
+     * @param result 操作结果
+     */
+    private void writeAuditLogInstance(
+            AuditType auditType, AuditLogInfo auditLogInfo,
+            AuditLevel level, OperateType operateType, AuditResult result) {
         try {
-            log.info("report audit log, {}", body.toString());
-            RestTemplate restTemplate = createRestTemplate();
-            HttpEntity<String> requestEntity = new HttpEntity<>(body.toString());
-            ResponseEntity<Integer> response =
-                    restTemplate.exchange(path, HttpMethod.POST, requestEntity, Integer.class);
-            int statusCode = response.getStatusCodeValue();
-            if (HttpStatus.OK.value() != statusCode) {
-                log.error("responsestatus = {} ,sn = {}", statusCode, response.getBody());
-                return;
+            com.huawei.browsergateway.adapter.dto.AuditLogInfo adapterAuditLogInfo = buildAdapterAuditLogInfo(
+                    auditType, auditLogInfo, level, operateType, result);
+            boolean success = auditLogAdapter.writeAuditLog(adapterAuditLogInfo);
+            if (!success) {
+                log.warn("Failed to write audit log for operation: {}", auditLogInfo.getOperation());
             }
-            log.info("reported audit log");
-        } catch (Throwable e) {
-            log.error("rest connect failed, detail: {} ,Throwable:{}", auditLogInfo.getDetail(), e.getMessage());
-        }
-    }
-
-    /**
-     * 检查CSP SDK是否可用
-     */
-    private static boolean isCspSdkAvailable() {
-        try {
-            Class.forName("com.huawei.csp.jsf.api.CspRestTemplateBuilder");
-            return true;
-        } catch (ClassNotFoundException e) {
-            return false;
-        }
-    }
-
-    /**
-     * 创建RestTemplate，优先使用CSP SDK的CspRestTemplateBuilder，否则使用标准RestTemplate
-     */
-    private static RestTemplate createRestTemplate() {
-        try {
-            // 尝试使用CSP SDK的CspRestTemplateBuilder
-            Class<?> builderClass = Class.forName("com.huawei.csp.jsf.api.CspRestTemplateBuilder");
-            java.lang.reflect.Method createMethod = builderClass.getMethod("create");
-            return (RestTemplate) createMethod.invoke(null);
         } catch (Exception e) {
-            // 如果CSP SDK不可用，使用标准RestTemplate
-            log.debug("CspRestTemplateBuilder not available, using standard RestTemplate", e);
-            return new RestTemplate();
+            log.error("Error writing audit log, detail: {}, error: {}",
+                    auditLogInfo.getDetail(), e.getMessage(), e);
         }
+    }
+
+    /**
+     * 构建适配器审计日志信息
+     */
+    private com.huawei.browsergateway.adapter.dto.AuditLogInfo buildAdapterAuditLogInfo(
+            AuditType auditType, AuditLogInfo auditLogInfo,
+            AuditLevel level, OperateType operateType, AuditResult result) {
+        com.huawei.browsergateway.adapter.dto.AuditLogInfo adapterInfo = new com.huawei.browsergateway.adapter.dto.AuditLogInfo();
+        adapterInfo.setOperation(auditLogInfo.getOperation());
+        adapterInfo.setLevel(String.valueOf((level != null) ? level.getCodeLevel() : AuditLevel.MINOR.getCodeLevel()));
+        adapterInfo.setUserName(auditLogInfo.getUserName());
+        adapterInfo.setDateTime(String.valueOf(System.currentTimeMillis()));
+        adapterInfo.setAppName("browsergw");
+        adapterInfo.setTerminal(auditLogInfo.getTerminal());
+        adapterInfo.setServiceName("browsergw");
+        adapterInfo.setResult(String.valueOf((result != null) ? result.getCodeStatus() : AuditResult.SUCCESSFUL.getCodeStatus()));
+        adapterInfo.setDetail(auditLogInfo.getDetail());
+        adapterInfo.setDetailZh(auditLogInfo.getDetailZh());
+        adapterInfo.setAuditType(auditType.name());
+        if (!AuditType.SECURITY.equals(auditType)) {
+            adapterInfo.setOperateType(String.valueOf((operateType != null) ? operateType.getCodeType() : OperateType.UPHOLD.getCodeType()));
+        }
+        return adapterInfo;
     }
 }

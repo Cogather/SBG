@@ -81,7 +81,7 @@ public class PluginManageImpl implements IPluginManage {
     public void updateStatus(String pluginStatus) {
         // 上报插件创建失败告警
         if (Constant.COMPLETE.equals(pluginStatus)) {
-            alarm.clearAlarm(AlarmEnum.ALARM_300030.getAlarmId());
+            alarm.clearAlarm(new AlarmEvent(AlarmEnum.ALARM_300030, "plugin has return to normal"));
         } else {
             alarm.sendAlarm(new AlarmEvent(AlarmEnum.ALARM_300030, "ERROR:Failed to create plugin"));
         }

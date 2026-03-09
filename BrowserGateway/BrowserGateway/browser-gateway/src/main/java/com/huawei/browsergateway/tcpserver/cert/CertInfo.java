@@ -1,4 +1,6 @@
 package com.huawei.browsergateway.tcpserver.cert;
+
+import com.huawei.browsergateway.adapter.dto.CertEntity;
 import org.bouncycastle.asn1.pkcs.PrivateKeyInfo;
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
 import org.bouncycastle.openssl.PEMDecryptorProvider;
@@ -29,20 +31,20 @@ public class CertInfo {
         }
         caContent = c;
     }
-    public static synchronized void SetDeviceContent(String deviceContent, String keyContent, String keypwd) {
+    public static synchronized void SetDeviceContent(CertEntity cert) {
         if (deviceContent == null || keyContent == null) {
             return;
         }
-        CertInfo.deviceContent = deviceContent;
-        CertInfo.keyContent = keyContent;
-        CertInfo.keypwd = keypwd != null ? keypwd : "";
+        CertInfo.deviceContent = cert.getDeviceContent();
+        CertInfo.keyContent = cert.getPrivateKeyContent();
+        CertInfo.keypwd = new String(cert.getPrivateKeyPassword());
     }
-    
-    // 保留原方法签名以兼容CSP模式（通过反射调用）
-    public static synchronized void SetDeviceContent(Object cert) {
-        // 在custom模式下，此方法不会被调用
-        // 如果需要支持，可以通过反射获取字段值
-    }
+//
+//    // 保留原方法签名以兼容CSP模式（通过反射调用）
+//    public static synchronized void SetDeviceContent(Object cert) {
+//        // 在custom模式下，此方法不会被调用
+//        // 如果需要支持，可以通过反射获取字段值
+//    }
 
     public InputStream Ca() {
         return new ByteArrayInputStream(caContent.getBytes());

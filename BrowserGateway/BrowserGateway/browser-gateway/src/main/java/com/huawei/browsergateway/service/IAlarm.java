@@ -10,10 +10,10 @@ public interface IAlarm {
     /**
      * 发送告警
      */
-    boolean sendAlarm(AlarmEvent alarmEvent);
+     void sendAlarm(AlarmEvent alarmEvent);
     
     /**
      * 清除告警
      */
-    boolean clearAlarm(String alarmId);
+    void clearAlarm(AlarmEvent alarmEvent);
 }

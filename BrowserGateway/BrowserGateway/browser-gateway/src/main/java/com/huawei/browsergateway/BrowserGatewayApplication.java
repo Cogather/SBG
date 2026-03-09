@@ -2,6 +2,10 @@ package com.huawei.browsergateway;
 
 import com.alibaba.fastjson2.JSONObject;
 import com.huawei.browsergateway.adapter.FrameworkAdapter;
+import com.huawei.browsergateway.adapter.dto.AuditLevel;
+import com.huawei.browsergateway.adapter.dto.AuditResult;
+import com.huawei.browsergateway.adapter.dto.AuditType;
+import com.huawei.browsergateway.adapter.dto.OperateType;
 import com.huawei.browsergateway.config.FrameworkStartupConfig;
 import com.huawei.browsergateway.util.AuditLogUtil;
 import org.slf4j.Logger;
@@ -35,7 +39,7 @@ public class BrowserGatewayApplication {
         operation.put("OP_ZH", "测试操作");
 
         // 操作日志
-        AuditLogUtil.writeAuditLog(AuditLogUtil.AuditType.OPERATION,
+        AuditLogUtil.writeAuditLog(AuditType.OPERATION,
                 new AuditLogUtil.AuditLogInfo()
                         .setAppName("browsergw")
                         .setDetail("test detail")
@@ -44,12 +48,12 @@ public class BrowserGatewayApplication {
                         .setUserName("test user")
                         .setTerminal("test terminal"),
 
-                AuditLogUtil.AuditLevel.MINOR,
-                AuditLogUtil.OperateType.GET,
-                AuditLogUtil.AuditResult.SUCCESSFUL
+                AuditLevel.MINOR,
+                OperateType.GET,
+                AuditResult.SUCCESSFUL
         );
 
-        AuditLogUtil.writeAuditLog(AuditLogUtil.AuditType.SECURITY,
+        AuditLogUtil.writeAuditLog(AuditType.SECURITY,
                 new AuditLogUtil.AuditLogInfo()
                         .setAppName("browsergw")
                         .setDetail("test detail")
@@ -58,9 +62,9 @@ public class BrowserGatewayApplication {
                         .setUserName("test user")
                         .setTerminal("test terminal"),
 
-                AuditLogUtil.AuditLevel.MINOR,
-                AuditLogUtil.OperateType.GET,
-                AuditLogUtil.AuditResult.SUCCESSFUL
+                AuditLevel.MINOR,
+                OperateType.GET,
+                AuditResult.SUCCESSFUL
         );
 
         log.info("BrowserGateway application started successfully");

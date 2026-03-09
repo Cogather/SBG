@@ -140,7 +140,7 @@ public class HealthCheckTask {
         
         // 处理告警
         if (isHealthy) {
-            alarm.clearAlarm(AlarmEnum.ALARM_300032.getAlarmId());
+            alarm.clearAlarm(new AlarmEvent(AlarmEnum.ALARM_300032, "Sub-healthy health check passed"));
         } else {
             alarm.sendAlarm(new AlarmEvent(AlarmEnum.ALARM_300032, "Sub‑health check failed"));
         }
