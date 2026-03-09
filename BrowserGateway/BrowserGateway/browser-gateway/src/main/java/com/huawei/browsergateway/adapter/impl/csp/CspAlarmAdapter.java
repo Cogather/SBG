@@ -6,6 +6,7 @@ import com.huawei.browsergateway.adapter.AlarmAdapter;
 import com.huawei.browsergateway.util.DeployUtil;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.springframework.stereotype.Component;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
@@ -21,6 +22,7 @@ import java.util.concurrent.ConcurrentHashMap;
 /**
  * 告警适配器 - CSP SDK实现
  */
+@Component("cspAlarmAdapter")
 public class CspAlarmAdapter implements AlarmAdapter {
     
     private static final Logger logger = LogManager.getLogger(CspAlarmAdapter.class);

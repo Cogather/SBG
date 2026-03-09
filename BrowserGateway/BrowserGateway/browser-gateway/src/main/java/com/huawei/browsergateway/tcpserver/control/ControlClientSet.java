@@ -3,17 +3,11 @@ package com.huawei.browsergateway.tcpserver.control;
 import com.huawei.browsergateway.service.IRemote;
 import com.huawei.browsergateway.tcpserver.Client;
 import com.huawei.browsergateway.tcpserver.ClientSet;
-import io.netty.channel.Channel;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Component;
 
-import javax.annotation.PostConstruct;
-import javax.annotation.PreDestroy;
 import java.util.concurrent.*;
-import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * 控制流客户端管理

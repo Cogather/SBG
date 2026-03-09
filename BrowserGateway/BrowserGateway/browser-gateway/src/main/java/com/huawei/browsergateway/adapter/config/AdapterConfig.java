@@ -22,7 +22,7 @@ public class AdapterConfig {
      * 环境配置：internal(内网) 或 external(外网)
      * 默认为内网环境
      */
-    @Value("${csp.adapter.environment:internal}")
+    @Value("${csp.adapter.environment:external}")
     private String environment;
 
     @Bean

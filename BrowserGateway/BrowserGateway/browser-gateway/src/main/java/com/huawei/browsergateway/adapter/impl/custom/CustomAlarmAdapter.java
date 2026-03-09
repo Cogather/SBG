@@ -5,6 +5,7 @@ import com.huawei.browsergateway.adapter.dto.AlarmInfo;
 import com.huawei.browsergateway.adapter.dto.AlarmRequest;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -15,6 +16,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * 自定义告警适配器实现
  * 用于外网环境，不依赖CSP SDK
  */
+@Component("customAlarmAdapter")
 public class CustomAlarmAdapter implements AlarmAdapter {
     private static final Logger log = LogManager.getLogger(CustomAlarmAdapter.class);
     private static final Integer ONE_MINUTE = 10 * 60 * 1000;
