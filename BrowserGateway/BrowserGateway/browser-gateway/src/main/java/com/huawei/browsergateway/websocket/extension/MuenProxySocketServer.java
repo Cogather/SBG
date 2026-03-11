@@ -56,8 +56,6 @@ public class MuenProxySocketServer {
     @OnMessage
     public void onMessage(Session session, String message) {
         String userId = session.getAttribute(SocketKeyConst.USER_ID_KEY).toString();
-        log.info("[MuenProxySocketServer] 收到控制流消息: userId={}, 消息长度={}字节, 消息内容={}", 
-                 userId, message.length(), message.length() > 200 ? message.substring(0, 200) + "..." : message);
         chromeSet.get(userId).getMuenDriver().receiveMessageFromWebscoket(userId, message);
     }
 

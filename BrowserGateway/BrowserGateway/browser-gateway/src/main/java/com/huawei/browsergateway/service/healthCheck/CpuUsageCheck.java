@@ -28,11 +28,7 @@ public class CpuUsageCheck implements ICheckStrategy {
         HealthCheckResult result = new HealthCheckResult();
         result.setCheckItem("CpuUsageCheck");
         result.setHealthy(true);
-        
-        if (resourceMonitorAdapter == null) {
-            log.warn("ResourceMonitorAdapter is not available");
-            return result;
-        }
+
         
         ResourceStatistics cpuStatistics = resourceMonitorAdapter.getStatistics("cpu");
         if (!cpuStatistics.isSuccess()) {

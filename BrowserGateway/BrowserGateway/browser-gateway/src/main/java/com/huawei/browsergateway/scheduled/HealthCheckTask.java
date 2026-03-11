@@ -16,8 +16,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
-import jakarta.annotation.PostConstruct;
-import jakarta.annotation.PreDestroy;
+import javax.annotation.PostConstruct;
+import javax.annotation.PreDestroy;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -146,9 +146,8 @@ public class HealthCheckTask {
         }
 
         // 上报健康状态到服务管理适配器
-        if (serviceManagementAdapter != null) {
-            serviceManagementAdapter.reportInstanceProperties(healthResult);
-        }
+        serviceManagementAdapter.reportInstanceProperties(healthResult);
+
     }
 
     /**

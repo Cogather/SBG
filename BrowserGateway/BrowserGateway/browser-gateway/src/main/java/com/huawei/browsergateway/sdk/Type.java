@@ -92,11 +92,9 @@ public class Type {
          * @return 当前页面对象，如果不存在则返回null
          */
         public Page getCurrentPage() {
-            return pages.stream()
-                    .filter(page -> Objects.equals(page.id, current))
-                    .findAny()
-                    .orElse(null);
+            return pages.stream().filter(page -> Objects.equals(page.id,current)).findAny().orElse(null);
         }
+
 
         /**
          * 获取当前页面URL
@@ -105,9 +103,7 @@ public class Type {
          * @throws RuntimeException 如果当前页面不存在
          */
         public String getCurrentUrl() {
-            return Optional.ofNullable(getCurrentPage())
-                    .map(Page::getUrl)
-                    .orElseThrow(() -> new RuntimeException("Current page not found"));
+            return Optional.ofNullable(getCurrentPage()).map(Page::getUrl).orElseThrow();
         }
     }
 

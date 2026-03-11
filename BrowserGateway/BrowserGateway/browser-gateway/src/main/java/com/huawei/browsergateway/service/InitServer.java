@@ -7,7 +7,7 @@ import com.huawei.browsergateway.common.Constant;
 import com.huawei.browsergateway.entity.plugin.PluginActive;
 import com.huawei.browsergateway.entity.request.LoadExtensionRequest;
 import com.huawei.browsergateway.util.HttpUtil;
-import org.apache.hc.client5.http.classic.methods.HttpPost;
+import org.apache.http.client.methods.HttpPost;
 import org.springframework.stereotype.Component;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;

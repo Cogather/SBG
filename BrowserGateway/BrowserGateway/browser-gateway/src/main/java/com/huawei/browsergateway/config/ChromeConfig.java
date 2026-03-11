@@ -15,10 +15,10 @@ public class ChromeConfig {
     @Value("${browsergw.chrome.record-mode}")
     private Integer recordMode;
 
-    @Value("${browsergw.chrome.headless:false}")
+    @Value("${browsergw.chrome.headless}")
     private boolean headless = false;
 
-    @Value("${browsergw.chrome.record-extension-id:}")
+    @Value("${browsergw.chrome.record-extension-id}")
     private String recordExtensionId;
 
     @Value("${browsergw.chrome.endpoint}")
@@ -27,6 +27,4 @@ public class ChromeConfig {
     @Value("${browsergw.chrome.executable-path}")
     private String executablePath;
 
-    @Value("${browsergw.chrome.ttl:360000000000}")
-    private Long ttl;
 }

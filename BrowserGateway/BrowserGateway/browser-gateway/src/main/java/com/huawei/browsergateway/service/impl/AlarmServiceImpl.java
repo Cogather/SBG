@@ -34,7 +34,7 @@ public class AlarmServiceImpl implements IAlarm {
     public static ConcurrentHashMap<String, Long> alarmMap = new ConcurrentHashMap<>();
 
     @Autowired
-    private AlarmServiceImpl(AlarmAdapter alarmAdapter, SystemUtilAdapter systemUtilAdapter) {
+    public AlarmServiceImpl(AlarmAdapter alarmAdapter, SystemUtilAdapter systemUtilAdapter) {
         this.alarmAdapter = alarmAdapter;
         this.systemUtilAdapter = systemUtilAdapter;
     };

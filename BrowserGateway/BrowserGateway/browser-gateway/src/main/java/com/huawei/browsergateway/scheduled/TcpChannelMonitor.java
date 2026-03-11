@@ -11,8 +11,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
-import jakarta.annotation.PostConstruct;
-import jakarta.annotation.PreDestroy;
+import javax.annotation.PostConstruct;
+import javax.annotation.PreDestroy;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.Executors;
@@ -81,22 +81,17 @@ public class TcpChannelMonitor {
      */
     private static void checkTcpHeartbeat(ClientSet clientSet, long ttl) {
         Set<String> deleteKeys = new HashSet<>();
-        long currentTime = System.nanoTime();
-        
         clientSet.allClient().forEach(key -> {
             Client client = clientSet.get(key);
             if (client == null) {
                 return;
             }
-            
-            long heartbeatTime = client.getTime(Client.VAL_HEARTBEAT_TIME);
-            if (currentTime - heartbeatTime > ttl) {
+            if (System.nanoTime() - client.getTime(Client.VAL_HEARTBEAT_TIME) > ttl) {
                 log.info("client {} is expired, close it.", key);
                 deleteKeys.add(key);
             }
         });
 
-        // 删除超时的连接
         deleteKeys.forEach(clientSet::del);
     }
 

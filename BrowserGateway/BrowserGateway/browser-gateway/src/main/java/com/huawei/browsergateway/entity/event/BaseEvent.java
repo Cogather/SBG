@@ -1,10 +1,12 @@
 package com.huawei.browsergateway.entity.event;
 
 import com.huawei.browsergateway.util.encode.Message;
+import lombok.Data;
 
 /**
  * 基础事件
  */
+@Data
 public class BaseEvent {
     private String imei;
     private String imsi;

@@ -32,12 +32,12 @@ public class CertInfo {
         caContent = c;
     }
     public static synchronized void SetDeviceContent(CertEntity cert) {
-        if (deviceContent == null || keyContent == null) {
+        if (cert == null) {
             return;
         }
-        CertInfo.deviceContent = cert.getDeviceContent();
-        CertInfo.keyContent = cert.getPrivateKeyContent();
-        CertInfo.keypwd = new String(cert.getPrivateKeyPassword());
+        deviceContent = cert.getDeviceContent();
+        keyContent = cert.getPrivateKeyContent();
+        keypwd = new String(cert.getPrivateKeyPassword());
     }
 //
 //    // 保留原方法签名以兼容CSP模式（通过反射调用）

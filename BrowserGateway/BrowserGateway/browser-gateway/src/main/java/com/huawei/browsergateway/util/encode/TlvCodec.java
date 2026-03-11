@@ -1,13 +1,16 @@
 package com.huawei.browsergateway.util.encode;
 
+import java.lang.reflect.Field;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
-import java.lang.reflect.Field;
 import java.util.Map;
 
+/**
+ * TLV编解码工具类，支持通过反射将Java对象与TLV格式互转
+ */
 public class TlvCodec {
     /**
      * 将Java对象转换为TLV结构
@@ -173,15 +176,6 @@ public class TlvCodec {
                 byte[] copy = new byte[data.length];
                 System.arraycopy(data, 0, copy, 0, data.length);
                 field.set(obj, copy);
-                break;
-
-            case "int64":
-                if (data.length != 8) {
-                    throw new IllegalArgumentException("字段" + field.getName() + "的int64数据长度无效：" + data.length);
-                }
-                ByteBuffer bufferLong = ByteBuffer.wrap(data);
-                bufferLong.order(ByteOrder.BIG_ENDIAN);
-                field.set(obj, bufferLong.getLong());
                 break;
 
             default:

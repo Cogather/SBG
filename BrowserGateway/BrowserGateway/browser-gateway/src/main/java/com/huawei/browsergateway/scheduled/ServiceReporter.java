@@ -55,7 +55,6 @@ public class ServiceReporter {
         if (remainCount == 0) {
             // 达到最大重试次数，依靠自身重试无法恢复，重启进程
             log.fatal("report chain endpoint failed");
-            return;
         }
         
         log.info("failed to report, will retry");

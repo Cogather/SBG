@@ -15,6 +15,7 @@ import com.huawei.browsergateway.tcpserver.FlowRateTracker;
 import com.huawei.browsergateway.util.encode.Message;
 import com.huawei.browsergateway.util.encode.Tlv;
 import com.huawei.browsergateway.util.encode.TlvCodec;
+import com.huawei.browsergateway.websocket.media.MediaStreamSocketServer;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandlerAdapter;
 import org.apache.logging.log4j.LogManager;
@@ -26,7 +27,7 @@ import java.util.concurrent.ConcurrentMap;
 
 
 public class MediaTcpServerHandle extends ChannelInboundHandlerAdapter {
-    private static final Logger log = LogManager.getLogger(MediaTcpServerHandle.class);
+    private static final Logger log = LogManager.getLogger(MediaStreamSocketServer.class);
     private final MediaClientSet cs;
 
     private final IRemote remote;
@@ -52,28 +53,6 @@ public class MediaTcpServerHandle extends ChannelInboundHandlerAdapter {
         Tlv tlv = (Tlv) msg;
         int type = tlv.getType();
         Client cli = Client.fromCtx(ctx);
-        String sessionId = cli.getStr(Client.VAL_SESSION_ID);
-        
-        // 记录接收到的消息类型和数据大小
-        int totalSize = 10; // Magic(2) + Count(4) + DataLen(4)
-        for (var field : tlv.getFields()) {
-            totalSize += 8 + field.getLen(); // Type(4) + Length(4) + Value
-        }
-        
-        log.info("[MediaTcpServerHandle] 收到消息: type={}, sessionId={}, TLV总大小={}字节, 字段数={}", 
-                 type, sessionId != null ? sessionId : "未登录", totalSize, tlv.getCount());
-        
-        // 如果是视频数据，记录详细信息
-        if (type == Type.VIDEO) {
-            Message message = new Message();
-            TlvCodec.unmarshal(tlv, message);
-            byte[] videoData = message.getVideoData();
-            int frameType = message.getFrameType();
-            log.info("[MediaTcpServerHandle] 收到视频帧: sessionId={}, 帧类型={}, 视频数据大小={}字节", 
-                     sessionId != null ? sessionId : "未登录", frameType, 
-                     videoData != null ? videoData.length : 0);
-        }
-        
         switch (type) {
             case Type.LOGIN:
                 processLogin(cli, tlv);
