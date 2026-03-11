@@ -233,11 +233,11 @@ public class AudioCodecProcessor implements CodecProcessor {
         encodeCtx.pkt_timebase(this.decodeCtx.pkt_timebase());
         encodeCtx.sample_rate(this.decodeCtx.sample_rate());
 
-        // todo:定义常量
+        // 设置音频通道布局
         if (mediaParam.getChannels() == 2) {
-            encodeCtx.channel_layout(3);
+            encodeCtx.channel_layout(FfmpegConstants.CHANNEL_LAYOUT_STEREO);
         } else {
-            encodeCtx.channel_layout(4);
+            encodeCtx.channel_layout(FfmpegConstants.CHANNEL_LAYOUT_MONO);
         }
 
         encodeCtx.channels(mediaParam.getChannels());
