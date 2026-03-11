@@ -1,11 +1,11 @@
 package com.huawei.browsergateway.service.impl;
 
 import cn.hutool.core.collection.CollectionUtil;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.servicecomb.registry.api.registry.MicroserviceInstance;
 import org.apache.servicecomb.registry.api.registry.MicroserviceInstanceStatus;
 import org.apache.servicecomb.serviceregistry.RegistryUtils;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.springframework.stereotype.Service;
 
 import java.net.URI;
@@ -19,7 +19,6 @@ public class CseImpl implements com.huawei.browsergateway.service.ICse {
     private static final Logger log = LogManager.getLogger(CseImpl.class);
     private static final Random random = new Random();
 
-
     @Override
     public String getReportEndpoint() {
         List<MicroserviceInstance> instances = RegistryUtils.findServiceInstance("0", "gids", "0+");
@@ -31,21 +30,13 @@ public class CseImpl implements com.huawei.browsergateway.service.ICse {
             if (instance.getStatus() != MicroserviceInstanceStatus.UP) {
                 continue;
             }
-            List<String> instanceEndpoints = instance.getEndpoints();
-            if (CollectionUtil.isEmpty(instanceEndpoints)) {
-                continue;
-            }
-            for (String endpoint : instanceEndpoints) {
+            for (String endpoint : instance.getEndpoints()) {
                 String ipPort = extractIPPort(endpoint);
                 if (ipPort == null) {
                     continue;
                 }
                 endpoints.add(ipPort);
             }
-
-        }
-        if (endpoints.isEmpty()) {
-            return "";
         }
         Object[] array = endpoints.toArray();
         return (String) array[random.nextInt(array.length)];
@@ -61,4 +52,5 @@ public class CseImpl implements com.huawei.browsergateway.service.ICse {
             return null;
         }
     }
+
 }

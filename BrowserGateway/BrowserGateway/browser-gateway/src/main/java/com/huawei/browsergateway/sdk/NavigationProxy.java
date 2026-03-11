@@ -35,16 +35,13 @@ public class NavigationProxy implements WebDriver.Navigation {
 
     @Override
     public void to(String url) {
-        browserDriver.gotoUrl(url);
     }
 
     @Override
     public void to(URL url) {
-        browserDriver.gotoUrl(url.toString());
     }
 
     @Override
     public void refresh() {
-        browserDriver.gotoUrl(browserDriver.getCurrentUrl());
     }
 }

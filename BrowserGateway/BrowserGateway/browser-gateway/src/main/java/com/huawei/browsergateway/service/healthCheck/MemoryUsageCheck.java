@@ -1,27 +1,23 @@
 package com.huawei.browsergateway.service.healthCheck;
 
-import com.huawei.browsergateway.adapter.dto.ResourceStatistics;
 import com.huawei.browsergateway.adapter.ResourceMonitorAdapter;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-/**
- * 内存使用率检查策略
- */
+import com.huawei.browsergateway.adapter.dto.ResourceStatistics;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
+
 public class MemoryUsageCheck implements ICheckStrategy {
-    
-    private static final Logger log = LoggerFactory.getLogger(MemoryUsageCheck.class);
-    
+    private static final Logger log = LogManager.getLogger(MemoryUsageCheck.class);
     private boolean inHighUsage = false;
     private final float triggerThreshold;
-    private final float recoveryThreshold;
-    
+    private final float recoverThreshold;
     private final ResourceMonitorAdapter resourceMonitorAdapter;
 
-    public MemoryUsageCheck(float triggerThreshold, float recoveryThreshold, ResourceMonitorAdapter resourceMonitorAdapter) {
+    public MemoryUsageCheck(float triggerThreshold, float recoverThreshold, ResourceMonitorAdapter resourceMonitorAdapter) {
         this.triggerThreshold = triggerThreshold;
-        this.recoveryThreshold = recoveryThreshold;
+        this.recoverThreshold = recoverThreshold;
         this.resourceMonitorAdapter = resourceMonitorAdapter;
-        log.info("start to check memory usage, triggerThreshold: {}, recoveryThreshold: {}", triggerThreshold, recoveryThreshold);
+        log.info("start to check memory usage, triggerThreshold: {}, recoverThreshold:{}", triggerThreshold, recoverThreshold);
     }
 
     @Override
@@ -29,26 +25,20 @@ public class MemoryUsageCheck implements ICheckStrategy {
         HealthCheckResult result = new HealthCheckResult();
         result.setCheckItem("MemoryUsageCheck");
         result.setHealthy(true);
-        
-        if (resourceMonitorAdapter == null) {
-            log.warn("ResourceMonitorAdapter is not available");
+        ResourceStatistics memoryStatistics = resourceMonitorAdapter.getStatistics("memory");
+        if (!memoryStatistics.isSuccess()) {
             return result;
         }
-        
-        ResourceStatistics memoryStatistic = resourceMonitorAdapter.getStatistics("memory");
-        if (!memoryStatistic.isSuccess()) {
-            return result;
-        }
-        
         if (inHighUsage) {
-            result.setHealthy(memoryStatistic.getRatio() < recoveryThreshold);
+            result.setHealthy(memoryStatistics.getRatio() < recoverThreshold);
         } else {
-            result.setHealthy(memoryStatistic.getRatio() < triggerThreshold);
+            result.setHealthy(memoryStatistics.getRatio() < triggerThreshold);
         }
         inHighUsage = !result.isHealthy();
         if (inHighUsage) {
-            result.setErrorMsg(String.format("memory in high usage[%f];", memoryStatistic.getRatio()));
+            result.setErrorMsg(String.format("memory in high usage[%f];", memoryStatistics.getRatio()));
         }
         return result;
     }
+
 }

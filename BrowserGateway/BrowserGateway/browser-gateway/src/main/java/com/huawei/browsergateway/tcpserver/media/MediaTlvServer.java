@@ -8,15 +8,15 @@ import com.huawei.browsergateway.tcpserver.DataSizeTracker;
 import com.huawei.browsergateway.tcpserver.FlowRateTracker;
 import com.huawei.browsergateway.util.encode.TlvDecoder;
 import com.huawei.browsergateway.util.encode.TlvEncoder;
-import io.netty.channel.*;
+import io.netty.channel.ChannelHandler;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Component;
 
-import jakarta.annotation.PostConstruct;
-import jakarta.annotation.PreDestroy;
+import javax.annotation.PostConstruct;
+import javax.annotation.PreDestroy;
 
 @Component
 public class MediaTlvServer extends AbstractTcpServer {

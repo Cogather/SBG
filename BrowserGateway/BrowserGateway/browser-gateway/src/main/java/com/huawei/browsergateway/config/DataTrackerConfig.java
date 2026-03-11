@@ -13,11 +13,6 @@ import org.springframework.context.annotation.Configuration;
  */
 @Configuration
 public class DataTrackerConfig {
-
-    /** 远程服务接口，用于数据上报，可选依赖（required = false） */
-    @Autowired(required = false)
-    private IRemote remote;
-
     /**
      * 创建媒体数据流量追踪器Bean
      * <p>
@@ -25,8 +20,8 @@ public class DataTrackerConfig {
      *
      * @return 媒体数据流量追踪器实例
      */
-    @Bean
-    public DataSizeTracker mediaDataSizeTracker() {
+    @Bean(name = "mediaDataSizeTracker")
+    public DataSizeTracker  mediaDataSizeTracker(IRemote remote) {
         return new DataSizeTracker(remote, Constant.TCP_MEDIA);
     }
 
@@ -37,8 +32,8 @@ public class DataTrackerConfig {
      *
      * @return 控制数据流量追踪器实例
      */
-    @Bean
-    public DataSizeTracker controlDataSizeTracker() {
+    @Bean(name = "controlDataSizeTracker")
+    public DataSizeTracker  controlDataSizeTracker(IRemote remote) {
         return new DataSizeTracker(remote, Constant.TCP_CONTROL);
     }
 }

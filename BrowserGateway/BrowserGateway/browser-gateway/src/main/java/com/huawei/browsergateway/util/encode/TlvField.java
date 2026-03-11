@@ -27,9 +27,6 @@ public class TlvField {
      * @return int 值
      */
     public int getInt(){
-        if (data == null || data.length < 4) {
-            throw new IllegalArgumentException("data is null or length < 4, cannot get int value");
-        }
         ByteBuffer buffer = ByteBuffer.wrap(data);
         buffer.order(ByteOrder.BIG_ENDIAN);
         return buffer.getInt();

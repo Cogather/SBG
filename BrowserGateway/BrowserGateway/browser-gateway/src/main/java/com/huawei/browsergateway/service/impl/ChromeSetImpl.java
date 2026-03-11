@@ -12,7 +12,6 @@ import com.moon.cloud.browser.sdk.core.MuenDriver;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 
 import java.util.HashMap;
@@ -38,7 +37,6 @@ public class ChromeSetImpl implements IChromeSet {
     @Autowired
     private MediaClientSet mediaClientSet;
     @Autowired
-    @Lazy
     private IRemote remote;
 
     @Autowired
@@ -56,7 +54,7 @@ public class ChromeSetImpl implements IChromeSet {
         String jsonStr = JSONUtil.toJsonStr(report);
         Map<String, String> reportMap = new HashMap<>();
         reportMap.put(PROPERTY_KEY, jsonStr);
-        if (serviceManagementAdapter != null && !serviceManagementAdapter.reportInstanceProperties(reportMap)) {
+        if (!serviceManagementAdapter.reportInstanceProperties(reportMap)) {
             log.error("failed to update properties to cse");
         }
     }
@@ -64,7 +62,7 @@ public class ChromeSetImpl implements IChromeSet {
     public boolean reportChainEndpoints() {
         Map<String, String> reportMap = new HashMap<>();
         reportMap.put(REPORT_CHAIN_KEY, config.getReport().getChainEndpoints());
-        if (serviceManagementAdapter != null && !serviceManagementAdapter.reportInstanceProperties(reportMap)) {
+        if (!serviceManagementAdapter.reportInstanceProperties(reportMap)) {
             log.error("failed to report {} to cse", REPORT_CHAIN_KEY);
             return false;
         }

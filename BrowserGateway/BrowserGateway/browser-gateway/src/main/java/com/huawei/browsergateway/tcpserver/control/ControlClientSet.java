@@ -4,10 +4,7 @@ import com.huawei.browsergateway.service.IRemote;
 import com.huawei.browsergateway.tcpserver.Client;
 import com.huawei.browsergateway.tcpserver.ClientSet;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Component;
-
-import java.util.concurrent.*;
 
 /**
  * 控制流客户端管理
@@ -16,7 +13,6 @@ import java.util.concurrent.*;
 @Component
 public class ControlClientSet extends ClientSet {
     @Autowired
-    @Lazy
     private IRemote remote;
     @Override
     public void set(String key, Client cli) {

@@ -6,7 +6,7 @@ import lombok.Data;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Configuration;
 
-import jakarta.annotation.Resource;
+import javax.annotation.Resource;
 
 /**
  * BrowserGateway 主配置类

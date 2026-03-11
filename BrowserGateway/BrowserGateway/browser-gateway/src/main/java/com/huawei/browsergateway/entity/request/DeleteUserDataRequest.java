@@ -9,7 +9,7 @@ import lombok.Data;
 @Data
 public class DeleteUserDataRequest {
     @Schema(description = "imsi", example = "用户设备imsi号")
-    private String imei;
-    @Schema(description = "imei", example = "用户设备imei")
     private String imsi;
+    @Schema(description = "imei", example = "用户设备imei")
+    private String imei;
 }

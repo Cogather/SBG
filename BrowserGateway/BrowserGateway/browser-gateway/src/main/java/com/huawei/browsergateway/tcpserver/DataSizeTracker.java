@@ -9,8 +9,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 
-import jakarta.annotation.PostConstruct;
-import jakarta.annotation.PreDestroy;
+import javax.annotation.PostConstruct;
+import javax.annotation.PreDestroy;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executors;
@@ -90,7 +90,7 @@ public class DataSizeTracker {
             if (!userIdentifier.fromString(entry.getKey())) {
                 continue;
             }
-            Traffic traffic = new Traffic(userIdentifier.imeiAndImsi, String.valueOf(userIdentifier.appType), startedAt, endedAt,
+            Traffic traffic = new Traffic(userIdentifier.imeiAndImsi, userIdentifier.appType, startedAt, endedAt,
                     entry.getValue().get(), userIdentifier.clientIP);
             trafficList.add(traffic);
             iterator.remove();

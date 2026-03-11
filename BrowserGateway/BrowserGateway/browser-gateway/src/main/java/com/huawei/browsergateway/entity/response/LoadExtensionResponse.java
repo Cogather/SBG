@@ -3,11 +3,12 @@ package com.huawei.browsergateway.entity.response;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Data;
+import lombok.Getter;
 
 /**
  * 加载扩展响应
  */
-@Data
+@Getter
 public class LoadExtensionResponse {
     @Schema(description = "bucket名称")
     @JsonProperty("bucket_name")

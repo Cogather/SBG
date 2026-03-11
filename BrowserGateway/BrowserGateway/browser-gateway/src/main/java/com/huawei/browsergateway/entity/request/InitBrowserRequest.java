@@ -74,21 +74,9 @@ public class InitBrowserRequest {
         options.setEndpoint(config.getChrome().getEndpoint());
         options.setBaseDataDir(config.getBaseDataPath());
         options.setExecutablePath(config.getChrome().getExecutablePath());
-        // 处理可能为null的扩展路径
-        String extensionPath = config.getRecordExtensionPath();
-        if (extensionPath != null) {
-            options.setExtensionPaths(new ArrayList<>(List.of(extensionPath)));
-        } else {
-            options.setExtensionPaths(new ArrayList<>());
-        }
-        // 处理可能为null的扩展ID
-        String extensionId = config.getChrome().getRecordExtensionId();
-        if (extensionId != null) {
-            options.setExtensionIds(new ArrayList<>(List.of(extensionId)));
-            options.setAllowlistedExtensionId(extensionId);
-        } else {
-            options.setExtensionIds(new ArrayList<>());
-        }
+        options.setExtensionPaths(new ArrayList<>(List.of(config.getRecordExtensionPath())));
+        options.setExtensionIds(new ArrayList<>(List.of(config.getChrome().getRecordExtensionId())));
+        options.setAllowlistedExtensionId(config.getChrome().getRecordExtensionId());
         options.setUserdata(userdata);
         options.setHeadless(config.getChrome().isHeadless());
         options.setLanguage(this.clientLanguage);

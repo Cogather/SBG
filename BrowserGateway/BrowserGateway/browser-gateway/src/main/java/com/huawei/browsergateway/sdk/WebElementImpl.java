@@ -19,100 +19,50 @@ import java.util.Date;
 import java.util.List;
 import java.util.Locale;
 
-/**
- * Web元素实现类
- * 实现Selenium的WebElement接口，提供页面元素的操作能力
- * 支持元素的查找、属性获取、文本输入等操作
- */
 public class WebElementImpl implements WebElement {
 
     private static final Logger log = LogManager.getLogger(WebElementImpl.class);
-
-    /** 日期格式化器列表，支持多种日期格式 */
-    private static final List<SimpleDateFormat> DATE_FORMATTERS = new ArrayList<>();
-
-    static {
-        DATE_FORMATTERS.add(new SimpleDateFormat("yyyy-MM-dd"));
-        DATE_FORMATTERS.add(new SimpleDateFormat("MM-dd-yyyy"));
-        DATE_FORMATTERS.add(new SimpleDateFormat("dd-MM-yyyy"));
-        DATE_FORMATTERS.add(new SimpleDateFormat("yyyy/MM/dd"));
-        DATE_FORMATTERS.add(new SimpleDateFormat("dd/MM/yyyy"));
-        DATE_FORMATTERS.add(new SimpleDateFormat("MM/dd/yyyy"));
-        DATE_FORMATTERS.add(new SimpleDateFormat("yyyy.MM.dd"));
-        DATE_FORMATTERS.add(new SimpleDateFormat("dd.MM.yyyy"));
-        DATE_FORMATTERS.add(new SimpleDateFormat("MM.dd.yyyy"));
-        DATE_FORMATTERS.add(new SimpleDateFormat("dd-MMM-yyyy", Locale.ENGLISH));
-        DATE_FORMATTERS.add(new SimpleDateFormat("MMM-dd-yyyy", Locale.ENGLISH));
-    }
-
-    /** 元素ID */
     private final String id;
-
-    /** 元素预览HTML */
     private final String preview;
-
-    /** 浏览器驱动实例 */
     private final BrowserDriver driver;
+    private Element ele;
 
-    /** 解析后的JSoup元素对象 */
-    private Element element;
-
-    /**
-     * 从JSON字符串解析WebElement对象
-     *
-     * @param json   JSON字符串
-     * @param driver 浏览器驱动实例
-     * @return WebElement对象
-     */
     public static WebElement parse(String json, BrowserDriver driver) {
         Request.Element element = JSONUtil.toBean(json, Request.Element.class);
         return new WebElementImpl(element.getId(), element.getPreview(), driver);
     }
 
-    /**
-     * 构造函数
-     *
-     * @param id      元素ID
-     * @param preview 元素预览HTML
-     * @param driver  浏览器驱动实例
-     */
     public WebElementImpl(String id, String preview, BrowserDriver driver) {
         this.id = id;
         this.preview = preview;
         this.driver = driver;
-
         if ("node".equals(preview)) {
-            this.element = null;
+            ele = null;
             return;
         }
-
         try {
             Document doc = Jsoup.parseBodyFragment(preview);
-            this.element = doc.body().child(0);
+            ele = doc.body().child(0);
         } catch (Exception e) {
-            log.error("web element parse error, preview: {}", preview, e);
-            this.element = null;
+            log.error("web element parse error, preview: {}", preview);
+            ele = null;
         }
     }
 
     @Override
     public void click() {
-        // 空实现
+
     }
 
     @Override
     public void submit() {
-        // 空实现
+
     }
 
     @Override
     public void sendKeys(CharSequence... keysToSend) {
-        if (keysToSend == null || keysToSend.length == 0) {
-            return;
-        }
-
-        CharSequence firstKey = keysToSend[0];
-        if (firstKey.equals(Keys.CONTROL + "a") || firstKey.equals(Keys.DELETE)) {
+        CharSequence charSequence = keysToSend[0];
+        if (charSequence.equals(Keys.CONTROL + "a") || charSequence.equals(Keys.DELETE)) {
             return;
         }
 
@@ -125,21 +75,15 @@ public class WebElementImpl implements WebElement {
             return;
         }
 
-        // 特殊处理：对于日期类型的input元素，需要转换日期格式
-        // selenium和playwright对日期输入的处理方式不同
+        //special: for <input type = 'date'>, playwright is different from selenium
         if ("input".equalsIgnoreCase(this.getTagName()) && "date".equalsIgnoreCase(this.getAttribute("type"))) {
             inputContent = convertDate(inputContent);
         }
-
         String action = "send_key";
         String tagName = this.getTagName();
         String type = this.getAttribute("type");
-
-        log.info("sendKeys: {}, tail: {}, tagName: {}, type: {}", inputContent,
-                inputContent.length() > 0 ? inputContent.charAt(inputContent.length() - 1) : "",
-                tagName, type);
-
-        // 特殊处理：对于文件类型的input元素
+        log.info("sendKeys: {}, tail:{}, tagName: {}, type: {}", inputContent
+                , inputContent.charAt(inputContent.length() - 1), tagName, type);
         if ("input".equalsIgnoreCase(tagName) && "file".equalsIgnoreCase(type)) {
             if (FileUtil.exist(inputContent)) {
                 action = "set_file";
@@ -147,8 +91,6 @@ public class WebElementImpl implements WebElement {
         }
 
         driver.executeElement(new Request.Action(id, action, inputContent));
-
-        // 如果是文件上传操作，执行后删除临时文件
         if ("set_file".equals(action)) {
             FileUtil.del(inputContent);
         }
@@ -156,24 +98,24 @@ public class WebElementImpl implements WebElement {
 
     @Override
     public void clear() {
-        // 空实现
+
     }
 
     @Override
     @Nonnull
     public String getTagName() {
-        if (element == null) {
+        if (ele == null) {
             return "";
         }
-        return element.tagName();
+        return ele.tagName();
     }
 
     @Override
     public @Nullable String getAttribute(String name) {
-        if (element == null) {
+        if (ele == null) {
             return "";
         }
-        Attribute attribute = element.attribute(name);
+        Attribute attribute = ele.attribute(name);
         return attribute == null ? "" : attribute.getValue();
     }
 
@@ -190,10 +132,7 @@ public class WebElementImpl implements WebElement {
     @Override
     @Nonnull
     public String getText() {
-        if (element == null) {
-            return "";
-        }
-        return element.text();
+        return ele.text();
     }
 
     @Override
@@ -238,14 +177,11 @@ public class WebElementImpl implements WebElement {
     }
 
     /**
-     * 日期格式转换
-     * 用于处理日期输入场景，selenium和playwright对日期格式的要求不同：
-     * - selenium: 模拟用户键盘输入，格式要求宽松，可能因地区而异
-     * - playwright: 直接设置值，只接受yyyy-MM-dd格式
-     *
-     * @param dateStr 输入的日期字符串（任意格式，selenium风格）
-     * @return 转换后的日期字符串（yyyy-MM-dd格式，playwright风格）
-     * @throws RuntimeException 如果输入不是有效的日期格式
+     * for date input scenario , selenium webElement.sendKeys() VS playwright elementHandle.fill()
+     * selenium => simulates user keyboard input, the format requirements are loose and may vary according to regions.
+     * playwright => directly sets the value, Only yyyy-MM-dd is accepted.
+     * @param dateStr input date str, any format, selenium
+     * @return yyyy-MM-dd, playwright
      */
     private static String convertDate(String dateStr) {
         if (dateStr == null || dateStr.trim().isEmpty()) {
@@ -259,11 +195,27 @@ public class WebElementImpl implements WebElement {
                 SimpleDateFormat targetFormatter = new SimpleDateFormat("yyyy-MM-dd");
                 return targetFormatter.format(date);
             } catch (ParseException ignored) {
-                // 继续尝试下一个格式
+
             }
         }
 
-        log.error("invalid input, not date format, input content: {}", dateStr);
-        throw new RuntimeException("invalid input: not a valid date format");
+        log.error("invalid input, not date format, input content:{}", dateStr);
+        throw new RuntimeException("invalid input");
+    }
+    private static final List<SimpleDateFormat> DATE_FORMATTERS = new ArrayList<>();
+    static {
+        DATE_FORMATTERS.add(new SimpleDateFormat("yyyy-MM-dd"));
+        DATE_FORMATTERS.add(new SimpleDateFormat("MM-dd-yyyy"));
+        DATE_FORMATTERS.add(new SimpleDateFormat("dd-MM-yyyy"));
+        DATE_FORMATTERS.add(new SimpleDateFormat("yyyy/MM/dd"));
+        DATE_FORMATTERS.add(new SimpleDateFormat("dd/MM/yyyy"));
+        DATE_FORMATTERS.add(new SimpleDateFormat("MM/dd/yyyy"));
+        DATE_FORMATTERS.add(new SimpleDateFormat("yyyy.MM.dd"));
+        DATE_FORMATTERS.add(new SimpleDateFormat("dd.MM.yyyy"));
+        DATE_FORMATTERS.add(new SimpleDateFormat("MM.dd.yyyy"));
+
+        DATE_FORMATTERS.add(new SimpleDateFormat("dd-MMM-yyyy", Locale.ENGLISH));
+        DATE_FORMATTERS.add(new SimpleDateFormat("MMM-dd-yyyy", Locale.ENGLISH));
     }
 }
+

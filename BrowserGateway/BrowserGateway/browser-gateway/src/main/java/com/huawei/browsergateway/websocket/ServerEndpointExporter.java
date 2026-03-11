@@ -1,10 +1,8 @@
 package com.huawei.browsergateway.websocket;
 
-import com.huawei.browsergateway.BrowserGatewayApplication;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.context.ApplicationContext;
+import org.apache.servicecomb.foundation.common.utils.BeanUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.TypeConverter;
 import org.springframework.beans.TypeMismatchException;
 import org.springframework.beans.factory.SmartInitializingSingleton;
@@ -34,9 +32,6 @@ import java.util.*;
 @Component
 public class ServerEndpointExporter implements SmartInitializingSingleton {
 
-    @Autowired
-    private ApplicationContext applicationContext;
-
     @Override
     public void afterSingletonsInstantiated() {
         this.registerEndpoints();
@@ -54,14 +49,14 @@ public class ServerEndpointExporter implements SmartInitializingSingleton {
     }
 
 
-    private static final Logger logger = LogManager.getLogger(ServerEndpointExporter.class);
+    private static final Logger logger = LoggerFactory.getLogger(ServerEndpointExporter.class);
 
 
     private final Map<InetSocketAddress, WebsocketServer> addressWebsocketServerMap = new HashMap();
 
 
     protected void registerEndpoints() {
-        ApplicationContext context = this.applicationContext;
+        ApplicationContext context = BeanUtils.getContext();
         this.scanPackage(context);
         String[] endpointBeanNames = context.getBeanNamesForAnnotation(ServerEndpoint.class);
         Set<Class<?>> endpointClasses = new LinkedHashSet();
@@ -85,7 +80,7 @@ public class ServerEndpointExporter implements SmartInitializingSingleton {
         String[] basePackages = new String[]{"com.huawei.browsergateway"};
 
         EndpointClassPathScanner scanHandle = new EndpointClassPathScanner((BeanDefinitionRegistry) context.getAutowireCapableBeanFactory(), false);
-        scanHandle.setResourceLoader(context);
+        scanHandle.setResourceLoader(BeanUtils.getContext());
         for (String basePackage : basePackages) {
             scanHandle.doScan(basePackage);
         }
@@ -117,7 +112,7 @@ public class ServerEndpointExporter implements SmartInitializingSingleton {
             throw new IllegalStateException("missingAnnotation ServerEndpoint");
         } else {
             ServerEndpointConfig serverEndpointConfig = this.buildConfig(annotation);
-            ApplicationContext context = this.applicationContext;
+            ApplicationContext context = BeanUtils.getContext();
             PojoMethodMapping pojoMethodMapping = null;
 
             try {
@@ -187,7 +182,7 @@ public class ServerEndpointExporter implements SmartInitializingSingleton {
         if (value == null) {
             return null;
         } else {
-            AbstractBeanFactory beanFactory = (AbstractBeanFactory) this.applicationContext.getAutowireCapableBeanFactory();
+            AbstractBeanFactory beanFactory = (AbstractBeanFactory) BeanUtils.getContext().getAutowireCapableBeanFactory();
             TypeConverter typeConverter = beanFactory.getTypeConverter();
             if (value instanceof String) {
                 String strVal = beanFactory.resolveEmbeddedValue((String) value);
@@ -206,4 +201,6 @@ public class ServerEndpointExporter implements SmartInitializingSingleton {
             }
         }
     }
+
+
 }

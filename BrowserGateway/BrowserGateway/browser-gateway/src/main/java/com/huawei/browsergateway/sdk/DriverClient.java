@@ -20,10 +20,10 @@ public interface DriverClient {
         /**
          * 创建浏览器实例
          *
-         * @param request 创建浏览器请求对象
+         * @param req 创建浏览器请求对象
          * @return 浏览器对象
          */
-        Type.Browser create(Request.CreateBrowser request);
+        Type.Browser create(Request.CreateBrowser req);
 
         /**
          * 根据ID获取浏览器实例
@@ -63,10 +63,10 @@ public interface DriverClient {
         /**
          * 创建浏览器上下文
          *
-         * @param request 创建上下文请求对象
+         * @param req 创建上下文请求对象
          * @return 上下文对象
          */
-        Type.Context create(Request.CreateContext request);
+        Type.Context create(Request.CreateContext req);
 
         /**
          * 根据ID获取上下文实例

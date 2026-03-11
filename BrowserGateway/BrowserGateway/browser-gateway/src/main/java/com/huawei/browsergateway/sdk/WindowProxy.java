@@ -1,16 +1,17 @@
 package com.huawei.browsergateway.sdk;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.jspecify.annotations.Nullable;
 import org.openqa.selenium.Cookie;
 import org.openqa.selenium.Dimension;
 import org.openqa.selenium.Point;
 import org.openqa.selenium.WebDriver;
 import org.openqa.selenium.logging.Logs;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 import java.util.Set;
+
 
 /**
  * 窗口管理代理类
@@ -18,7 +19,7 @@ import java.util.Set;
  */
 public class WindowProxy implements WebDriver.Options, WebDriver.Window {
 
-    private static final Logger log = LoggerFactory.getLogger(WindowProxy.class);
+    private static final Logger log = LogManager.getLogger(WindowProxy.class);
 
     /** 浏览器驱动实例 */
     private final BrowserDriver driver;

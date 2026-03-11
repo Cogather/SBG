@@ -136,16 +136,6 @@ public class TlvCodec {
                 byte[] original = (byte[]) value;
                 return original.clone();
 
-            case "int64":
-                if (!(value instanceof Long)) {
-                    throw new IllegalArgumentException("字段" + fieldName + "标记为int64，但实际类型是"
-                            + value.getClass().getSimpleName());
-                }
-                ByteBuffer bufferLong = ByteBuffer.allocate(8);
-                bufferLong.order(ByteOrder.BIG_ENDIAN);
-                bufferLong.putLong((Long) value);
-                return bufferLong.array();
-
             default:
                 throw new IllegalArgumentException("字段" + fieldName + "不支持的类型" + fieldType);
         }

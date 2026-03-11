@@ -10,8 +10,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
-import jakarta.annotation.PostConstruct;
-import jakarta.annotation.PreDestroy;
+import javax.annotation.PostConstruct;
+import javax.annotation.PreDestroy;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.Executors;
@@ -67,10 +67,18 @@ public class BrowserCloserTask {
      */
     public void closeBrowser() {
         log.info("begin scheduled task for monitoring browser instances.");
+        List<String> userIds = new ArrayList<>(chromeSet.getAllUser());
         try {
-            List<String> userIds = new ArrayList<>(chromeSet.getAllUser());
             for (String userId : userIds) {
-                processUserBrowser(userId);
+                try {
+                    UserBind ub = remote.getUserBind(userId);
+                    if (!isActive(ub) || ifExpired(userId)) {
+                        log.info("browser {} is expired, close it.", userId);
+                        chromeSet.delete(userId);
+                    }
+                } catch (Exception e) {
+                    log.error("failed to close user {} browser", userId, e);
+                }
             }
         } catch (Exception e) {
             log.error("monitoring browser instances error!", e);
@@ -102,9 +110,7 @@ public class BrowserCloserTask {
      * @return true表示已过期，false表示未过期
      */
     private boolean ifExpired(String userId) {
-        long currentTime = System.nanoTime();
-        long heartbeats = chromeSet.getHeartbeats(userId);
-        return currentTime - heartbeats > ttl;
+        return System.nanoTime() - chromeSet.getHeartbeats(userId) > ttl;
     }
 
     /**

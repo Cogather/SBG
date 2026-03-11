@@ -39,8 +39,4 @@ public class ReportConfig {
     /** 链式端点地址列表，从配置文件 browsergw.report.chain-endpoints 注入 */
     @Value("${browsergw.report.chain-endpoints}")
     private String chainEndpoints;
-
-    /** 服务自身地址，从配置文件 browsergw.report.self-addr 注入 */
-    @Value("${browsergw.report.self-addr}")
-    private String selfAddr;
 }

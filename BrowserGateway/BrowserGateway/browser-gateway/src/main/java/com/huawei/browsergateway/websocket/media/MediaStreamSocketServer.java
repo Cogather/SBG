@@ -97,18 +97,6 @@ public class MediaStreamSocketServer {
     @OnBinary
     public void onBinary(Session session, byte[] data) {
         String userId = session.getAttribute(SocketKeyConst.USER_ID_KEY);
-        log.info("[MediaStreamSocketServer] 收到视频流二进制数据: userId={}, 数据大小={}字节", userId, data.length);
-        
-        // 解析数据格式：[4字节: 帧类型][4字节: 时间戳][4字节: 数据长度][N字节: 数据]
-        if (data.length >= 12) {
-            int frameType = ((data[0] & 0xFF) << 24) | ((data[1] & 0xFF) << 16) | ((data[2] & 0xFF) << 8) | (data[3] & 0xFF);
-            int timestamp = ((data[4] & 0xFF) << 24) | ((data[5] & 0xFF) << 16) | ((data[6] & 0xFF) << 8) | (data[7] & 0xFF);
-            int dataLength = ((data[8] & 0xFF) << 24) | ((data[9] & 0xFF) << 16) | ((data[10] & 0xFF) << 8) | (data[11] & 0xFF);
-            log.info("[MediaStreamSocketServer] 解析视频帧: userId={}, 帧类型={}, 时间戳={}, 数据长度={}字节, 总大小={}字节", 
-                     userId, frameType, timestamp, dataLength, data.length);
-        } else {
-            log.warn("[MediaStreamSocketServer] 数据格式异常: userId={}, 数据大小={}字节 (小于12字节头部)", userId, data.length);
-        }
         
         MediaStreamProcessor mediaStreamProcessor = mediaSessionManager.getProcessor(userId);
         if (mediaStreamProcessor == null) {

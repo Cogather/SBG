@@ -10,26 +10,27 @@ import com.huawei.browsergateway.entity.enums.BrowserStatus;
 import com.huawei.browsergateway.entity.event.EventInfo;
 import com.huawei.browsergateway.entity.request.InitBrowserRequest;
 import com.huawei.browsergateway.service.IAlarm;
-import com.huawei.browsergateway.service.ICse;
-import com.huawei.browsergateway.util.HttpUtil;
 import com.huawei.browsergateway.service.IChromeSet;
+import com.huawei.browsergateway.service.ICse;
 import com.huawei.browsergateway.service.IRemote;
+import com.huawei.browsergateway.util.HttpUtil;
 import com.huawei.browsergateway.util.ReportEventUtil;
 import com.huawei.browsergateway.util.UserIdUtil;
 import com.moon.cloud.browser.sdk.core.HWContext;
 import com.moon.cloud.browser.sdk.model.pojo.ChromeParams;
-import org.apache.http.client.methods.HttpGet;
+import org.apache.hc.client5.http.classic.methods.HttpGet;
+import org.apache.hc.client5.http.classic.methods.HttpPut;
 import org.apache.http.client.methods.HttpPost;
-import org.apache.http.client.methods.HttpPut;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.util.Objects;
-import java.util.concurrent.*;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Consumer;
+
 
 @Service
 public class RemoteImpl implements IRemote {
