@@ -29,153 +29,324 @@ import javax.net.ssl.SSLException;
 import java.net.InetSocketAddress;
 import java.util.*;
 
+/**
+ * WebSocket 服务端点导出器
+ * 负责扫描、注册和初始化所有 @ServerEndpoint 注解的 WebSocket 端点类
+ */
 @Component
 public class ServerEndpointExporter implements SmartInitializingSingleton {
 
+    private static final Logger logger = LoggerFactory.getLogger(ServerEndpointExporter.class);
+    private static final String BASE_PACKAGE = "com.huawei.browsergateway";
+
+    private final Map<InetSocketAddress, WebsocketServer> addressWebsocketServerMap = new HashMap<>();
+
     @Override
     public void afterSingletonsInstantiated() {
-        this.registerEndpoints();
+        registerEndpoints();
     }
 
+    /**
+     * 端点类路径扫描器
+     */
     public static class EndpointClassPathScanner extends ClassPathBeanDefinitionScanner {
+
         public EndpointClassPathScanner(BeanDefinitionRegistry registry, boolean useDefaultFilters) {
             super(registry, useDefaultFilters);
         }
 
+        @Override
         public Set<BeanDefinitionHolder> doScan(String... basePackages) {
-            this.addIncludeFilter(new AnnotationTypeFilter(ServerEndpoint.class));
+            addIncludeFilter(new AnnotationTypeFilter(ServerEndpoint.class));
             return super.doScan(basePackages);
         }
     }
 
-
-    private static final Logger logger = LoggerFactory.getLogger(ServerEndpointExporter.class);
-
-
-    private final Map<InetSocketAddress, WebsocketServer> addressWebsocketServerMap = new HashMap();
-
-
+    /**
+     * 注册所有 WebSocket 端点
+     */
     protected void registerEndpoints() {
         ApplicationContext context = BeanUtils.getContext();
-        this.scanPackage(context);
-        String[] endpointBeanNames = context.getBeanNamesForAnnotation(ServerEndpoint.class);
-        Set<Class<?>> endpointClasses = new LinkedHashSet();
+        scanPackage(context);
 
-        for (String beanName : endpointBeanNames) {
+        String[] endpointBeanNames = context.getBeanNamesForAnnotation(ServerEndpoint.class);
+        Set<Class<?>> endpointClasses = collectEndpointClasses(context, endpointBeanNames);
+
+        registerAllEndpoints(endpointClasses);
+        init();
+    }
+
+    /**
+     * 收集端点类
+     */
+    private Set<Class<?>> collectEndpointClasses(ApplicationContext context, String[] beanNames) {
+        Set<Class<?>> endpointClasses = new LinkedHashSet<>();
+        for (String beanName : beanNames) {
             endpointClasses.add(context.getType(beanName));
         }
+        return endpointClasses;
+    }
 
+    /**
+     * 注册所有端点类
+     */
+    private void registerAllEndpoints(Set<Class<?>> endpointClasses) {
         for (Class<?> endpointClass : endpointClasses) {
-            if (ClassUtils.isCglibProxyClass(endpointClass)) {
-                this.registerEndpoint(endpointClass.getSuperclass());
-            } else {
-                this.registerEndpoint(endpointClass);
-            }
+            Class<?> targetClass = ClassUtils.isCglibProxyClass(endpointClass)
+                    ? endpointClass.getSuperclass()
+                    : endpointClass;
+            registerEndpoint(targetClass);
         }
-
-        this.init();
     }
 
+    /**
+     * 扫描指定包路径下的端点类
+     */
     private void scanPackage(ApplicationContext context) {
-        String[] basePackages = new String[]{"com.huawei.browsergateway"};
-
-        EndpointClassPathScanner scanHandle = new EndpointClassPathScanner((BeanDefinitionRegistry) context.getAutowireCapableBeanFactory(), false);
-        scanHandle.setResourceLoader(BeanUtils.getContext());
-        for (String basePackage : basePackages) {
-            scanHandle.doScan(basePackage);
-        }
-
+        EndpointClassPathScanner scanner = new EndpointClassPathScanner(
+                (BeanDefinitionRegistry) context.getAutowireCapableBeanFactory(), false);
+        scanner.setResourceLoader(BeanUtils.getContext());
+        scanner.doScan(BASE_PACKAGE);
     }
 
+    /**
+     * 初始化并启动所有 WebSocket 服务器
+     */
     private void init() {
-        for (Map.Entry<InetSocketAddress, WebsocketServer> entry : this.addressWebsocketServerMap.entrySet()) {
-            WebsocketServer websocketServer = (WebsocketServer) entry.getValue();
-
-            try {
-                websocketServer.init();
-                PojoEndpointServer pojoEndpointServer = websocketServer.getPojoEndpointServer();
-                StringJoiner stringJoiner = new StringJoiner(",");
-                pojoEndpointServer.getPathMatcherSet().forEach((pathMatcher) -> stringJoiner.add("'" + pathMatcher.getPattern() + "'"));
-                this.logger.info(String.format("\u001b[34mNetty WebSocket started on port: %s with context path(s): %s .\u001b[0m", pojoEndpointServer.getPort(), stringJoiner.toString()));
-            } catch (InterruptedException e) {
-                this.logger.error(String.format("websocket [%s] init fail", entry.getKey()), e);
-            } catch (SSLException e) {
-                this.logger.error(String.format("websocket [%s] ssl create fail", entry.getKey()), e);
-            }
+        for (Map.Entry<InetSocketAddress, WebsocketServer> entry : addressWebsocketServerMap.entrySet()) {
+            initWebsocketServer(entry);
         }
-
     }
 
+    /**
+     * 初始化单个 WebSocket 服务器
+     */
+    private void initWebsocketServer(Map.Entry<InetSocketAddress, WebsocketServer> entry) {
+        WebsocketServer websocketServer = entry.getValue();
+        try {
+            websocketServer.init();
+            logServerStartup(websocketServer);
+        } catch (InterruptedException e) {
+            logger.error(String.format("websocket [%s] init fail", entry.getKey()), e);
+        } catch (SSLException e) {
+            logger.error(String.format("websocket [%s] ssl create fail", entry.getKey()), e);
+        }
+    }
+
+    /**
+     * 记录服务器启动日志
+     */
+    private void logServerStartup(WebsocketServer websocketServer) {
+        PojoEndpointServer pojoEndpointServer = websocketServer.getPojoEndpointServer();
+        StringJoiner pathJoiner = new StringJoiner(",");
+        pojoEndpointServer.getPathMatcherSet().forEach(
+                pathMatcher -> pathJoiner.add("'" + pathMatcher.getPattern() + "'"));
+
+        logger.info(String.format("\u001b[34mNetty WebSocket started on port: %s with context path(s): %s .\u001b[0m",
+                pojoEndpointServer.getPort(), pathJoiner.toString()));
+    }
+
+    /**
+     * 注册单个 WebSocket 端点
+     */
     private void registerEndpoint(Class<?> endpointClass) {
         ServerEndpoint annotation = AnnotatedElementUtils.findMergedAnnotation(endpointClass, ServerEndpoint.class);
         if (annotation == null) {
             throw new IllegalStateException("missingAnnotation ServerEndpoint");
-        } else {
-            ServerEndpointConfig serverEndpointConfig = this.buildConfig(annotation);
-            ApplicationContext context = BeanUtils.getContext();
-            PojoMethodMapping pojoMethodMapping = null;
+        }
 
-            try {
-                pojoMethodMapping = new PojoMethodMapping(endpointClass, context, (AbstractBeanFactory) context.getAutowireCapableBeanFactory());
-            } catch (DeploymentException e) {
-                throw new IllegalStateException("Failed to register ServerEndpointConfig: " + String.valueOf(serverEndpointConfig), e);
-            }
+        ServerEndpointConfig config = buildConfig(annotation);
+        PojoMethodMapping methodMapping = createMethodMapping(endpointClass);
+        registerOrAddEndpoint(annotation, config, methodMapping);
+    }
 
-            InetSocketAddress inetSocketAddress = new InetSocketAddress(serverEndpointConfig.getHost(), serverEndpointConfig.getPort());
-            String path = (String) this.resolveAnnotationValue(annotation.value(), String.class, "path");
-            WebsocketServer websocketServer = (WebsocketServer) this.addressWebsocketServerMap.get(inetSocketAddress);
-            if (websocketServer == null) {
-                PojoEndpointServer pojoEndpointServer = new PojoEndpointServer(pojoMethodMapping, serverEndpointConfig, path);
-                websocketServer = new WebsocketServer(pojoEndpointServer, serverEndpointConfig);
-                this.addressWebsocketServerMap.put(inetSocketAddress, websocketServer);
-            } else {
-                websocketServer.getPojoEndpointServer().addPathPojoMethodMapping(path, pojoMethodMapping);
-            }
-
+    /**
+     * 创建方法映射
+     */
+    private PojoMethodMapping createMethodMapping(Class<?> endpointClass) {
+        ApplicationContext context = BeanUtils.getContext();
+        try {
+            return new PojoMethodMapping(endpointClass, context,
+                    (AbstractBeanFactory) context.getAutowireCapableBeanFactory());
+        } catch (DeploymentException e) {
+            throw new IllegalStateException("Failed to register ServerEndpointConfig for class: " + endpointClass, e);
         }
     }
 
-    private ServerEndpointConfig buildConfig(ServerEndpoint annotation) {
-        String host = (String) this.resolveAnnotationValue(annotation.host(), String.class, "host");
-        int port = (Integer) this.resolveAnnotationValue(annotation.port(), Integer.class, "port");
-        String path = (String) this.resolveAnnotationValue(annotation.value(), String.class, "value");
-        int bossLoopGroupThreads = (Integer) this.resolveAnnotationValue(annotation.bossLoopGroupThreads(), Integer.class, "bossLoopGroupThreads");
-        int workerLoopGroupThreads = (Integer) this.resolveAnnotationValue(annotation.workerLoopGroupThreads(), Integer.class, "workerLoopGroupThreads");
-        boolean useCompressionHandler = (Boolean) this.resolveAnnotationValue(annotation.useCompressionHandler(), Boolean.class, "useCompressionHandler");
-        int optionConnectTimeoutMillis = (Integer) this.resolveAnnotationValue(annotation.optionConnectTimeoutMillis(), Integer.class, "optionConnectTimeoutMillis");
-        int optionSoBacklog = (Integer) this.resolveAnnotationValue(annotation.optionSoBacklog(), Integer.class, "optionSoBacklog");
-        int childOptionWriteSpinCount = (Integer) this.resolveAnnotationValue(annotation.childOptionWriteSpinCount(), Integer.class, "childOptionWriteSpinCount");
-        int childOptionWriteBufferHighWaterMark = (Integer) this.resolveAnnotationValue(annotation.childOptionWriteBufferHighWaterMark(), Integer.class, "childOptionWriteBufferHighWaterMark");
-        int childOptionWriteBufferLowWaterMark = (Integer) this.resolveAnnotationValue(annotation.childOptionWriteBufferLowWaterMark(), Integer.class, "childOptionWriteBufferLowWaterMark");
-        int childOptionSoRcvbuf = (Integer) this.resolveAnnotationValue(annotation.childOptionSoRcvbuf(), Integer.class, "childOptionSoRcvbuf");
-        int childOptionSoSndbuf = (Integer) this.resolveAnnotationValue(annotation.childOptionSoSndbuf(), Integer.class, "childOptionSoSndbuf");
-        boolean childOptionTcpNodelay = (Boolean) this.resolveAnnotationValue(annotation.childOptionTcpNodelay(), Boolean.class, "childOptionTcpNodelay");
-        boolean childOptionSoKeepalive = (Boolean) this.resolveAnnotationValue(annotation.childOptionSoKeepalive(), Boolean.class, "childOptionSoKeepalive");
-        int childOptionSoLinger = (Integer) this.resolveAnnotationValue(annotation.childOptionSoLinger(), Integer.class, "childOptionSoLinger");
-        boolean childOptionAllowHalfClosure = (Boolean) this.resolveAnnotationValue(annotation.childOptionAllowHalfClosure(), Boolean.class, "childOptionAllowHalfClosure");
-        int readerIdleTimeSeconds = (Integer) this.resolveAnnotationValue(annotation.readerIdleTimeSeconds(), Integer.class, "readerIdleTimeSeconds");
-        int writerIdleTimeSeconds = (Integer) this.resolveAnnotationValue(annotation.writerIdleTimeSeconds(), Integer.class, "writerIdleTimeSeconds");
-        int allIdleTimeSeconds = (Integer) this.resolveAnnotationValue(annotation.allIdleTimeSeconds(), Integer.class, "allIdleTimeSeconds");
-        int maxFramePayloadLength = (Integer) this.resolveAnnotationValue(annotation.maxFramePayloadLength(), Integer.class, "maxFramePayloadLength");
-        boolean useEventExecutorGroup = (Boolean) this.resolveAnnotationValue(annotation.useEventExecutorGroup(), Boolean.class, "useEventExecutorGroup");
-        int eventExecutorGroupThreads = (Integer) this.resolveAnnotationValue(annotation.eventExecutorGroupThreads(), Integer.class, "eventExecutorGroupThreads");
-        String sslKeyPassword = (String) this.resolveAnnotationValue(annotation.sslKeyPassword(), String.class, "sslKeyPassword");
-        String sslKeyStore = (String) this.resolveAnnotationValue(annotation.sslKeyStore(), String.class, "sslKeyStore");
-        String sslKeyStorePassword = (String) this.resolveAnnotationValue(annotation.sslKeyStorePassword(), String.class, "sslKeyStorePassword");
-        String sslKeyStoreType = (String) this.resolveAnnotationValue(annotation.sslKeyStoreType(), String.class, "sslKeyStoreType");
-        String sslTrustStore = (String) this.resolveAnnotationValue(annotation.sslTrustStore(), String.class, "sslTrustStore");
-        String sslTrustStorePassword = (String) this.resolveAnnotationValue(annotation.sslTrustStorePassword(), String.class, "sslTrustStorePassword");
-        String sslTrustStoreType = (String) this.resolveAnnotationValue(annotation.sslTrustStoreType(), String.class, "sslTrustStoreType");
-        String[] corsOrigins = annotation.corsOrigins();
-        if (corsOrigins.length != 0) {
-            for (int i = 0; i < corsOrigins.length; ++i) {
-                corsOrigins[i] = (String) this.resolveAnnotationValue(corsOrigins[i], String.class, "corsOrigins");
-            }
+    /**
+     * 注册或添加端点到服务器
+     */
+    private void registerOrAddEndpoint(ServerEndpoint annotation, ServerEndpointConfig config,
+                                       PojoMethodMapping methodMapping) {
+        InetSocketAddress address = new InetSocketAddress(config.getHost(), config.getPort());
+        String path = resolveAnnotationValue(annotation.value(), String.class, "path");
+        if (path == null || path.isEmpty()) {
+            throw new IllegalStateException("WebSocket endpoint path cannot be null or empty");
         }
 
-        Boolean corsAllowCredentials = (Boolean) this.resolveAnnotationValue(annotation.corsAllowCredentials(), Boolean.class, "corsAllowCredentials");
-        ServerEndpointConfig serverEndpointConfig = new ServerEndpointConfig(host, port, bossLoopGroupThreads, workerLoopGroupThreads, useCompressionHandler, optionConnectTimeoutMillis, optionSoBacklog, childOptionWriteSpinCount, childOptionWriteBufferHighWaterMark, childOptionWriteBufferLowWaterMark, childOptionSoRcvbuf, childOptionSoSndbuf, childOptionTcpNodelay, childOptionSoKeepalive, childOptionSoLinger, childOptionAllowHalfClosure, readerIdleTimeSeconds, writerIdleTimeSeconds, allIdleTimeSeconds, maxFramePayloadLength, useEventExecutorGroup, eventExecutorGroupThreads, sslKeyPassword, sslKeyStore, sslKeyStorePassword, sslKeyStoreType, sslTrustStore, sslTrustStorePassword, sslTrustStoreType, corsOrigins, corsAllowCredentials);
-        return serverEndpointConfig;
+        WebsocketServer server = addressWebsocketServerMap.get(address);
+        if (server == null) {
+            createNewServer(address, config, methodMapping, path);
+        } else {
+            server.getPojoEndpointServer().addPathPojoMethodMapping(path, methodMapping);
+        }
+    }
+
+    /**
+     * 创建新的 WebSocket 服务器
+     */
+    private void createNewServer(InetSocketAddress address, ServerEndpointConfig config,
+                                 PojoMethodMapping methodMapping, String path) {
+        PojoEndpointServer pojoEndpointServer = new PojoEndpointServer(methodMapping, config, path);
+        WebsocketServer websocketServer = new WebsocketServer(pojoEndpointServer, config);
+        addressWebsocketServerMap.put(address, websocketServer);
+    }
+
+    /**
+     * 从注解构建服务端点配置
+     */
+    private ServerEndpointConfig buildConfig(ServerEndpoint annotation) {
+        // 基础配置（必需字段）
+        String host = resolveStringRequired(annotation.host(), "host", "0.0.0.0");
+        int port = resolveInt(annotation.port(), "port");
+
+        // 线程配置
+        int bossThreads = resolveInt(annotation.bossLoopGroupThreads(), "bossLoopGroupThreads");
+        int workerThreads = resolveInt(annotation.workerLoopGroupThreads(), "workerLoopGroupThreads");
+
+        // 通用选项
+        boolean useCompression = resolveBoolean(annotation.useCompressionHandler(), "useCompressionHandler");
+        int connectTimeout = resolveInt(annotation.optionConnectTimeoutMillis(), "optionConnectTimeoutMillis");
+        int soBacklog = resolveInt(annotation.optionSoBacklog(), "optionSoBacklog");
+
+        // 子选项 - 写相关
+        int writeSpinCount = resolveInt(annotation.childOptionWriteSpinCount(), "childOptionWriteSpinCount");
+        int writeBufferHigh = resolveInt(annotation.childOptionWriteBufferHighWaterMark(), "childOptionWriteBufferHighWaterMark");
+        int writeBufferLow = resolveInt(annotation.childOptionWriteBufferLowWaterMark(), "childOptionWriteBufferLowWaterMark");
+
+        // 子选项 - Socket相关
+        int soRcvbuf = resolveInt(annotation.childOptionSoRcvbuf(), "childOptionSoRcvbuf");
+        int soSndbuf = resolveInt(annotation.childOptionSoSndbuf(), "childOptionSoSndbuf");
+        boolean tcpNodelay = resolveBoolean(annotation.childOptionTcpNodelay(), "childOptionTcpNodelay");
+        boolean soKeepalive = resolveBoolean(annotation.childOptionSoKeepalive(), "childOptionSoKeepalive");
+        int soLinger = resolveInt(annotation.childOptionSoLinger(), "childOptionSoLinger");
+        boolean allowHalfClosure = resolveBoolean(annotation.childOptionAllowHalfClosure(), "childOptionAllowHalfClosure");
+
+        // 空闲超时配置
+        int readerIdleSeconds = resolveInt(annotation.readerIdleTimeSeconds(), "readerIdleTimeSeconds");
+        int writerIdleSeconds = resolveInt(annotation.writerIdleTimeSeconds(), "writerIdleTimeSeconds");
+        int allIdleSeconds = resolveInt(annotation.allIdleTimeSeconds(), "allIdleTimeSeconds");
+
+        // WebSocket配置
+        int maxFrameLength = resolveInt(annotation.maxFramePayloadLength(), "maxFramePayloadLength");
+        boolean useEventExecutor = resolveBoolean(annotation.useEventExecutorGroup(), "useEventExecutorGroup");
+        int eventExecutorThreads = resolveInt(annotation.eventExecutorGroupThreads(), "eventExecutorGroupThreads");
+
+        // SSL配置（可选）
+        SslConfig sslConfig = resolveSslConfig(annotation);
+
+        // CORS配置（可选）
+        CorsConfig corsConfig = resolveCorsConfig(annotation);
+
+        return new ServerEndpointConfig(
+                host, port, bossThreads, workerThreads, useCompression, connectTimeout, soBacklog,
+                writeSpinCount, writeBufferHigh, writeBufferLow, soRcvbuf, soSndbuf, tcpNodelay,
+                soKeepalive, soLinger, allowHalfClosure, readerIdleSeconds, writerIdleSeconds,
+                allIdleSeconds, maxFrameLength, useEventExecutor, eventExecutorThreads,
+                sslConfig.keyPassword, sslConfig.keyStore, sslConfig.keyStorePassword, sslConfig.keyStoreType,
+                sslConfig.trustStore, sslConfig.trustStorePassword, sslConfig.trustStoreType,
+                corsConfig.origins, corsConfig.allowCredentials);
+    }
+
+    /**
+     * SSL 配置内部类
+     */
+    private static class SslConfig {
+        String keyPassword;
+        String keyStore;
+        String keyStorePassword;
+        String keyStoreType;
+        String trustStore;
+        String trustStorePassword;
+        String trustStoreType;
+    }
+
+    /**
+     * CORS 配置内部类
+     */
+    private static class CorsConfig {
+        String[] origins;
+        Boolean allowCredentials;
+    }
+
+    /**
+     * 解析 SSL 配置
+     */
+    private SslConfig resolveSslConfig(ServerEndpoint annotation) {
+        SslConfig config = new SslConfig();
+        config.keyPassword = resolveString(annotation.sslKeyPassword(), "sslKeyPassword");
+        config.keyStore = resolveString(annotation.sslKeyStore(), "sslKeyStore");
+        config.keyStorePassword = resolveString(annotation.sslKeyStorePassword(), "sslKeyStorePassword");
+        config.keyStoreType = resolveString(annotation.sslKeyStoreType(), "sslKeyStoreType");
+        config.trustStore = resolveString(annotation.sslTrustStore(), "sslTrustStore");
+        config.trustStorePassword = resolveString(annotation.sslTrustStorePassword(), "sslTrustStorePassword");
+        config.trustStoreType = resolveString(annotation.sslTrustStoreType(), "sslTrustStoreType");
+        return config;
+    }
+
+    /**
+     * 解析 CORS 配置
+     */
+    private CorsConfig resolveCorsConfig(ServerEndpoint annotation) {
+        CorsConfig config = new CorsConfig();
+        config.origins = resolveCorsOrigins(annotation.corsOrigins());
+        config.allowCredentials = resolveBoolean(annotation.corsAllowCredentials(), "corsAllowCredentials");
+        return config;
+    }
+
+    /**
+     * 解析 CORS 源配置
+     */
+    private String[] resolveCorsOrigins(String[] origins) {
+        if (origins.length == 0) {
+            return origins;
+        }
+        String[] resolved = new String[origins.length];
+        for (int i = 0; i < origins.length; i++) {
+            resolved[i] = resolveString(origins[i], "corsOrigins");
+        }
+        return resolved;
+    }
+
+    /**
+     * 解析字符串类型的注解值
+     */
+    private String resolveString(Object value, String paramName) {
+        return resolveAnnotationValue(value, String.class, paramName);
+    }
+
+    /**
+     * 解析必需的字符串类型注解值，如果为null则使用默认值
+     */
+    private String resolveStringRequired(Object value, String paramName, String defaultValue) {
+        String result = resolveAnnotationValue(value, String.class, paramName);
+        return result != null ? result : defaultValue;
+    }
+
+    /**
+     * 解析整数类型的注解值
+     */
+    private int resolveInt(Object value, String paramName) {
+        Integer result = resolveAnnotationValue(value, Integer.class, paramName);
+        return result != null ? result : 0;
+    }
+
+    /**
+     * 解析布尔类型的注解值
+     */
+    private boolean resolveBoolean(Object value, String paramName) {
+        Boolean result = resolveAnnotationValue(value, Boolean.class, paramName);
+        return result != null ? result : false;
     }
 
     private <T> T resolveAnnotationValue(Object value, Class<T> requiredType, String paramName) {
@@ -201,6 +372,4 @@ public class ServerEndpointExporter implements SmartInitializingSingleton {
             }
         }
     }
-
-
 }

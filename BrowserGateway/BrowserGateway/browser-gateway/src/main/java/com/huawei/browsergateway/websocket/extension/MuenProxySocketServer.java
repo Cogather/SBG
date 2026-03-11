@@ -11,6 +11,12 @@ import org.springframework.util.MultiValueMap;
 import org.yeauty.annotation.*;
 import org.yeauty.pojo.Session;
 
+/**
+ * Muen 代理 WebSocket 服务器
+ *
+ * 提供 Muen SDK 与浏览器扩展之间的 WebSocket 通信代理服务
+ * 路径：/control/websocket/{imeiAndImsi}
+ */
 @ServerEndpoint(
         path = "/control/websocket/{imeiAndImsi}",
         host = "${server.address}",
@@ -23,6 +29,7 @@ import org.yeauty.pojo.Session;
 @EnableAsync
 @Component
 public class MuenProxySocketServer {
+
     private static final Logger log = LogManager.getLogger(MuenProxySocketServer.class);
 
     @Autowired
@@ -31,35 +38,51 @@ public class MuenProxySocketServer {
     @Autowired
     private MuenSessionManager muenSessionManager;
 
+    /**
+     * WebSocket 连接建立回调
+     */
     @OnOpen
-    public void onOpen(Session session, @PathVariable String imeiAndImsi
-            , @RequestParam MultiValueMap<String, String> requestMap) {
+    public void onOpen(Session session, @PathVariable String imeiAndImsi,
+                       @RequestParam MultiValueMap<String, String> requestMap) {
         log.info("proxy communication between muen sdk and extension, user login:{}", imeiAndImsi);
         session.setAttribute(SocketKeyConst.USER_ID_KEY, imeiAndImsi);
         muenSessionManager.addSession(imeiAndImsi, session);
     }
 
+    /**
+     * WebSocket 连接关闭回调
+     */
     @OnClose
     public void onClose(Session session) {
-        log.info("proxy communication between muen sdk and extension, user logout:{}"
-                , session.getAttribute("userId").toString());
-        muenSessionManager.del(session.getAttribute("userId").toString());
+        String userId = (String) session.getAttribute(SocketKeyConst.USER_ID_KEY);
+        log.info("proxy communication between muen sdk and extension, user logout:{}", userId);
+        muenSessionManager.del(userId);
     }
 
+    /**
+     * WebSocket 错误回调
+     */
     @OnError
     public void onError(Session session, Throwable error) {
-        log.error("proxy communication between muen sdk and extension error, user:{}"
-                , session.getAttribute("userId").toString(), error);
-        muenSessionManager.del(session.getAttribute("userId").toString());
+        String userId = (String) session.getAttribute(SocketKeyConst.USER_ID_KEY);
+        log.error("proxy communication between muen sdk and extension error, user:{}", userId, error);
+        muenSessionManager.del(userId);
     }
 
+    /**
+     * 接收文本消息回调，转发消息到浏览器扩展
+     */
     @OnMessage
     public void onMessage(Session session, String message) {
-        String userId = session.getAttribute(SocketKeyConst.USER_ID_KEY).toString();
+        String userId = (String) session.getAttribute(SocketKeyConst.USER_ID_KEY);
         chromeSet.get(userId).getMuenDriver().receiveMessageFromWebscoket(userId, message);
     }
 
+    /**
+     * 接收二进制消息回调（当前未使用）
+     */
     @OnBinary
     public void onBinary(Session session, byte[] data) {
+        // Muen 代理通道不处理二进制数据
     }
 }
