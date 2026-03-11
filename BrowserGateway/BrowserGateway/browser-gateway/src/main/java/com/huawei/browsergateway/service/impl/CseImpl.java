@@ -1,11 +1,11 @@
 package com.huawei.browsergateway.service.impl;
 
-import cn.hutool.core.collection.CollectionUtil;
+//import cn.hutool.core.collection.CollectionUtil;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.servicecomb.registry.api.registry.MicroserviceInstance;
-import org.apache.servicecomb.registry.api.registry.MicroserviceInstanceStatus;
-import org.apache.servicecomb.serviceregistry.RegistryUtils;
+//import org.apache.servicecomb.registry.api.registry.MicroserviceInstance;
+//import org.apache.servicecomb.registry.api.registry.MicroserviceInstanceStatus;
+//import org.apache.servicecomb.serviceregistry.RegistryUtils;
 import org.springframework.stereotype.Service;
 
 import java.net.URI;
@@ -21,25 +21,27 @@ public class CseImpl implements com.huawei.browsergateway.service.ICse {
 
     @Override
     public String getReportEndpoint() {
-        List<MicroserviceInstance> instances = RegistryUtils.findServiceInstance("0", "gids", "0+");
-        if (CollectionUtil.isEmpty(instances)) {
-            return "";
-        }
-        HashSet<String> endpoints = new HashSet<>();
-        for (MicroserviceInstance instance : instances) {
-            if (instance.getStatus() != MicroserviceInstanceStatus.UP) {
-                continue;
-            }
-            for (String endpoint : instance.getEndpoints()) {
-                String ipPort = extractIPPort(endpoint);
-                if (ipPort == null) {
-                    continue;
-                }
-                endpoints.add(ipPort);
-            }
-        }
-        Object[] array = endpoints.toArray();
-        return (String) array[random.nextInt(array.length)];
+//        TODO 内网解除注释：获取gids实例
+//        List<MicroserviceInstance> instances = RegistryUtils.findServiceInstance("0", "gids", "0+");
+//        if (CollectionUtil.isEmpty(instances)) {
+//            return "";
+//        }
+//        HashSet<String> endpoints = new HashSet<>();
+//        for (MicroserviceInstance instance : instances) {
+//            if (instance.getStatus() != MicroserviceInstanceStatus.UP) {
+//                continue;
+//            }
+//            for (String endpoint : instance.getEndpoints()) {
+//                String ipPort = extractIPPort(endpoint);
+//                if (ipPort == null) {
+//                    continue;
+//                }
+//                endpoints.add(ipPort);
+//            }
+//        }
+//        Object[] array = endpoints.toArray();
+//        return (String) array[random.nextInt(array.length)];
+        return "";
     }
 
     private String extractIPPort(String endpoint) {
