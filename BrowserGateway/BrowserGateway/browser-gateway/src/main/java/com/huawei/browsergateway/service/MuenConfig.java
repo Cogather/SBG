@@ -1,6 +1,6 @@
 package com.huawei.browsergateway.service;
 
-import com.huawei.browsergateway.config.ChromeConfig;
+import com.huawei.browsergateway.entity.browser.ChromeConfig;
 import com.huawei.browsergateway.entity.browser.RouteAppConfig;
 import com.huawei.browsergateway.entity.browser.UrlConfig;
 import com.moon.cloud.browser.sdk.core.MuenDriver;
