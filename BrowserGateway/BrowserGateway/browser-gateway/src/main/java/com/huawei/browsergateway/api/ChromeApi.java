@@ -25,52 +25,106 @@ import org.springframework.web.bind.annotation.*;
 import javax.annotation.Resource;
 import java.nio.ByteOrder;
 
+/**
+ * 浏览器管理API
+ * 提供浏览器实例的创建、删除和用户数据管理功能
+ */
 @RestController
 @RequestMapping("/browsergw/browser")
 @RestSchema(schemaId = "browser")
 public class ChromeApi {
     private static final Logger log = LogManager.getLogger(ChromeApi.class);
+
     @Resource
     private IChromeSet chromeSet;
+
     @Autowired
     private IFileStorage fs;
+
     @Autowired
     private Config config;
+
     @Autowired
     private IRemote remote;
 
+    /**
+     * 删除用户数据
+     * 如果用户有活跃的浏览器实例，会先关闭实例再删除数据
+     *
+     * @param param 删除请求参数，包含IMEI和IMSI
+     * @return 删除结果
+     */
     @DeleteMapping("/userdata/delete")
     public CommonResult<DeleteUserDataResponse> deleteUserData(@RequestBody DeleteUserDataRequest param) {
-        String userId = UserIdUtil.generateUserIdByImeiAndImsi(param.getImei(), param.getImsi());
-        log.info("delete user data request, params:{}", JSONUtil.toJsonStr(param));
+        String userId = null;
+        try {
+            userId = UserIdUtil.generateUserIdByImeiAndImsi(param.getImei(), param.getImsi());
+            log.info("delete user data request, params:{}", JSONUtil.toJsonStr(param));
 
-        UserChrome userChromeInfo = chromeSet.get(userId);
-        if (userChromeInfo != null) {
-            log.info("The user has a browser instance, before delete user data, " +
-                    "close the browser instance, userId:{}", userId);
-            chromeSet.delete(userId);
+            closeExistingBrowserInstance(userId);
+            deleteUserDataFiles(userId);
+
+            DeleteUserDataResponse response = new DeleteUserDataResponse()
+                    .setImei(param.getImei())
+                    .setImsi(param.getImsi());
+            return CommonResult.success(response);
+        } catch (Exception e) {
+            log.error("delete user data failed, userId:{}, params:{}", userId, JSONUtil.toJsonStr(param), e);
+            return CommonResult.error(ResultCode.FAIL);
         }
-
-        UserData userData = new UserData(fs, config.getUserDataPath(), userId, config.getSelfAddr(), remote);
-        userData.delete();
-        return CommonResult.success(new DeleteUserDataResponse().setImei(param.getImei()).setImsi(param.getImsi()));
     }
 
+    /**
+     * 关闭用户已存在的浏览器实例
+     *
+     * @param userId 用户ID
+     */
+    private void closeExistingBrowserInstance(String userId) {
+        try {
+            UserChrome userChromeInfo = chromeSet.get(userId);
+            if (userChromeInfo != null) {
+                log.info("The user has a browser instance, before delete user data, " +
+                        "close the browser instance, userId:{}", userId);
+                chromeSet.delete(userId);
+            }
+        } catch (Exception e) {
+            log.error("close existing browser instance failed, userId:{}", userId, e);
+            throw e;
+        }
+    }
+
+    /**
+     * 删除用户数据文件
+     *
+     * @param userId 用户ID
+     */
+    private void deleteUserDataFiles(String userId) {
+        try {
+            UserData userData = new UserData(fs, config.getUserDataPath(), userId, config.getSelfAddr(), remote);
+            userData.delete();
+        } catch (Exception e) {
+            log.error("delete user data files failed, userId:{}", userId, e);
+            throw e;
+        }
+    }
+
+    /**
+     * 预打开浏览器
+     * 为MUEN SDK准备浏览器配置并创建Chrome实例
+     *
+     * @param param 初始化浏览器请求参数
+     * @return 操作结果
+     */
     @PostMapping("/preOpen")
     public CommonResult<String> preOpenBrowser(@RequestBody InitBrowserRequest param) {
         String userId = UserIdUtil.generateUserIdByImeiAndImsi(param.getImei(), param.getImsi());
         log.info("pre open browser request, params:{}", JSONUtil.toJsonStr(param));
 
         param.setInnerMediaEndpoint(config.getInnerMediaEndpoint());
+
         try {
-            //muen sdk login接口获取chrome config 需要byte[]数据且必须包含某些字段
-            String json = JSONUtil.toJsonStr(param);
-            Message message = JSONUtil.toBean(json, Message.class);
-            message.setAudType("");
-            message.setToken("");
-            Tlv tlv = TlvCodec.marshal(message);
-            byte[] encodeParam = tlv.marshal(ByteOrder.BIG_ENDIAN);
-            remote.createChrome(encodeParam, param, null);
+            byte[] encodedParam = encodeRequestForMuenSdk(param);
+            remote.createChrome(encodedParam, param, null);
             return CommonResult.success("success");
         } catch (Exception e) {
             log.error("pre open browser failed, user:{}, params:{}", userId, JSONUtil.toJsonStr(param), e);
@@ -78,4 +132,24 @@ public class ChromeApi {
         }
     }
 
+    /**
+     * 将请求参数编码为MUEN SDK所需的字节数组格式
+     * MUEN SDK的login接口要求byte[]数据且必须包含特定字段
+     *
+     * @param param 初始化浏览器请求参数
+     * @return 编码后的字节数组
+     */
+    private byte[] encodeRequestForMuenSdk(InitBrowserRequest param) throws Exception {
+        try {
+            String json = JSONUtil.toJsonStr(param);
+            Message message = JSONUtil.toBean(json, Message.class);
+            message.setAudType("");
+            message.setToken("");
+            Tlv tlv = TlvCodec.marshal(message);
+            return tlv.marshal(ByteOrder.BIG_ENDIAN);
+        } catch (Exception e) {
+            log.error("encode request for muen sdk failed, params:{}", JSONUtil.toJsonStr(param), e);
+            throw e;
+        }
+    }
 }
