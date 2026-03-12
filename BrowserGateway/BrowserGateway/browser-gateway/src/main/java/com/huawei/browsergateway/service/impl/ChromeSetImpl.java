@@ -21,13 +21,20 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
+/**
+ * 浏览器会话集合管理实现，维护用户 ID 到 UserChrome 实例的映射，
+ * 并负责向 CSE 上报实例使用情况
+ */
 @Service
 public class ChromeSetImpl implements IChromeSet {
+
     private static final Logger log = LogManager.getLogger(ChromeSetImpl.class);
-    private static final ConcurrentMap<String, UserChrome> userChromeMap = new ConcurrentHashMap<>();
 
     private static final String PROPERTY_KEY = "status";
     private static final String REPORT_CHAIN_KEY = "chainEndpoints";
+
+    /** 用户浏览器实例映射表，线程安全 */
+    private static final ConcurrentMap<String, UserChrome> userChromeMap = new ConcurrentHashMap<>();
 
     @Autowired
     private IFileStorage fs;
@@ -40,43 +47,12 @@ public class ChromeSetImpl implements IChromeSet {
     @Autowired
     @Lazy
     private IRemote remote;
-
     @Autowired
     private IPluginManage pluginManage;
-    
     @Autowired
     private ServiceManagementAdapter serviceManagementAdapter;
 
-
-    public synchronized void reportUsed() {
-        String id = config.getSelfAddr();
-        String mediaInnerEndpoint = config.getAddress() + ":" + config.getWebsocket().getMediaPort();
-        ServiceReport report = new ServiceReport(id, config.getReport(), mediaInnerEndpoint, pluginManage.getPluginStatus());
-        report.setUsed(userChromeMap.size());
-        String jsonStr = JSONUtil.toJsonStr(report);
-        Map<String, String> reportMap = new HashMap<>();
-        reportMap.put(PROPERTY_KEY, jsonStr);
-        if (!serviceManagementAdapter.reportInstanceProperties(reportMap)) {
-            log.error("failed to update properties to cse");
-        }
-    }
-
-    public boolean reportChainEndpoints() {
-        Map<String, String> reportMap = new HashMap<>();
-        reportMap.put(REPORT_CHAIN_KEY, config.getReport().getChainEndpoints());
-        if (!serviceManagementAdapter.reportInstanceProperties(reportMap)) {
-            log.error("failed to report {} to cse", REPORT_CHAIN_KEY);
-            return false;
-        }
-        return true;
-    }
-
-    /**
-     * If the current user does not have a browser instance, create one.
-     *
-     * @param request params
-     * @return user and corresponding browser instance information
-     */
+    @Override
     public UserChrome create(InitBrowserRequest request) {
         log.info("create user chrome, request: {}.", JSONUtil.toJsonStr(request));
         Integer cap = config.getReport().getCap();
@@ -92,61 +68,69 @@ public class ChromeSetImpl implements IChromeSet {
         return chrome;
     }
 
-
-    /**
-     * If the user instance already exists, return
-     *
-     * @param userId user id
-     * @return user and corresponding browser instance information
-     */
+    @Override
     public UserChrome get(String userId) {
         return userChromeMap.get(userId);
     }
 
+    @Override
     public void delete(String userId) {
-        delete(userId, false);
+        deleteInternal(userId, false);
     }
 
+    @Override
     public void deleteForRestart(String userId) {
-        delete(userId, true);
+        deleteInternal(userId, true);
     }
 
-    /**
-     * close user browser and upload user data
-     * @param userId userId
-     * @param reopen delete instance for restart
-     */
-    private void delete(String userId, boolean reopen) {
-        long start = System.currentTimeMillis();
-        UserChrome userChromeInfo = userChromeMap.get(userId);
-        if (userChromeInfo == null) {
-            log.warn("user: {} not exist.", userId);
-            return;
-        }
-
-        // The connection does not need to be disconnected in the restart scenario.
-        if (!reopen) {
-            userChromeInfo.closeConnection();
-        }
-        userChromeInfo.closeInstance();
-        userChromeMap.remove(userId);
-        reportUsed();
-        log.info("close browser instance and upload data success, userId: {}, cost:{}.", userId,
-                System.currentTimeMillis() - start);
-    }
-
-    /**
-     * get all users
-     *
-     * @return all userId
-     */
+    @Override
     public Set<String> getAllUser() {
         return userChromeMap.keySet();
     }
 
+    @Override
+    public synchronized void reportUsed() {
+        String id = config.getSelfAddr();
+        String mediaInnerEndpoint = config.getAddress() + ":" + config.getWebsocket().getMediaPort();
+        ServiceReport report = new ServiceReport(id, config.getReport(), mediaInnerEndpoint, pluginManage.getPluginStatus());
+        report.setUsed(userChromeMap.size());
+
+        Map<String, String> reportMap = new HashMap<>();
+        reportMap.put(PROPERTY_KEY, JSONUtil.toJsonStr(report));
+        if (!serviceManagementAdapter.reportInstanceProperties(reportMap)) {
+            log.error("failed to update properties to cse");
+        }
+    }
+
+    @Override
+    public boolean reportChainEndpoints() {
+        Map<String, String> reportMap = new HashMap<>();
+        reportMap.put(REPORT_CHAIN_KEY, config.getReport().getChainEndpoints());
+        if (!serviceManagementAdapter.reportInstanceProperties(reportMap)) {
+            log.error("failed to report {} to cse", REPORT_CHAIN_KEY);
+            return false;
+        }
+        return true;
+    }
+
+    @Override
+    public void updateHeartbeats(String userId, long heartbeats) {
+        UserChrome userChrome = getUserChromeOrWarn(userId);
+        if (userChrome != null) {
+            userChrome.setHeartbeats(heartbeats);
+        }
+    }
+
+    @Override
+    public long getHeartbeats(String userId) {
+        UserChrome userChrome = getUserChromeOrWarn(userId);
+        return userChrome != null ? userChrome.getHeartbeats() : 0;
+    }
+
     /**
-     * close all user chrome instance
+     * 关闭并删除所有用户浏览器实例
      */
+    @Override
     public void deleteAll() {
         log.info("close all chrome instance start.");
         for (String key : new HashMap<>(userChromeMap).keySet()) {
@@ -157,24 +141,32 @@ public class ChromeSetImpl implements IChromeSet {
         log.info("close all chrome instance success.");
     }
 
-    @Override
-    public void updateHeartbeats(String userId, long heartbeats) {
-        UserChrome userChromeInfo = userChromeMap.get(userId);
-        if (userChromeInfo == null) {
+    /**
+     * 内部删除逻辑：reopen=true 时跳过断开连接步骤（重启场景）
+     */
+    private void deleteInternal(String userId, boolean reopen) {
+        long start = System.currentTimeMillis();
+        UserChrome userChrome = userChromeMap.get(userId);
+        if (userChrome == null) {
             log.warn("user: {} not exist.", userId);
             return;
         }
-        userChromeInfo.setHeartbeats(heartbeats);
-    }
-
-    @Override
-    public long getHeartbeats(String userId) {
-        UserChrome userChromeInfo = userChromeMap.get(userId);
-        if (userChromeInfo == null) {
-            log.warn("user: {} not exist.", userId);
-            return 0;
+        if (!reopen) {
+            userChrome.closeConnection();
         }
-        return userChromeInfo.getHeartbeats();
+        userChrome.closeInstance();
+        userChromeMap.remove(userId);
+        reportUsed();
+        log.info("close browser instance and upload data success, userId: {}, cost:{}.",
+                userId, System.currentTimeMillis() - start);
     }
 
+    /** 获取用户实例，不存在时打印 warn 日志 */
+    private UserChrome getUserChromeOrWarn(String userId) {
+        UserChrome userChrome = userChromeMap.get(userId);
+        if (userChrome == null) {
+            log.warn("user: {} not exist.", userId);
+        }
+        return userChrome;
+    }
 }

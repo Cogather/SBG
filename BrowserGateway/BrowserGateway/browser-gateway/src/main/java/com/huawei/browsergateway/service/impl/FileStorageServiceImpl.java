@@ -25,33 +25,39 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 
-
+/**
+ * 文件存储服务实现，通过 HTTP 与远端文件服务交互，支持上传、下载、删除和存在性检查
+ */
 @Service
 public class FileStorageServiceImpl implements IFileStorage {
+
     private static final Logger log = LogManager.getLogger(FileStorageServiceImpl.class);
+
+    private static final String FILE_URL_PATTERN = "/file/v1/%s/%s";
+    private static final String EXIST_URL_PATTERN = "/file/v1/%s/%s/exist";
+
     @Autowired
     private ICse cse;
-
-    final private static String url = "/file/v1/%s/%s";
-    final private static String existUrl = "/file/v1/%s/%s/exist";
 
     @Override
     public void uploadFile(String localFilePath, String remoteUrl) {
         S3Path s3Path = parseS3Url(remoteUrl);
         File file = Path.of(localFilePath).toFile();
-        String endpoint = cse.getReportEndpoint();
-        String url = "http://" + endpoint + String.format(FileStorageServiceImpl.url, s3Path.getBucket(), s3Path.getName());
+        String url = buildFileUrl(s3Path);
 
-        HttpEntity fileEntity = MultipartEntityBuilder.create().addBinaryBody("file", file, ContentType.DEFAULT_BINARY, file.getName()).build();
+        HttpEntity fileEntity = MultipartEntityBuilder.create()
+                .addBinaryBody("file", file, ContentType.DEFAULT_BINARY, file.getName())
+                .build();
         HttpPost httpPost = new HttpPost(url);
         httpPost.setEntity(fileEntity);
+
         try {
             HttpUtil.getHttpClient().execute(httpPost, response -> {
                 if (response.getCode() == 200) {
                     log.info("upload {} success", remoteUrl);
-                    return null;
+                } else {
+                    dealFileHttpError("upload", s3Path, response);
                 }
-                dealFileHttpError("upload", s3Path, response);
                 return null;
             });
         } catch (IOException e) {
@@ -62,16 +68,13 @@ public class FileStorageServiceImpl implements IFileStorage {
     @Override
     public void downloadFile(String localFilePath, String remoteUrl) {
         S3Path s3Path = parseS3Url(remoteUrl);
-        String endpoint = cse.getReportEndpoint();
-        String url = "http://" + endpoint + String.format(FileStorageServiceImpl.url, s3Path.getBucket(), s3Path.getName());
+        String url = buildFileUrl(s3Path);
 
-        HttpGet httpGet = new HttpGet(url);
         try {
-            HttpUtil.getHttpClient().execute(httpGet, response -> {
+            HttpUtil.getHttpClient().execute(new HttpGet(url), response -> {
                 int status = response.getCode();
                 HttpEntity entity = response.getEntity();
                 if (status == 200 && entity != null) {
-                    // 2. 直接获取输入流，写入目标文件
                     try (FileOutputStream out = new FileOutputStream(localFilePath)) {
                         entity.writeTo(out);
                     }
@@ -79,7 +82,7 @@ public class FileStorageServiceImpl implements IFileStorage {
                     dealFileHttpError("download", s3Path, response);
                     EntityUtils.consume(response.getEntity());
                 }
-                return null; // ResponseHandler 返回 Void
+                return null;
             });
         } catch (IOException e) {
             log.error("download {} failed", s3Path, e);
@@ -89,16 +92,15 @@ public class FileStorageServiceImpl implements IFileStorage {
     @Override
     public void deleteFile(String remoteUrl) {
         S3Path s3Path = parseS3Url(remoteUrl);
-        String endpoint = cse.getReportEndpoint();
-        String url = "http://" + endpoint + String.format(FileStorageServiceImpl.url, s3Path.getBucket(), s3Path.getName());
-        HttpDelete httpDelete = new HttpDelete(url);
+        String url = buildFileUrl(s3Path);
+
         try {
-            HttpUtil.getHttpClient().execute(httpDelete, response -> {
-                if (response.getCode() == 200)  {
+            HttpUtil.getHttpClient().execute(new HttpDelete(url), response -> {
+                if (response.getCode() == 200) {
                     log.info("delete {} success", remoteUrl);
-                    return null;
+                } else {
+                    dealFileHttpError("delete", s3Path, response);
                 }
-                dealFileHttpError("delete", s3Path, response);
                 return null;
             });
         } catch (IOException e) {
@@ -109,13 +111,10 @@ public class FileStorageServiceImpl implements IFileStorage {
     @Override
     public boolean exist(String remoteUrl) {
         S3Path s3Path = parseS3Url(remoteUrl);
-        String endpoint = cse.getReportEndpoint();
-        String url = "http://" + endpoint + String.format(FileStorageServiceImpl.existUrl, s3Path.getBucket(), s3Path.getName());
-
-        HttpGet httpGet = new HttpGet(url);
+        String url = buildExistUrl(s3Path);
         boolean result = false;
         try {
-            result = HttpUtil.getHttpClient().execute(httpGet, response -> {
+            result = HttpUtil.getHttpClient().execute(new HttpGet(url), response -> {
                 if (response.getCode() == 200) {
                     return true;
                 }
@@ -125,20 +124,51 @@ public class FileStorageServiceImpl implements IFileStorage {
                 return false;
             });
         } catch (IOException e) {
-            log.error("delete {} failed", s3Path, e);
+            log.error("exist {} failed", s3Path, e);
         }
         return result;
     }
 
+    /** 构建文件操作 URL */
+    private String buildFileUrl(S3Path s3Path) {
+        return "http://" + cse.getReportEndpoint()
+                + String.format(FILE_URL_PATTERN, s3Path.getBucket(), s3Path.getName());
+    }
+
+    /** 构建文件存在性检查 URL */
+    private String buildExistUrl(S3Path s3Path) {
+        return "http://" + cse.getReportEndpoint()
+                + String.format(EXIST_URL_PATTERN, s3Path.getBucket(), s3Path.getName());
+    }
+
+    /**
+     * 将远端路径解析为 S3Path（bucket + 扁平化文件名）。
+     * 路径中第一段为 bucket，其余部分用 "_" 拼接为文件名。
+     */
     private static S3Path parseS3Url(String url) {
         Path path = Paths.get(url);
         String bucketName = path.getName(0).toString();
-        //将除第一个标识bucket之后的路径转换为一个文件名
         String name = path.subpath(1, path.getNameCount()).toString().replace("/", "_");
         return new S3Path(bucketName, name);
     }
 
+    /** 统一处理文件操作的 HTTP 错误响应 */
+    private static void dealFileHttpError(String method, S3Path file, ClassicHttpResponse response) {
+        try {
+            HttpEntity entity = response.getEntity();
+            if (entity != null) {
+                BaseResponse badResponse = JSONUtil.toBean(entity.toString(), BaseResponse.class);
+                log.error("{} failed, file:{}, code:{}, msg:{}", method, file,
+                        badResponse.getCode(), badResponse.getMessage());
+            } else {
+                log.error("{} failed, file:{}, code:{}", method, file, response.getCode());
+            }
+        } catch (Exception e) {
+            log.error("{} failed, file:{}, http status:{}", method, file, response.getCode());
+        }
+    }
 
+    /** S3 路径值对象，包含 bucket 名称和文件名 */
     @Data
     private static class S3Path {
         private final String bucket;
@@ -149,20 +179,4 @@ public class FileStorageServiceImpl implements IFileStorage {
             return bucket + "/" + name;
         }
     }
-
-    private static void dealFileHttpError(String method, S3Path file, ClassicHttpResponse response) {
-        try {
-            HttpEntity entity = response.getEntity();
-            if (entity != null) {
-                BaseResponse badResponse = JSONUtil.toBean(entity.toString(), BaseResponse.class);
-                log.error("{} failed, file:{}, code:{}, msg:{}", method, file
-                        , badResponse.getCode(), badResponse.getMessage());
-            } else {
-                log.error("{} failed, file:{}, code:{}", method, file, response.getCode());
-            }
-        } catch (Exception e) {
-            log.error("{} failed, file:{}, http status:{}", method, file, response.getCode());
-        }
-    }
-
 }

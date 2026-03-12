@@ -22,8 +22,13 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 
+/**
+ * 扩展插件管理服务，负责从远端下载、解压、加载插件包，
+ * 并在加载完成后关闭所有浏览器实例以使新扩展生效
+ */
 @Service
 public class ExtensionManageService {
+
     private static final Logger log = LogManager.getLogger(ExtensionManageService.class);
 
     @Resource
@@ -40,82 +45,90 @@ public class ExtensionManageService {
     private IAlarm alarm;
 
     /**
-     * reload extension for update
-     * @param request new extension url from remote
-     * @return success?
+     * 加载新版本扩展：下载 → 解压 → 更新插件元数据 → 加载 SDK 和 JS 扩展 → 关闭所有浏览器实例。
+     *
+     * @param request 包含插件名称、版本、远端路径等信息
+     * @return 加载是否成功
      */
     public synchronized boolean loadExtension(LoadExtensionRequest request) {
         log.info("reload extension, request params: {}", JSONUtil.toJsonStr(request));
         try {
-            ExtensionFilePaths extensionFilePaths = downPlugin(request);
+            ExtensionFilePaths paths = downPlugin(request);
             pluginManage.updatePluginActive(request.getName(), request.getVersion(), request.getType());
-            pluginManage.loadPlugin(extensionFilePaths.getKeyDir(), extensionFilePaths.getTouchDir(), extensionFilePaths.jarPath);
-            postLoadingPlugin(extensionFilePaths);
+            pluginManage.loadPlugin(paths.getKeyDir(), paths.getTouchDir(), paths.jarPath);
+            postLoadingPlugin(paths);
             log.info("success to load extension name:{} version:{}", request.getName(), request.getVersion());
             return true;
         } catch (Exception e) {
             log.error("load extension failed", e);
             pluginManage.updateStatus(Constant.FAILED);
             return false;
-        }finally {
+        } finally {
             chromeSet.reportUsed();
         }
     }
 
+    /** 获取当前激活的插件信息 */
+    public PluginActive getPluginInfo() {
+        return pluginManage.getPluginActive();
+    }
+
+    /**
+     * 下载并解压插件包，返回各文件路径
+     */
     private ExtensionFilePaths downPlugin(LoadExtensionRequest request) throws IOException {
         Path remoteExtensionPath = Paths.get(request.getBucketName(), request.getExtensionFilePath());
-
         Path localTmpPath = Paths.get(config.getTmpPath());
         FileUtil.mkdir(localTmpPath);
+
         Path localExtensionPath = localTmpPath.resolve(remoteExtensionPath.getFileName());
         FileUtil.del(localExtensionPath);
 
-        log.info("clear local extension path success, start download from remote. local :{}, remote: {}"
-                , localExtensionPath, remoteExtensionPath);
-        fileStorageService.downloadFile(localExtensionPath.toString(),remoteExtensionPath.toString());
+        log.info("clear local extension path success, start download from remote. local:{}, remote:{}",
+                localExtensionPath, remoteExtensionPath);
+        fileStorageService.downloadFile(localExtensionPath.toString(), remoteExtensionPath.toString());
         log.info("download extension success, start decompress. local:{}", localExtensionPath);
 
         String unGzipDir = decompress(localExtensionPath.toString(), config.getTmpPath());
         log.info("decompress success, start get extension file paths. local:{}", unGzipDir);
 
-        ExtensionFilePaths extensionFilePaths = getExtensionFilePaths(unGzipDir, localExtensionPath.toString());
-        log.info("get extension file paths success, start close all chrome instance. paths: {}"
-                , JSONUtil.toJsonStr(extensionFilePaths));
-        return extensionFilePaths;
+        ExtensionFilePaths paths = getExtensionFilePaths(unGzipDir, localExtensionPath.toString());
+        log.info("get extension file paths success, start close all chrome instance. paths:{}",
+                JSONUtil.toJsonStr(paths));
+        return paths;
     }
 
-    private void postLoadingPlugin(ExtensionFilePaths extensionFilePaths){
-        FileUtil.del(FileUtil.getParent(extensionFilePaths.getUnGzipDir(), 1) );
-        FileUtil.del(extensionFilePaths.getLocalExtensionPath());
+    /**
+     * 加载完成后的清理工作：删除临时文件，关闭所有浏览器实例
+     */
+    private void postLoadingPlugin(ExtensionFilePaths paths) {
+        FileUtil.del(FileUtil.getParent(paths.getUnGzipDir(), 1));
+        FileUtil.del(paths.getLocalExtensionPath());
 
         chromeSet.deleteAll();
         DriverClient client = new ClientImpl(config.getChrome().getEndpoint());
-        client.browser().list().forEach(browser -> {
-            client.browser().delete(browser.getId());
-        });
+        client.browser().list().forEach(browser -> client.browser().delete(browser.getId()));
         log.info("close all browsers and reload chrome extension success.");
     }
 
-    public PluginActive getPluginInfo() {
-        return pluginManage.getPluginActive();
-    }
-
+    /**
+     * 解压 zip 包，再解压内部的 tar.gz，返回最终解压目录路径
+     */
     private String decompress(String zipFilePath, String unzipDir) throws IOException {
         var zipFileName = FileUtil.getName(zipFilePath);
         var zipFilePrefix = FileUtil.mainName(zipFileName);
 
         unzipDir = Paths.get(unzipDir, zipFilePrefix).toString();
-
         FileUtil.del(unzipDir);
         FileUtil.mkdir(unzipDir);
         ZipUtil.unzip(zipFilePath, unzipDir);
 
-        var packageSdfFilepath = Paths.get(unzipDir, "package.json").toString();
-        if (!FileUtil.exist(packageSdfFilepath)) {
+        var packageJsonPath = Paths.get(unzipDir, "package.json").toString();
+        if (!FileUtil.exist(packageJsonPath)) {
             log.info("not found package.json file in {}", unzipDir);
             throw new RuntimeException("not found package.json file in" + unzipDir);
         }
-        log.info("extension package.json is {}", FileUtil.readUtf8String(packageSdfFilepath));
+        log.info("extension package.json is {}", FileUtil.readUtf8String(packageJsonPath));
 
         var gzipFilePath = Paths.get(unzipDir, zipFilePrefix + ".tar.gz").toString();
         if (!FileUtil.exist(gzipFilePath)) {
@@ -129,6 +142,7 @@ public class ExtensionManageService {
         return unGzipDir;
     }
 
+    /** 在解压目录中查找第一个 .jar 文件路径 */
     private String findJarPath(String unGzipDir) {
         Path path = Paths.get(unGzipDir, "jar");
         try {
@@ -142,33 +156,32 @@ public class ExtensionManageService {
             log.error("find jar file error, dir:{}", path);
             throw new RuntimeException("find jar file error" + path);
         }
-
         return StrUtil.EMPTY;
     }
 
-    private ExtensionFilePaths getExtensionFilePaths(String unGzipDir, String localExtensionPath)  {
+    /** 从解压目录中提取各文件路径，构建 ExtensionFilePaths 对象 */
+    private ExtensionFilePaths getExtensionFilePaths(String unGzipDir, String localExtensionPath) {
         var efp = new ExtensionFilePaths();
+
         var jarPath = findJarPath(unGzipDir);
         if (FileUtil.isFile(jarPath)) {
             efp.setJarPath(jarPath);
         }
 
         var keyDir = Paths.get(unGzipDir, "keys").toString();
-        if (FileUtil.isDirectory(keyDir)) {
-            efp.setKeyDir(keyDir);
-        }
-        efp.setKeyDir(keyDir);
+        efp.setKeyDir(keyDir);  // 无论是否存在都设置，由 loadPlugin 判断
 
         var touchDir = Paths.get(unGzipDir, "touch").toString();
         if (FileUtil.isDirectory(touchDir)) {
             efp.setTouchDir(touchDir);
         }
+
         efp.setUnGzipDir(unGzipDir);
         efp.setLocalExtensionPath(localExtensionPath);
         return efp;
     }
 
-
+    /** 插件包解压后各文件路径的值对象 */
     @Data
     private static class ExtensionFilePaths {
         String jarPath;

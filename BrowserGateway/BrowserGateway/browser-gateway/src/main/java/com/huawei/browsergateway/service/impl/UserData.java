@@ -11,21 +11,22 @@ import org.apache.logging.log4j.Logger;
 import java.io.File;
 import java.nio.file.Paths;
 
-
+/**
+ * 用户数据管理类，负责浏览器用户数据的本地压缩、远程上传与下载。
+ * 用户数据以 Zstd 压缩格式存储在远端，会话结束时上传，会话开始时下载。
+ */
 public class UserData {
+
     private static final Logger log = LogManager.getLogger(UserData.class);
 
     private final IFileStorage fileStorageService;
-
     private final String userdataDir;
-
     private final String userId;
-
     private final String selfAddr;
-
     private final IRemote remote;
 
-    public UserData(IFileStorage fileStorageService, String userdataDir, String userId, String selfAddr, IRemote remote) {
+    public UserData(IFileStorage fileStorageService, String userdataDir,
+                    String userId, String selfAddr, IRemote remote) {
         this.fileStorageService = fileStorageService;
         this.userdataDir = userdataDir;
         this.userId = userId;
@@ -34,7 +35,8 @@ public class UserData {
     }
 
     /**
-     * When the user's browser is closed, the user's data is uploaded to the remote storage.
+     * 浏览器关闭时将用户数据压缩后上传到远端存储。
+     * 仅当本实例是该用户的绑定实例时才执行上传。
      */
     public void upload() {
         log.info("Uploading Chrome user data for user {}", userId);
@@ -42,6 +44,7 @@ public class UserData {
             log.info("userdata not need to upload, userId:{}", userId);
             return;
         }
+
         File localUserData = getLocalURL();
         if (!localUserData.exists()) {
             log.warn("browser userdata path is not exist: {}", localUserData);
@@ -49,7 +52,8 @@ public class UserData {
         }
 
         UserdataSlimmer.slimInplace(localUserData);
-        //压缩
+
+        // 压缩为 zst 格式
         File localZip = new File(localUserData.getParent(), "userdata.json.zst");
         try {
             ZstdUtil.compressJson(localUserData.getAbsolutePath(), localZip.getAbsolutePath());
@@ -72,9 +76,10 @@ public class UserData {
     }
 
     /**
-     * When a user starts the browser, the user data is downloaded from the remote storage.
+     * 浏览器启动时从远端存储下载并解压用户数据。
+     * 若远端不存在则直接使用本地路径。
      *
-     * @return local data path
+     * @return 本地用户数据文件路径
      */
     public String download() {
         log.info("Downloading Chrome user data for user {}", userId);
@@ -90,11 +95,11 @@ public class UserData {
             FileUtil.mkdir(localUserData.getParentFile());
             FileUtil.touch(localUserData);
         }
+
         File localZip = new File(localUserData.getParent(), "userdata.json.zst");
         try {
             fileStorageService.downloadFile(localZip.getAbsolutePath(), remoteURL);
             ZstdUtil.decompressJson(localZip.getAbsolutePath(), localUserData.getAbsolutePath());
-
             if (localZip.exists()) {
                 FileUtil.del(localZip);
             }
@@ -106,26 +111,27 @@ public class UserData {
     }
 
     /**
-     * Delete the cached user data.
+     * 删除本地及远端的用户数据缓存
      */
     public void delete() {
         log.info("Deleting Chrome user data for user {}", userId);
-        File localUserData = getLocalURL();
-        FileUtil.del(localUserData);
+        FileUtil.del(getLocalURL());
         log.info("delete local user data success, start to delete remote data");
-        String remoteURL = getRemoteURL();
-        fileStorageService.deleteFile(remoteURL);
+        fileStorageService.deleteFile(getRemoteURL());
         log.info("delete remote user data success");
     }
 
+    /** 本地用户数据文件路径 */
     private File getLocalURL() {
         return FileUtil.file(userdataDir, userId, "userdata.json");
     }
 
+    /** 远端用户数据文件路径 */
     private String getRemoteURL() {
         return Paths.get("userdata", userId, "userdata.json.zst").toString();
     }
 
+    /** 判断是否需要上传：仅当本实例是该用户的绑定实例时才上传 */
     private boolean needUpload() {
         try {
             UserBind userBind = remote.getUserBind(userId);
