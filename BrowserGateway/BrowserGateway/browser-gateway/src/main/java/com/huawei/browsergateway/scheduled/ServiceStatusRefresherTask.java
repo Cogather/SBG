@@ -14,31 +14,22 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
 /**
- * 服务状态刷新任务
- * 定期上报浏览器实例使用情况
- * 
- * 功能说明：
- * 1. 定期调用chromeSet.reportUsed()上报当前使用的浏览器实例数量
- * 2. 用于服务监控和资源统计
- * 
- * @author BrowserGateway
+ * 服务状态定时刷新任务，周期性上报当前浏览器实例使用数量到 CSE
  */
 @Component
 public class ServiceStatusRefresherTask {
-    
+
     private static final Logger log = LogManager.getLogger(ServiceStatusRefresherTask.class);
 
     @Autowired
     private IChromeSet chromeSet;
 
+    /** 上报周期（毫秒），默认 30 秒 */
     @Value("${browsergw.scheduled.report-period:30000}")
     private long period;
 
     private ScheduledExecutorService scheduler;
 
-    /**
-     * 初始化定时任务
-     */
     @PostConstruct
     public void init() {
         scheduler = Executors.newSingleThreadScheduledExecutor();
@@ -46,9 +37,7 @@ public class ServiceStatusRefresherTask {
         log.info("Service status refresher task initialized, period: {}ms", period);
     }
 
-    /**
-     * 刷新服务状态
-     */
+    /** 上报当前实例使用情况，异常时记录日志但不中断调度 */
     public void refreshServiceStatus() {
         try {
             chromeSet.reportUsed();
@@ -57,9 +46,6 @@ public class ServiceStatusRefresherTask {
         }
     }
 
-    /**
-     * 销毁定时任务
-     */
     @PreDestroy
     public void destroy() {
         if (scheduler != null) {

@@ -9,29 +9,21 @@ import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Service;
 
 /**
- * 服务上报器
- * 在应用启动时上报链端点信息
- * 
- * 功能说明：
- * 1. 监听应用上下文刷新事件
- * 2. 上报链端点信息
- * 3. 支持重试机制（最多重试5次）
- * 
- * @author BrowserGateway
+ * 服务启动上报器，在 Spring 上下文就绪后将链路端点信息上报到 CSE，
+ * 失败时最多重试 5 次，每次间隔 30 秒
  */
 @Service
 public class ServiceReporter {
-    
+
     private static final Logger log = LogManager.getLogger(ServiceReporter.class);
+
+    /** 重试间隔（毫秒） */
+    private static final long RETRY_INTERVAL_MS = 30_000;
 
     @Autowired
     private IChromeSet chromeSet;
 
-    /**
-     * 监听应用上下文刷新事件，启动上报
-     * 
-     * @param event 上下文刷新事件
-     */
+    /** 监听上下文刷新事件，触发链路端点上报 */
     @EventListener(ContextRefreshedEvent.class)
     public void startReport(ContextRefreshedEvent event) {
         reportChainInfoWithRetry(5);
@@ -39,31 +31,29 @@ public class ServiceReporter {
     }
 
     /**
-     * 带重试机制的上报链端点信息
-     * 
-     * @param remainCount 剩余重试次数
+     * 带重试的链路端点上报，使用循环替代递归避免栈溢出风险
+     *
+     * @param maxRetries 最大重试次数
      */
-    private void reportChainInfoWithRetry(int remainCount) {
-        long waitTime = 30000; // 30秒间隔
-        log.info("start to report chain endpoints");
-        
-        if (chromeSet.reportChainEndpoints()) {
-            log.info("report chain endpoint success");
-            return;
+    private void reportChainInfoWithRetry(int maxRetries) {
+        for (int remaining = maxRetries; remaining >= 0; remaining--) {
+            log.info("start to report chain endpoints");
+            if (chromeSet.reportChainEndpoints()) {
+                log.info("report chain endpoint success");
+                return;
+            }
+            if (remaining == 0) {
+                log.fatal("report chain endpoint failed");
+                return;
+            }
+            log.info("failed to report, will retry");
+            try {
+                Thread.sleep(RETRY_INTERVAL_MS);
+            } catch (InterruptedException e) {
+                log.fatal("failed to sleep", e);
+                Thread.currentThread().interrupt();
+                return;
+            }
         }
-        
-        if (remainCount == 0) {
-            // 达到最大重试次数，依靠自身重试无法恢复，重启进程
-            log.fatal("report chain endpoint failed");
-        }
-        
-        log.info("failed to report, will retry");
-        try {
-            Thread.sleep(waitTime); // 等待一段时间再重试
-        } catch (Exception sleepException) {
-            log.fatal("failed to sleep", sleepException);
-        }
-        
-        reportChainInfoWithRetry(remainCount - 1);
     }
 }
