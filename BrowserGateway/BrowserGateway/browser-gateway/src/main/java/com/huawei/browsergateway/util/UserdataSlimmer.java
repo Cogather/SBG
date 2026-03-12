@@ -11,55 +11,74 @@ import org.apache.logging.log4j.Logger;
 
 import java.io.File;
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 
-public class UserdataSlimmer {
+/**
+ * 浏览器用户数据精简工具类
+ *
+ * <p>对 Playwright/Chromium 导出的 storageState JSON 文件进行裁剪，
+ * 仅保留登录凭证相关的 Cookie 和 localStorage 条目，减少文件体积。
+ */
+public final class UserdataSlimmer {
+
     private static final Logger log = LogManager.getLogger(UserdataSlimmer.class);
-    // Core keywords (strict filtering rules)
-    private static final List<String> LOGIN_KEYWORDS = Arrays.asList(
+
+    /** 沐恩自研应用域名标识，命中时跳过裁剪 */
+    private static final String MUEN_APP_FLAG = "tmofamily.com";
+
+    /** 登录凭证相关关键词（Cookie name 匹配） */
+    private static final List<String> LOGIN_KEYWORDS = Collections.unmodifiableList(Arrays.asList(
             "session", "token", "auth", "login", "user", "sid", "uid", "account",
             "access", "refresh", "credential", "ticket", "sign", "key"
-    );
-    private static final List<String> VERIFY_KEYWORDS = Arrays.asList(
+    ));
+
+    /** 人机验证相关关键词（localStorage name 匹配） */
+    private static final List<String> VERIFY_KEYWORDS = Collections.unmodifiableList(Arrays.asList(
             "verify", "captcha", "check", "pass", "valid", "certify", "robot",
             "human", "anti", "shield", "audit"
-    );
-    private static final List<String> VERIFY_PASSED_VALUES = Arrays.asList(
+    ));
+
+    /** 验证通过的 value 值集合 */
+    private static final List<String> VERIFY_PASSED_VALUES = Collections.unmodifiableList(Arrays.asList(
             "passed", "true", "success", "valid", "1", "yes", "allowed"
-    );
-    private static final String MUEN_APP_FLAG = "tmofamily.com";
-    private static final List<String> ALL_KEYWORDS = new ArrayList<>();
+    ));
+
+    /** 登录 + 验证关键词合集 */
+    private static final List<String> ALL_KEYWORDS;
 
     static {
-        ALL_KEYWORDS.addAll(LOGIN_KEYWORDS);
-        ALL_KEYWORDS.addAll(VERIFY_KEYWORDS);
+        String[] combined = new String[LOGIN_KEYWORDS.size() + VERIFY_KEYWORDS.size()];
+        LOGIN_KEYWORDS.toArray(combined);
+        for (int i = 0; i < VERIFY_KEYWORDS.size(); i++) {
+            combined[LOGIN_KEYWORDS.size() + i] = VERIFY_KEYWORDS.get(i);
+        }
+        ALL_KEYWORDS = Collections.unmodifiableList(Arrays.asList(combined));
     }
 
+    private UserdataSlimmer() {}
+
     /**
-     * Deep slim and modify the original file in-place
+     * 原地精简用户数据文件（覆盖写入）
+     *
+     * @param file 待精简的 storageState JSON 文件
+     * @throws RuntimeException 文件不存在时抛出
      */
-    public static void slimInplace(File file)  {
-        long startTime = System.currentTimeMillis();
+    public static void slimInplace(File file) {
         if (!file.exists()) {
-            String errorMsg = "File not found: " + file.getAbsolutePath();
-            log.error(errorMsg);
-            throw new RuntimeException(errorMsg);
+            String msg = "File not found: " + file.getAbsolutePath();
+            log.error(msg);
+            throw new RuntimeException(msg);
         }
 
+        long startTime = System.currentTimeMillis();
         String originalContent = FileUtil.readString(file, StandardCharsets.UTF_8);
-        JSONObject originalState = JSONUtil.parseObj(originalContent);
+        JSONObject state = JSONUtil.parseObj(originalContent);
         long originalSize = originalContent.getBytes(StandardCharsets.UTF_8).length;
 
-        JSONArray originalCookies = originalState.getJSONArray("cookies");
-        if (originalCookies == null) {
-            originalCookies = new JSONArray();
-        }
-        JSONArray originalOrigins = originalState.getJSONArray("origins");
-        if (originalOrigins == null) {
-            originalOrigins = new JSONArray();
-        }
+        JSONArray originalCookies = nullSafe(state.getJSONArray("cookies"));
+        JSONArray originalOrigins = nullSafe(state.getJSONArray("origins"));
 
         JSONArray slimCookies = slimCookies(originalCookies);
         JSONArray slimOrigins = slimOrigins(originalOrigins);
@@ -67,152 +86,130 @@ public class UserdataSlimmer {
         JSONObject slimState = new JSONObject();
         slimState.set("cookies", slimCookies);
         slimState.set("origins", slimOrigins);
-        String compressedJson = JSONUtil.toJsonStr(slimState).replaceAll("\\s+", "");
-        long slimSize = compressedJson.getBytes(StandardCharsets.UTF_8).length;
+        String output = JSONUtil.toJsonStr(slimState).replaceAll("\\s+", "");
+        long slimSize = output.getBytes(StandardCharsets.UTF_8).length;
 
-        FileUtil.writeString(compressedJson, file, StandardCharsets.UTF_8);
+        FileUtil.writeString(output, file, StandardCharsets.UTF_8);
 
-        log.info("slim user data success, cost:{}ms. cookies: {} -> {}; origins: {} -> {}; size(KB): {} -> {}"
-                , System.currentTimeMillis() - startTime, getArraySize(originalCookies)
-                , getArraySize(slimCookies), getArraySize(originalOrigins), getArraySize(slimOrigins)
-                ,originalSize/1024.0, slimSize/1024.0);
+        log.info("slim user data success, cost:{}ms. cookies:{}->{} origins:{}->{} size(KB):{}->{}"
+                , System.currentTimeMillis() - startTime
+                , size(originalCookies), size(slimCookies)
+                , size(originalOrigins), size(slimOrigins)
+                , originalSize / 1024.0, slimSize / 1024.0);
     }
 
-    /**
-     *  slim Cookies
-     */
-    private static JSONArray slimCookies(JSONArray originalCookies) {
-        if (originalCookies == null || originalCookies.isEmpty()) {
-            return new JSONArray();
-        }
+    // ---- Cookie 裁剪 ----
 
-        long currentTimestamp = DateUtil.currentSeconds();
-        JSONArray slimCookies = new JSONArray();
+    private static JSONArray slimCookies(JSONArray cookies) {
+        if (cookies == null || cookies.isEmpty()) return new JSONArray();
 
-        for (Object obj : originalCookies) {
+        long now = DateUtil.currentSeconds();
+        JSONArray result = new JSONArray();
+        for (Object obj : cookies) {
             JSONObject cookie = JSONUtil.parseObj(obj);
-            //沐恩自研应用不进行裁剪
+            // 沐恩自研应用不裁剪
             if (cookie.getStr("domain", "").contains(MUEN_APP_FLAG)) {
-                slimCookies.add(cookie);
+                result.add(cookie);
                 continue;
             }
-            //  Must not be expired
-            boolean isNotExpired = true;
-            if (cookie.containsKey("expires") && !cookie.isNull("expires")) {
-                try {
-                    double expires = cookie.getDouble("expires");
-                    isNotExpired = expires > currentTimestamp;
-                } catch (Exception e) {
-                    isNotExpired = true;
-                }
-            }
-            if (!isNotExpired) continue;
+            if (!isNotExpiredCookie(cookie, now)) continue;
 
             String value = cookie.getStr("value", "").trim();
             if (StrUtil.isBlank(value) || value.length() <= 1) continue;
 
-            // Core login credential or HttpOnly
             String name = cookie.getStr("name", "").toLowerCase();
+            boolean isLoginKey = LOGIN_KEYWORDS.stream().anyMatch(name::contains);
             boolean isHttpOnly = cookie.getBool("httpOnly", false);
-
-            boolean hasLoginKey = LOGIN_KEYWORDS.stream()
-                    .anyMatch(name::contains);
-
-            if (hasLoginKey || isHttpOnly) {
-                slimCookies.add(cookie);
+            if (isLoginKey || isHttpOnly) {
+                result.add(cookie);
             }
         }
-        return slimCookies;
+        return result;
     }
 
-    /**
-     * slim Origins
-     */
-    private static JSONArray slimOrigins(JSONArray originalOrigins) {
-        if (originalOrigins == null || originalOrigins.isEmpty()) {
-            return new JSONArray();
+    /** 判断 Cookie 是否未过期 */
+    private static boolean isNotExpiredCookie(JSONObject cookie, long now) {
+        if (!cookie.containsKey("expires") || cookie.isNull("expires")) return true;
+        try {
+            return cookie.getDouble("expires") > now;
+        } catch (Exception e) {
+            return true;
         }
+    }
 
-        JSONArray slimOrigins = new JSONArray();
-        long currentTimestamp = DateUtil.currentSeconds();
+    // ---- Origin / localStorage 裁剪 ----
 
-        for (Object obj : originalOrigins) {
+    private static JSONArray slimOrigins(JSONArray origins) {
+        if (origins == null || origins.isEmpty()) return new JSONArray();
+
+        long now = DateUtil.currentSeconds();
+        JSONArray result = new JSONArray();
+        for (Object obj : origins) {
             JSONObject originItem = JSONUtil.parseObj(obj);
             String origin = originItem.getStr("origin", "");
-            //沐恩自研应用不进行裁剪
+            // 沐恩自研应用不裁剪
             if (origin.contains(MUEN_APP_FLAG)) {
-                slimOrigins.add(originItem);
+                result.add(originItem);
                 continue;
             }
-            JSONArray originalLocal = originItem.getJSONArray("localStorage");
-            if (originalLocal == null) {
-                originalLocal = new JSONArray();
-            }
-            JSONArray slimLocal = slimLocalStorage(origin, originalLocal, currentTimestamp);
-
+            JSONArray slimLocal = slimLocalStorage(origin, nullSafe(originItem.getJSONArray("localStorage")), now);
             if (!slimLocal.isEmpty()) {
-                JSONObject slimOriginItem = new JSONObject();
-                slimOriginItem.set("origin", origin);
-                slimOriginItem.set("localStorage", slimLocal);
-                slimOrigins.add(slimOriginItem);
+                JSONObject slimItem = new JSONObject();
+                slimItem.set("origin", origin);
+                slimItem.set("localStorage", slimLocal);
+                result.add(slimItem);
             }
         }
-        return slimOrigins;
+        return result;
     }
 
-    /**
-     * slim localStorage
-     */
-    private static JSONArray slimLocalStorage(String origin, JSONArray originalLocal, long currentTimestamp) {
-        if (originalLocal == null || originalLocal.isEmpty()) {
-            return new JSONArray();
-        }
+    private static JSONArray slimLocalStorage(String origin, JSONArray local, long now) {
+        if (local == null || local.isEmpty()) return new JSONArray();
 
-        JSONArray slimLocal = new JSONArray();
-
-        for (Object obj : originalLocal) {
+        JSONArray result = new JSONArray();
+        for (Object obj : local) {
             JSONObject item = JSONUtil.parseObj(obj);
             String name = item.getStr("name", "").toLowerCase();
             String value = item.getStr("value", "").toLowerCase();
 
             if (StrUtil.isBlank(value) || value.length() <= 1) continue;
 
-            // Core verify keyword or explicit passed status
             boolean hasKey = ALL_KEYWORDS.stream().anyMatch(name::contains);
-
-            //tiktok无用localStorage: example:"name": "text.5dc26cf008d511e9b571e1bc0c9e23b5.WebApp_Login.en-GB"
+            // TikTok 特殊处理：排除 text.* 格式的无效条目
             if (origin.contains(".tiktok.com")) {
                 hasKey = hasKey && !name.contains("text");
             }
+
             boolean isVerifyPassed = VERIFY_PASSED_VALUES.stream().anyMatch(value::equalsIgnoreCase);
-
-            // Not expired
-            boolean isNotExpired = true;
-            try {
-                if (JSONUtil.isJson(value)) {
-                    JSONObject valJson = JSONUtil.parseObj(value);
-                    double expire = 0.0;
-                    if (valJson.containsKey("expire")) {
-                        expire = valJson.getDouble("expire");
-                    } else if (valJson.containsKey("expires")) {
-                        expire = valJson.getDouble("expires");
-                    }
-                    if (expire > 0) {
-                        isNotExpired = expire > currentTimestamp;
-                    }
-                }
-            } catch (Exception e) {
-                isNotExpired = false;
-            }
-
-            if ((hasKey || isVerifyPassed) && isNotExpired) {
-                slimLocal.add(item);
+            if ((hasKey || isVerifyPassed) && isNotExpiredLocalStorage(value, now)) {
+                result.add(item);
             }
         }
-        return slimLocal;
+        return result;
     }
 
-    private static int getArraySize(JSONArray array) {
+    /** 判断 localStorage 条目是否未过期（value 为 JSON 且含 expire/expires 字段时检查） */
+    private static boolean isNotExpiredLocalStorage(String value, long now) {
+        try {
+            if (!JSONUtil.isJson(value)) return true;
+            JSONObject valJson = JSONUtil.parseObj(value);
+            double expire = 0.0;
+            if (valJson.containsKey("expire")) {
+                expire = valJson.getDouble("expire");
+            } else if (valJson.containsKey("expires")) {
+                expire = valJson.getDouble("expires");
+            }
+            return expire <= 0 || expire > now;
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    private static JSONArray nullSafe(JSONArray array) {
+        return array != null ? array : new JSONArray();
+    }
+
+    private static int size(JSONArray array) {
         return array == null ? 0 : array.size();
     }
 }

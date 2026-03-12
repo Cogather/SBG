@@ -18,66 +18,76 @@ import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 
-public class HttpUtil {
+/** HTTP 请求工具类，内部使用连接池复用连接 */
+public final class HttpUtil {
+
     private static final Logger log = LoggerFactory.getLogger(HttpUtil.class);
+
     @Getter
     private static final CloseableHttpClient httpClient;
-    private static final PoolingHttpClientConnectionManager connectionManager;
 
     static {
-        connectionManager = new PoolingHttpClientConnectionManager();
-        connectionManager.setMaxTotal(100); // 池内最大总连接数
-        connectionManager.setDefaultMaxPerRoute(20);    // 每个域名/路由最大连接数
+        PoolingHttpClientConnectionManager cm = new PoolingHttpClientConnectionManager();
+        cm.setMaxTotal(100);          // 连接池最大总连接数
+        cm.setDefaultMaxPerRoute(20); // 每个路由最大连接数
         httpClient = HttpClients.custom()
-                .setConnectionManager(connectionManager)    // 绑定连接池
-                .evictIdleConnections(TimeValue.ofMinutes(1))   // 自动清理空闲连接
+                .setConnectionManager(cm)
+                .evictIdleConnections(TimeValue.ofMinutes(1)) // 自动清理空闲连接
                 .build();
     }
 
+    private HttpUtil() {}
 
+    /**
+     * 发送 HTTP 请求，忽略响应体
+     *
+     * @param url    请求地址
+     * @param method HTTP 方法（GET/POST 等）
+     * @param body   请求体，为空时不设置
+     */
     public static void request(String url, String method, String body) {
-        HttpUriRequest httpUriRequest = ClassicHttpRequests.create(method, url);
-        if (!StrUtil.isEmpty(body)) {
-            StringEntity stringEntity = new StringEntity(body);
-            httpUriRequest.setEntity(stringEntity);
-        }
-        try {
-            httpClient.execute(httpUriRequest, response -> {
-                if (response.getCode() != 200) {
-                    log.warn("requeset for {}, get code {}", url, response.getCode());
-                }
+        execute(url, method, body, response -> {
+            if (response.getCode() != 200) {
+                log.warn("request for {}, got code {}", url, response.getCode());
+            }
+            return null;
+        });
+    }
+
+    /**
+     * 发送 HTTP 请求并将响应体反序列化为指定类型
+     *
+     * @param url           请求地址
+     * @param method        HTTP 方法
+     * @param body          请求体，为空时不设置
+     * @param typeReference 响应体目标类型
+     * @param <T>           目标类型
+     * @return 反序列化后的响应对象，非 200 或响应体为空时返回 null
+     */
+    public static <T> T request(String url, String method, String body, TypeReference<T> typeReference) {
+        return execute(url, method, body, response -> {
+            if (response.getCode() != 200) {
+                log.warn("request for {}, got code {}", url, response.getCode());
                 return null;
-            });
-        } catch (IOException e) {
-            log.error("request for {}, get error", url, e);
-            throw new RuntimeException(e);
-        }
+            }
+            HttpEntity entity = response.getEntity();
+            if (entity == null) return null;
+            return JSONUtil.toBean(EntityUtils.toString(entity), typeReference, true);
+        });
     }
 
-    public static  <T> T request(String url, String method, String body, TypeReference<T> typeReference) {
-        HttpUriRequest httpUriRequest = ClassicHttpRequests.create(method, url);
+    /** 构建请求并执行，统一处理 IO 异常 */
+    private static <T> T execute(String url, String method, String body,
+            org.apache.hc.core5.http.io.HttpClientResponseHandler<T> handler) {
+        HttpUriRequest req = ClassicHttpRequests.create(method, url);
         if (!StrUtil.isEmpty(body)) {
-            StringEntity stringEntity = new StringEntity(body);
-            httpUriRequest.setEntity(stringEntity);
+            req.setEntity(new StringEntity(body));
         }
-        T result;
         try {
-            result = httpClient.execute(httpUriRequest, response -> {
-                if (response.getCode() != 200) {
-                    log.warn("requeset for {}, get code {}", url, response.getCode());
-                    return null;
-                }
-                HttpEntity entity = response.getEntity();
-                if (entity == null) {
-                    return null;
-                }
-                return JSONUtil.toBean(EntityUtils.toString(entity), typeReference, true);
-            });
+            return httpClient.execute(req, handler);
         } catch (IOException e) {
-            log.error("request for {}, get error", url, e);
+            log.error("request for {} failed", url, e);
             throw new RuntimeException(e);
         }
-        return result;
     }
-
 }

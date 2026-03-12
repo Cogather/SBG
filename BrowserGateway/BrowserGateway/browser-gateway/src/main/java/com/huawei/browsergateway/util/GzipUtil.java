@@ -8,7 +8,22 @@ import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
 import java.util.zip.GZIPInputStream;
 
-public class GzipUtil {
+/** tar.gz 解压工具类 */
+public final class GzipUtil {
+
+    private static final int BUFFER_SIZE = 8192;
+    /** tar 头部固定长度 */
+    private static final int TAR_HEADER_SIZE = 512;
+
+    private GzipUtil() {}
+
+    /**
+     * 将 tar.gz 文件解压到指定目录
+     *
+     * @param inputFile 源 tar.gz 文件路径
+     * @param outputDir 目标解压目录
+     * @throws IOException 解压失败或检测到路径穿越攻击时抛出
+     */
     public static void unGzip(String inputFile, String outputDir) throws IOException {
         Path outputPath = Paths.get(outputDir);
         Files.createDirectories(outputPath);
@@ -17,12 +32,12 @@ public class GzipUtil {
              InputStream gzi = new GZIPInputStream(fi);
              BufferedInputStream bi = new BufferedInputStream(gzi)) {
 
-            byte[] buffer = new byte[1024];
+            byte[] buffer = new byte[BUFFER_SIZE];
             TarEntry entry;
             while ((entry = readNextEntry(bi)) != null) {
                 Path target = Paths.get(outputPath.toString(), entry.name).normalize();
 
-                // 安全校验：防止路径穿越攻击
+                // 防止路径穿越攻击
                 if (!target.startsWith(outputPath)) {
                     throw new IOException("非法路径: " + entry.name);
                 }
@@ -41,36 +56,32 @@ public class GzipUtil {
                         }
                     }
                 }
-                // 跳过填充字节（对齐到512字节边界）
-                long skipBytes = (512 - (entry.size % 512)) % 512;
-                bi.skipNBytes(skipBytes);
+                // 跳过填充字节（对齐到 512 字节边界）
+                bi.skipNBytes((TAR_HEADER_SIZE - (entry.size % TAR_HEADER_SIZE)) % TAR_HEADER_SIZE);
             }
         }
     }
 
+    /** 从输入流读取下一个 tar 条目头部，文件结束返回 null */
     private static TarEntry readNextEntry(InputStream in) throws IOException {
-        byte[] header = new byte[512];
-        int read = in.readNBytes(header, 0, 512);
-        if (read == 0) return null; // 文件结束
-        if (read < 512) throw new EOFException("无效的tar头部");
-
-        // 检查空块（结束标志）
+        byte[] header = new byte[TAR_HEADER_SIZE];
+        int read = in.readNBytes(header, 0, TAR_HEADER_SIZE);
+        if (read == 0) return null;
+        if (read < TAR_HEADER_SIZE) throw new EOFException("无效的 tar 头部");
         if (isZeroBlock(header)) return null;
 
-        // 解析文件名（前100字节）
+        // 文件名：前 100 字节
         String name = new String(header, 0, 100, StandardCharsets.UTF_8).trim();
-
-        // 解析文件大小（八进制字符串转十进制）
+        // 文件大小：八进制字符串（偏移 124，长度 12）
         String sizeStr = new String(header, 124, 12, StandardCharsets.UTF_8).trim();
         long size = Long.parseLong(sizeStr, 8);
-
-        // 检查类型：目录（'5'）或普通文件（'0'或'\0'）
-        char type = (char) header[156];
-        boolean isDir = type == '5' || name.endsWith("/");
+        // 类型标志：偏移 156，'5' 为目录
+        boolean isDir = header[156] == '5' || name.endsWith("/");
 
         return new TarEntry(name, size, isDir);
     }
 
+    /** 判断是否为全零块（tar 结束标志） */
     private static boolean isZeroBlock(byte[] block) {
         for (byte b : block) {
             if (b != 0) return false;
@@ -78,6 +89,7 @@ public class GzipUtil {
         return true;
     }
 
+    /** tar 条目元数据 */
     static class TarEntry {
         final String name;
         final long size;

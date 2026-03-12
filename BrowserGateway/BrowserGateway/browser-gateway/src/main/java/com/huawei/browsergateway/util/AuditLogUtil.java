@@ -5,15 +5,21 @@ import com.huawei.browsergateway.adapter.dto.AuditLevel;
 import com.huawei.browsergateway.adapter.dto.AuditResult;
 import com.huawei.browsergateway.adapter.dto.AuditType;
 import com.huawei.browsergateway.adapter.dto.OperateType;
+import lombok.Data;
+import lombok.experimental.Accessors;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
+/** 审计日志工具类，封装审计日志写入逻辑 */
 @Component
 public class AuditLogUtil {
-    private static final Logger log = LogManager.getLogger(AuditLogUtil.class);
 
+    private static final Logger log = LogManager.getLogger(AuditLogUtil.class);
+    private static final String APP_NAME = "browsergw";
+
+    /** Spring 注入后的单例，供静态方法使用 */
     private static AuditLogUtil instance;
 
     private final AuditLogAdapter auditLogAdapter;
@@ -24,227 +30,96 @@ public class AuditLogUtil {
         AuditLogUtil.instance = this;
     }
 
-    /**
-     * 获取实例（用于非Spring环境）
-     */
+    /** 获取实例（用于非 Spring 环境） */
     public static AuditLogUtil getInstance() {
         return instance;
     }
 
     /**
-     * 审计日志信息（保留用于向后兼容）
+     * 审计日志信息（链式 Builder 风格）
+     *
+     * <p>level 可选值：WARNING / MINOR / RISK<br>
+     * result 可选值：SUCCESSFUL / FAILURE / PARTIAL_SUCCESS
      */
+    @Data
+    @Accessors(chain = true)
     public static class AuditLogInfo {
-        /**
-         * 操作名称
-         */
+        /** 操作名称 */
         private String operation;
-
-        /**
-         * 日志级别。可以是如下值之一：
-         * WARNING：提示
-         * MINOR：一般
-         * RISK：危险
-         */
+        /** 日志级别：WARNING / MINOR / RISK */
         private String level;
-
-        /**
-         * 操作用户
-         */
+        /** 操作用户 */
         private String userName;
-
-        /**
-         * 时间戳
-         */
+        /** 时间戳 */
         private String dateTime;
-
-        /**
-         * 操作来源
-         */
+        /** 操作来源 */
         private String appName;
-
-        /**
-         * 发起操作的客户端IP地址，可从HTTP Header中获取
-         */
+        /** 客户端 IP */
         private String terminal;
-
-        /**
-         * 操作对象
-         */
+        /** 操作对象 */
         private String serviceName;
-
-        /**
-         * 操作结果。可以是如下值之一：
-         * SUCCESSFUL：成功
-         * FAILURE：失败
-         * PARTIAL_SUCCESS：部分成功
-         */
+        /** 操作结果：SUCCESSFUL / FAILURE / PARTIAL_SUCCESS */
         private String result;
-
-        /**
-         * 详细信息，最多支持800个字符
-         */
+        /** 详细信息（英文，最多 800 字符） */
         private String detail;
-
-        /**
-         * 详细信息(中文)，最多支持800个字符
-         */
+        /** 详细信息（中文，最多 800 字符） */
         private String detailZh;
-
-        public String getOperation() {
-            return operation;
-        }
-
-        public AuditLogInfo setOperation(String operation) {
-            this.operation = operation;
-            return this;
-        }
-
-        public String getLevel() {
-            return level;
-        }
-
-        public AuditLogInfo setLevel(String level) {
-            this.level = level;
-            return this;
-        }
-
-        public String getUserName() {
-            return userName;
-        }
-
-        public AuditLogInfo setUserName(String userName) {
-            this.userName = userName;
-            return this;
-        }
-
-        public String getDateTime() {
-            return dateTime;
-        }
-
-        public AuditLogInfo setDateTime(String dateTime) {
-            this.dateTime = dateTime;
-            return this;
-        }
-
-        public String getAppName() {
-            return appName;
-        }
-
-        public AuditLogInfo setAppName(String appName) {
-            this.appName = appName;
-            return this;
-        }
-
-        public String getTerminal() {
-            return terminal;
-        }
-
-        public AuditLogInfo setTerminal(String terminal) {
-            this.terminal = terminal;
-            return this;
-        }
-
-        public String getServiceName() {
-            return serviceName;
-        }
-
-        public AuditLogInfo setServiceName(String serviceName) {
-            this.serviceName = serviceName;
-            return this;
-        }
-
-        public String getResult() {
-            return result;
-        }
-
-        public AuditLogInfo setResult(String result) {
-            this.result = result;
-            return this;
-        }
-
-        public String getDetail() {
-            return detail;
-        }
-
-        public AuditLogInfo setDetail(String detail) {
-            this.detail = detail;
-            return this;
-        }
-
-        public String getDetailZh() {
-            return detailZh;
-        }
-
-        public AuditLogInfo setDetailZh(String detailZh) {
-            this.detailZh = detailZh;
-            return this;
-        }
     }
 
     /**
-     * 写入审计日志（静态方法，保持向后兼容）
-     * @param auditType 审计日志类型
+     * 写入审计日志（静态入口，保持向后兼容）
+     *
+     * @param auditType    审计类型
      * @param auditLogInfo 审计日志信息
-     * @param level 日志级别
-     * @param operateType 操作类型
-     * @param result 操作结果
+     * @param level        日志级别
+     * @param operateType  操作类型
+     * @param result       操作结果
      */
-    public static void writeAuditLog(
-            AuditType auditType, AuditLogInfo auditLogInfo,
+    public static void writeAuditLog(AuditType auditType, AuditLogInfo auditLogInfo,
             AuditLevel level, OperateType operateType, AuditResult result) {
         if (instance != null) {
-            instance.writeAuditLogInstance(auditType, auditLogInfo, level, operateType, result);
+            instance.doWriteAuditLog(auditType, auditLogInfo, level, operateType, result);
         } else {
             log.warn("AuditLogUtil instance not initialized, skipping audit log write");
         }
     }
 
-    /**
-     * 写入审计日志（实例方法）
-     * @param auditType 审计日志类型
-     * @param auditLogInfo 审计日志信息
-     * @param level 日志级别
-     * @param operateType 操作类型
-     * @param result 操作结果
-     */
-    private void writeAuditLogInstance(
-            AuditType auditType, AuditLogInfo auditLogInfo,
+    /** 实例方法：执行实际写入 */
+    private void doWriteAuditLog(AuditType auditType, AuditLogInfo auditLogInfo,
             AuditLevel level, OperateType operateType, AuditResult result) {
         try {
-            com.huawei.browsergateway.adapter.dto.AuditLogInfo adapterAuditLogInfo = buildAdapterAuditLogInfo(
-                    auditType, auditLogInfo, level, operateType, result);
-            boolean success = auditLogAdapter.writeAuditLog(adapterAuditLogInfo);
+            com.huawei.browsergateway.adapter.dto.AuditLogInfo adapterInfo =
+                    buildAdapterInfo(auditType, auditLogInfo, level, operateType, result);
+            boolean success = auditLogAdapter.writeAuditLog(adapterInfo);
             if (!success) {
                 log.warn("Failed to write audit log for operation: {}", auditLogInfo.getOperation());
             }
         } catch (Exception e) {
-            log.error("Error writing audit log, detail: {}, error: {}",
-                    auditLogInfo.getDetail(), e.getMessage(), e);
+            log.error("Error writing audit log, detail: {}", auditLogInfo.getDetail(), e);
         }
     }
 
-    /**
-     * 构建适配器审计日志信息
-     */
-    private com.huawei.browsergateway.adapter.dto.AuditLogInfo buildAdapterAuditLogInfo(
-            AuditType auditType, AuditLogInfo auditLogInfo,
+    /** 将本地 AuditLogInfo 转换为适配器所需的 DTO */
+    private com.huawei.browsergateway.adapter.dto.AuditLogInfo buildAdapterInfo(
+            AuditType auditType, AuditLogInfo info,
             AuditLevel level, OperateType operateType, AuditResult result) {
-        com.huawei.browsergateway.adapter.dto.AuditLogInfo adapterInfo = new com.huawei.browsergateway.adapter.dto.AuditLogInfo();
-        adapterInfo.setOperation(auditLogInfo.getOperation());
-        adapterInfo.setLevel(String.valueOf((level != null) ? level.getCodeLevel() : AuditLevel.MINOR.getCodeLevel()));
-        adapterInfo.setUserName(auditLogInfo.getUserName());
-        adapterInfo.setDateTime(String.valueOf(System.currentTimeMillis()));
-        adapterInfo.setAppName("browsergw");
-        adapterInfo.setTerminal(auditLogInfo.getTerminal());
-        adapterInfo.setServiceName("browsergw");
-        adapterInfo.setResult(String.valueOf((result != null) ? result.getCodeStatus() : AuditResult.SUCCESSFUL.getCodeStatus()));
-        adapterInfo.setDetail(auditLogInfo.getDetail());
-        adapterInfo.setDetailZh(auditLogInfo.getDetailZh());
-        adapterInfo.setAuditType(auditType.name());
+        com.huawei.browsergateway.adapter.dto.AuditLogInfo dto =
+                new com.huawei.browsergateway.adapter.dto.AuditLogInfo();
+        dto.setOperation(info.getOperation());
+        dto.setLevel(String.valueOf(level != null ? level.getCodeLevel() : AuditLevel.MINOR.getCodeLevel()));
+        dto.setUserName(info.getUserName());
+        dto.setDateTime(String.valueOf(System.currentTimeMillis()));
+        dto.setAppName(APP_NAME);
+        dto.setTerminal(info.getTerminal());
+        dto.setServiceName(APP_NAME);
+        dto.setResult(String.valueOf(result != null ? result.getCodeStatus() : AuditResult.SUCCESSFUL.getCodeStatus()));
+        dto.setDetail(info.getDetail());
+        dto.setDetailZh(info.getDetailZh());
+        dto.setAuditType(auditType.name());
         if (!AuditType.SECURITY.equals(auditType)) {
-            adapterInfo.setOperateType(String.valueOf((operateType != null) ? operateType.getCodeType() : OperateType.UPHOLD.getCodeType()));
+            dto.setOperateType(String.valueOf(
+                    operateType != null ? operateType.getCodeType() : OperateType.UPHOLD.getCodeType()));
         }
-        return adapterInfo;
+        return dto;
     }
 }

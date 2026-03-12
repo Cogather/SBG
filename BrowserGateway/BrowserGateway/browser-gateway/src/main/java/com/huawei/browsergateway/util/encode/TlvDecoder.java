@@ -5,18 +5,23 @@ import com.huawei.browsergateway.tcpserver.FlowRateTracker;
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.handler.codec.ByteToMessageDecoder;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.List;
 
 import static com.huawei.browsergateway.util.encode.Tlv.MAGIC;
 
+/** TLV 协议解码器，从字节流中解析出 {@link Tlv} 对象 */
 public class TlvDecoder extends ByteToMessageDecoder {
-    private static final int MIN_SIZE = 10;
-    private static final short HEADER_TAG = 28021;
+
+    private static final Logger log = LoggerFactory.getLogger(TlvDecoder.class);
+
+    /** 头部最小长度：magic(2) + count(4) + dataLen(4) */
+    private static final int HEADER_SIZE = 10;
+
     private final int maxLen;
-
     private final FlowRateTracker flowRateTracker;
-
     private final String serviceType;
 
     public TlvDecoder(int maxLen, FlowRateTracker flowRateTracker, String serviceType) {
@@ -25,21 +30,19 @@ public class TlvDecoder extends ByteToMessageDecoder {
         this.serviceType = serviceType;
     }
 
+    @Override
     protected void decode(ChannelHandlerContext ctx, ByteBuf in, List<Object> out) {
-        // 确保至少有头部基础长度（magic(2) + count(4) + dataLen(4) = 10字节）
-        if (in.readableBytes() < MIN_SIZE) {
-            return; // 数据不足，等待更多数据
-        }
+        if (in.readableBytes() < HEADER_SIZE) return;
 
-        in.markReaderIndex(); // 标记当前位置，方便后续重置
-        Tlv tlv = new Tlv();
+        in.markReaderIndex();
         int totalBytes = 0;
         try {
             short magic = in.readShort();
             totalBytes += 2;
-            if (magic != HEADER_TAG) {
-                in.resetReaderIndex(); // 重置后跳过错误数据（或根据需求处理）
-                in.readByte(); // 跳过一个字节，避免死循环
+            if (magic != MAGIC) {
+                // 魔数不匹配，跳过一个字节避免死循环
+                in.resetReaderIndex();
+                in.readByte();
                 return;
             }
 
@@ -48,59 +51,51 @@ public class TlvDecoder extends ByteToMessageDecoder {
             int dataLen = in.readInt();
             totalBytes += 4;
 
-            // 检查整体数据是否足够（头部已读10字节，剩余数据需 >= dataLen）
             if (in.readableBytes() < dataLen) {
-                in.resetReaderIndex(); // 数据不足，重置等待
+                in.resetReaderIndex();
                 return;
             }
 
+            Tlv tlv = new Tlv();
             tlv.setMagic(MAGIC);
             tlv.setCount(count);
             tlv.setLen(dataLen);
 
             for (int i = 0; i < count; i++) {
-                // 检查是否有足够字节读取当前TLV的type和len（各4字节，共8字节）
                 if (in.readableBytes() < 8) {
-                    in.resetReaderIndex(); // 重置等待
+                    in.resetReaderIndex();
                     return;
                 }
-
                 int t = in.readInt();
                 totalBytes += 4;
                 int len = in.readInt();
                 totalBytes += 4;
 
-                // 检查len是否合法
-                if (len < 0) {
-                    throw new IllegalArgumentException("invalid len: " + len + " (negative)");
-                }
-                if (len > this.maxLen) {
-                    throw new IllegalArgumentException("len " + len + " exceeds maxLen " + this.maxLen);
-                }
+                if (len < 0) throw new IllegalArgumentException("invalid len: " + len);
+                if (len > maxLen) throw new IllegalArgumentException("len " + len + " exceeds maxLen " + maxLen);
 
-                // 关键修复：检查当前剩余字节是否足够读取value
                 if (in.readableBytes() < len) {
-                    in.resetReaderIndex(); // 数据不足，重置等待
+                    in.resetReaderIndex();
                     return;
                 }
 
-                // 读取value
-                ByteBuf v = in.readSlice(len).retain();
+                ByteBuf slice = in.readSlice(len).retain();
                 try {
-                    byte[] data = new byte[v.readableBytes()];
-                    v.getBytes(v.readerIndex(), data);
+                    byte[] data = new byte[slice.readableBytes()];
+                    slice.getBytes(slice.readerIndex(), data);
                     tlv.getFields().add(new TlvField(t, len, data));
                     totalBytes += len;
                 } finally {
-                    v.release();
+                    slice.release();
                 }
             }
-            Client client = Client.fromCtx(ctx);
-            String sessionId = client.getStr(Client.VAL_SESSION_ID);
+
+            String sessionId = Client.fromCtx(ctx).getStr(Client.VAL_SESSION_ID);
             flowRateTracker.add(sessionId, serviceType, totalBytes);
-            out.add(tlv); // 解析成功，添加到输出
+            out.add(tlv);
         } catch (Exception e) {
-            in.resetReaderIndex(); // 出错时重置，避免数据混乱
+            log.warn("TLV decode failed, resetting reader index", e);
+            in.resetReaderIndex();
         }
     }
 }

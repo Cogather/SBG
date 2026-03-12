@@ -8,187 +8,127 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-/**
- * TLV编解码工具类，支持通过反射将Java对象与TLV格式互转
- */
-public class TlvCodec {
+/** TLV 编解码工具类，通过反射将 Java 对象与 TLV 格式互转 */
+public final class TlvCodec {
+
+    private TlvCodec() {}
+
     /**
-     * 将Java对象转换为TLV结构
-     * @param obj 要转换的Java对象
-     * @return 转换后的TLV结构
-     * @throws Exception 转换过程中的异常
+     * 将 Java 对象序列化为 TLV 结构
+     *
+     * @param obj 待序列化对象（不支持基本类型/包装类）
+     * @return TLV 结构
+     * @throws Exception 字段类型不匹配或反射异常时抛出
      */
     public static Tlv marshal(Object obj) throws Exception {
-        // 获取对象的反射信息，处理指针/包装类
         Class<?> clazz = obj.getClass();
         if (clazz.isPrimitive() || isWrapperType(clazz)) {
             throw new IllegalArgumentException("不支持基本类型，需要传入对象");
         }
 
-        // 初始化TLV
-        Tlv tlv = new Tlv();
-
-        // 遍历所有字段
         List<TlvField> tlvFields = new ArrayList<>();
         for (Field field : clazz.getDeclaredFields()) {
-            // 检查是否有TLV标签
             TlvTag tag = field.getAnnotation(TlvTag.class);
-            if (tag == null) {
-                continue;
-            }
-
-            // 允许访问私有字段
+            if (tag == null) continue;
             field.setAccessible(true);
-
-            // 转换字段值为字节数组
-            byte[] data = fieldToBytes(field.get(obj), tag.type(), field.getName());
-
-            // 添加到TLV字段列表
+            byte[] data = toBytes(field.get(obj), tag.type(), field.getName());
             tlvFields.add(new TlvField(tag.id(), data.length, data));
         }
 
-        // 设置TLV的计数和长度
+        int totalLen = tlvFields.stream().mapToInt(f -> 8 + f.getLen()).sum();
+
+        Tlv tlv = new Tlv();
         tlv.setCount(tlvFields.size());
         tlv.setFields(tlvFields);
-
-        // 计算总长度
-        int totalLen = 0;
-        for (TlvField f : tlvFields) {
-            totalLen += 8 + f.getLen(); // Type(4) + Len(4) + Data
-        }
         tlv.setLen(totalLen);
-
         return tlv;
     }
 
     /**
-     * 将TLV结构解析到Java对象中
-     * @param tlv TLV结构
-     * @param obj 要填充的Java对象
-     * @throws Exception 解析过程中的异常
+     * 将 TLV 结构反序列化到 Java 对象
+     *
+     * @param tlv TLV 结构
+     * @param obj 目标对象（不能为 null）
+     * @throws Exception 字段类型不匹配或反射异常时抛出
      */
     public static void unmarshal(Tlv tlv, Object obj) throws Exception {
-        // 验证输入
-        if (obj == null) {
-            throw new IllegalArgumentException("目标对象不能为null");
+        if (obj == null) throw new IllegalArgumentException("目标对象不能为 null");
+
+        // 按 type 建立索引，加速查找
+        Map<Integer, TlvField> byType = new HashMap<>();
+        for (TlvField f : tlv.getFields()) {
+            byType.put(f.getType(), f);
         }
 
-        Class<?> clazz = obj.getClass();
-
-        // 按Type构建字段映射，加速查找
-        Map<Integer, TlvField> fieldsByType = new HashMap<>();
-        for (TlvField field : tlv.getFields()) {
-            fieldsByType.put(field.getType(), field);
-        }
-
-        // 遍历对象字段
-        for (Field field : clazz.getDeclaredFields()) {
-            // 检查是否有TLV标签
+        for (Field field : obj.getClass().getDeclaredFields()) {
             TlvTag tag = field.getAnnotation(TlvTag.class);
-            if (tag == null) {
-                continue;
-            }
-
-            // 查找对应的TLV字段
-            TlvField tlvField = fieldsByType.get(tag.id());
-            if (tlvField == null) {
-                continue;
-            }
-
-            // 允许访问私有字段
+            if (tag == null) continue;
+            TlvField tlvField = byType.get(tag.id());
+            if (tlvField == null) continue;
             field.setAccessible(true);
-
-            // 设置字段值
-            setFieldValue(obj, field, tlvField.getData(), tag.type());
+            fromBytes(obj, field, tlvField.getData(), tag.type());
         }
     }
 
-    // ============================ 辅助方法 =============================
-    /**
-     * 将字段值转换为字节数组
-     */
-    private static byte[] fieldToBytes(Object value, String fieldType, String fieldName) throws Exception {
-        if (value == null) {
-            return new byte[0];
-        }
+    // ---- 字段值 <-> 字节数组 转换 ----
 
-        switch (fieldType) {
+    /** 将字段值转换为字节数组 */
+    private static byte[] toBytes(Object value, String type, String fieldName) throws Exception {
+        if (value == null) return new byte[0];
+        switch (type) {
             case "string":
-                if (!(value instanceof String)) {
-                    throw new IllegalArgumentException("字段" + fieldName + "标记为string，但实际类型是"
-                            + value.getClass().getSimpleName());
-                }
+                assertType(value, String.class, type, fieldName);
                 return ((String) value).getBytes();
-
             case "int32":
-                if (!(value instanceof Integer)) {
-                    throw new IllegalArgumentException("字段" + fieldName + "标记为int32，但实际类型是"
-                            + value.getClass().getSimpleName());
-                }
-                ByteBuffer buffer = ByteBuffer.allocate(4);
-                buffer.order(ByteOrder.BIG_ENDIAN);
-                buffer.putInt((Integer) value);
-                return buffer.array();
-
-            case "bytes":
-                if (!(value instanceof byte[])) {
-                    throw new IllegalArgumentException("字段" + fieldName + "标记为bytes，但实际类型是"
-                            + value.getClass().getSimpleName());
-                }
-                // 确保是byte[]类型后再克隆
-                byte[] original = (byte[]) value;
-                return original.clone();
-
+                assertType(value, Integer.class, type, fieldName);
+                return ByteBuffer.allocate(4).order(ByteOrder.BIG_ENDIAN).putInt((Integer) value).array();
             case "int64":
-                if (!(value instanceof Long)) {
-                    throw new IllegalArgumentException("字段" + fieldName + "标记为int64，但实际类型是"
-                            + value.getClass().getSimpleName());
-                }
-                ByteBuffer bufferLong = ByteBuffer.allocate(8);
-                bufferLong.order(ByteOrder.BIG_ENDIAN);
-                bufferLong.putLong((Long) value);
-                return bufferLong.array();
-
+                assertType(value, Long.class, type, fieldName);
+                return ByteBuffer.allocate(8).order(ByteOrder.BIG_ENDIAN).putLong((Long) value).array();
+            case "bytes":
+                assertType(value, byte[].class, type, fieldName);
+                return ((byte[]) value).clone();
             default:
-                throw new IllegalArgumentException("字段" + fieldName + "不支持的类型" + fieldType);
+                throw new IllegalArgumentException("字段 " + fieldName + " 不支持的类型: " + type);
         }
     }
 
-    /**
-     * 根据字节数组设置字段值
-     */
-    private static void setFieldValue(Object obj, Field field, byte[] data, String fieldType) throws Exception {
-        switch (fieldType) {
+    /** 将字节数组写入对象字段 */
+    private static void fromBytes(Object obj, Field field, byte[] data, String type) throws Exception {
+        switch (type) {
             case "string":
                 field.set(obj, new String(data));
                 break;
-
             case "int32":
-                if (data.length != 4) {
-                    throw new IllegalArgumentException("字段" + field.getName() + "的int32数据长度无效：" + data.length);
-                }
-                ByteBuffer buffer = ByteBuffer.wrap(data);
-                buffer.order(ByteOrder.BIG_ENDIAN);
-                field.set(obj, buffer.getInt());
+                if (data.length != 4) throw new IllegalArgumentException(
+                        "字段 " + field.getName() + " int32 数据长度无效: " + data.length);
+                field.set(obj, ByteBuffer.wrap(data).order(ByteOrder.BIG_ENDIAN).getInt());
                 break;
-
+            case "int64":
+                if (data.length != 8) throw new IllegalArgumentException(
+                        "字段 " + field.getName() + " int64 数据长度无效: " + data.length);
+                field.set(obj, ByteBuffer.wrap(data).order(ByteOrder.BIG_ENDIAN).getLong());
+                break;
             case "bytes":
                 byte[] copy = new byte[data.length];
                 System.arraycopy(data, 0, copy, 0, data.length);
                 field.set(obj, copy);
                 break;
-
             default:
-                throw new IllegalArgumentException("字段" + field.getName() + "不支持的类型" + fieldType);
+                throw new IllegalArgumentException("字段 " + field.getName() + " 不支持的类型: " + type);
         }
     }
 
-    /**
-     * 检查是否为包装类型
-     */
+    private static void assertType(Object value, Class<?> expected, String type, String fieldName) {
+        if (!expected.isInstance(value)) {
+            throw new IllegalArgumentException("字段 " + fieldName + " 标记为 " + type
+                    + "，但实际类型是 " + value.getClass().getSimpleName());
+        }
+    }
+
     private static boolean isWrapperType(Class<?> clazz) {
-        return clazz == Integer.class || clazz == Long.class || clazz == Short.class ||
-                clazz == Byte.class || clazz == Boolean.class || clazz == Character.class ||
-                clazz == Float.class || clazz == Double.class;
+        return clazz == Integer.class || clazz == Long.class || clazz == Short.class
+                || clazz == Byte.class || clazz == Boolean.class || clazz == Character.class
+                || clazz == Float.class || clazz == Double.class;
     }
 }

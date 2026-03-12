@@ -12,34 +12,35 @@ import java.nio.ByteOrder;
 import static com.huawei.browsergateway.tcpserver.Client.VAL_APP_TYPE;
 import static com.huawei.browsergateway.tcpserver.Client.VAL_SESSION_ID;
 
+/** TLV 协议编码器，将对象或字节数组写入 {@link ByteBuf} */
 public class TlvEncoder extends MessageToByteEncoder<Object> {
 
     private final DataSizeTracker dataSizeTracker;
     private final FlowRateTracker flowRateTracker;
     private final String serviceType;
+
     public TlvEncoder(DataSizeTracker dataSizeTracker, FlowRateTracker flowRateTracker, String serviceType) {
         this.dataSizeTracker = dataSizeTracker;
         this.flowRateTracker = flowRateTracker;
         this.serviceType = serviceType;
     }
 
-
+    @Override
     protected void encode(ChannelHandlerContext ctx, Object msg, ByteBuf out) throws Exception {
         Client cli = Client.fromCtx(ctx);
-        String sessionID = cli.getStr(VAL_SESSION_ID);
+        String sessionId = cli.getStr(VAL_SESSION_ID);
         int appType = cli.getInt(VAL_APP_TYPE);
-        String clientIP = cli.getClientIpAddress();
+        String clientIp = cli.getClientIpAddress();
 
+        byte[] bytes;
         if (msg instanceof byte[]) {
-            this.dataSizeTracker.addDataSize(sessionID, appType, clientIP, ((byte[]) msg).length);
-            this.flowRateTracker.add(sessionID, this.serviceType, ((byte[]) msg).length);
-            out.writeBytes((byte[]) msg);
+            bytes = (byte[]) msg;
         } else {
-            Tlv tlv = TlvCodec.marshal(msg);
-            byte[] marshal = tlv.marshal(ByteOrder.BIG_ENDIAN);
-            this.dataSizeTracker.addDataSize(sessionID, appType, clientIP, marshal.length);
-            this.flowRateTracker.add(sessionID, this.serviceType, marshal.length);
-            out.writeBytes(marshal);
+            bytes = TlvCodec.marshal(msg).marshal(ByteOrder.BIG_ENDIAN);
         }
+
+        dataSizeTracker.addDataSize(sessionId, appType, clientIp, bytes.length);
+        flowRateTracker.add(sessionId, serviceType, bytes.length);
+        out.writeBytes(bytes);
     }
 }

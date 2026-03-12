@@ -1,27 +1,24 @@
 package com.huawei.browsergateway.util;
 
-import java.text.SimpleDateFormat;
-import java.util.Date;
+import java.time.Instant;
+import java.time.ZoneOffset;
+import java.time.format.DateTimeFormatter;
 
-public class DateTimeUtil {
-    static SimpleDateFormat dateMillisLevel = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+/** 时间戳格式化工具类 */
+public final class DateTimeUtil {
+
+    private static final DateTimeFormatter FORMATTER =
+            DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss").withZone(ZoneOffset.UTC);
+
+    private DateTimeUtil() {}
 
     /**
-     * 将时间戳（毫秒）转换为 yyyy-MM-dd HH:mm:ss.SSS 格式的时间字符串
+     * 将毫秒时间戳转换为 {@code yyyy-MM-dd HH:mm:ss} 格式字符串（UTC）
      *
-     * @param timestamp 时间戳（毫秒）
+     * @param timestamp 毫秒时间戳
      * @return 格式化后的时间字符串
-     * @throws IllegalArgumentException 如果时间戳无效
      */
-    public static String millisToDate(long timestamp) throws IllegalArgumentException {
-        try {
-            // 将时间戳转换为 Date 对象
-            Date date = new Date(timestamp);
-            // 将 Date 对象格式化为字符串
-            return dateMillisLevel.format(date);
-        } catch (NumberFormatException e) {
-            // 如果无法解析为数字，抛出异常
-            throw new IllegalArgumentException("无法解析时间戳: " + timestamp, e);
-        }
+    public static String millisToDate(long timestamp) {
+        return FORMATTER.format(Instant.ofEpochMilli(timestamp));
     }
 }
