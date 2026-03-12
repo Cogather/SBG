@@ -1,7 +1,6 @@
 package com.huawei.browsergateway.entity.alarm;
 
 import lombok.Data;
-import lombok.AllArgsConstructor;
 
 import java.util.List;
 
@@ -10,11 +9,12 @@ import java.util.List;
  */
 @Data
 public class AlarmResponseParam {
-
+    /** 返回描述 */
     private String retdesc;
 
+    /** 告警数据列表 */
     private List<DataParam> data;
 
+    /** 数据总数 */
     private int totalNum;
-
 }

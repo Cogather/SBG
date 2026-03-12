@@ -1,8 +1,9 @@
 package com.huawei.browsergateway.entity.request;
 
-import lombok.Data;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import io.swagger.v3.oas.annotations.media.Schema;
+import lombok.Data;
+
 /**
  * 加载扩展请求
  */

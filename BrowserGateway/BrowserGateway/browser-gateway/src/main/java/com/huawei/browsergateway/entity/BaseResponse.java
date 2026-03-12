@@ -8,8 +8,10 @@ import lombok.Data;
  */
 @Data
 public class BaseResponse {
+    /** 响应码 */
     @Alias("code")
     int code;
+    /** 响应消息 */
     @Alias("msg")
     String message;
 }

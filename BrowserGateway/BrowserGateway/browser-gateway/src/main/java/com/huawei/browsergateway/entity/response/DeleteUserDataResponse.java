@@ -14,11 +14,23 @@ public class DeleteUserDataResponse {
     @Schema(description = "imei", example = "用户设备imei号")
     private String imei;
 
+    /**
+     * 设置imsi（链式调用）
+     *
+     * @param imsi 用户设备imsi号
+     * @return 当前对象
+     */
     public DeleteUserDataResponse setImsi(String imsi) {
         this.imsi = imsi;
         return this;
     }
 
+    /**
+     * 设置imei（链式调用）
+     *
+     * @param imei 用户设备imei号
+     * @return 当前对象
+     */
     public DeleteUserDataResponse setImei(String imei) {
         this.imei = imei;
         return this;

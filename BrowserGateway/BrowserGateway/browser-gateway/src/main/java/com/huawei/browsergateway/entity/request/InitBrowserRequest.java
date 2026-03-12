@@ -69,6 +69,13 @@ public class InitBrowserRequest {
     @JsonProperty("play_mode")
     private int playMode = 1;
 
+    /**
+     * 根据请求参数和配置构建浏览器启动选项
+     *
+     * @param userdata 用户数据目录
+     * @param config   系统配置
+     * @return BrowserOptions实例
+     */
     public BrowserOptions buildBrowserOptions(String userdata, Config config) {
         BrowserOptions options = new BrowserOptions();
         options.setEndpoint(config.getChrome().getEndpoint());
@@ -80,6 +87,6 @@ public class InitBrowserRequest {
         options.setUserdata(userdata);
         options.setHeadless(config.getChrome().isHeadless());
         options.setLanguage(this.clientLanguage);
-        return  options;
+        return options;
     }
 }

@@ -4,31 +4,23 @@ package com.huawei.browsergateway.entity;
  * 通用响应结果
  */
 public class CommonResult<T> {
-    /**
-     * 状态码 (默认 SUCCESS = 200)
-     */
+    /** 状态码（默认 SUCCESS = 200） */
     private int code;
 
-    /**
-     * 响应消息 (默认 SUCCESS_MSG = "成功")
-     */
+    /** 响应消息（默认 SUCCESS_MSG = "成功"） */
     private String message;
 
-    /**
-     * 响应数据
-     */
+    /** 响应数据 */
     private T data;
 
-    /**
-     * 默认成功响应构造方法
-     */
+    /** 默认成功响应构造方法 */
     private CommonResult() {
         this.code = ResultCode.SUCCESS.getCode();
         this.message = ResultCode.SUCCESS.getMessage();
     }
 
     /**
-     * 成功响应构造方法 (带数据)
+     * 成功响应构造方法（带数据）
      *
      * @param data 返回数据
      */
@@ -39,7 +31,7 @@ public class CommonResult<T> {
     }
 
     /**
-     * 失败响应构造方法 (带错误代码和消息)
+     * 失败响应构造方法（带错误代码和消息）
      *
      * @param code    错误码
      * @param message 错误信息
@@ -60,7 +52,7 @@ public class CommonResult<T> {
     }
 
     /**
-     * 成功响应 (带数据)
+     * 成功响应（带数据）
      *
      * @param data 返回数据
      * @param <T>  泛型
@@ -82,19 +74,17 @@ public class CommonResult<T> {
         return new CommonResult<>(code, message);
     }
 
-
     /**
-     * 失败响应
+     * 失败响应（枚举方式）
      *
      * @param errorCode 错误码枚举
-     * @param <T>     泛型
+     * @param <T>       泛型
      * @return 公共结果
      */
     public static <T> CommonResult<T> error(ResultCode errorCode) {
         return new CommonResult<>(errorCode.getCode(), errorCode.getMessage());
     }
 
-    // Getter and Setter
     public int getCode() {
         return code;
     }
