@@ -6,10 +6,10 @@ import com.huawei.browsergateway.entity.alarm.AlarmEvent;
 import com.huawei.browsergateway.entity.enums.AlarmEnum;
 import com.huawei.browsergateway.service.IAlarm;
 import com.huawei.browsergateway.service.healthCheck.CpuUsageCheck;
+import com.huawei.browsergateway.service.healthCheck.HealthCheckResult;
 import com.huawei.browsergateway.service.healthCheck.ICheckStrategy;
 import com.huawei.browsergateway.service.healthCheck.MemoryUsageCheck;
 import com.huawei.browsergateway.service.healthCheck.NetWorkInterfaceCheck;
-import com.huawei.browsergateway.service.healthCheck.HealthCheckResult;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -27,72 +27,42 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
 /**
- * 健康检查任务
- * 定期检查系统健康状态（CPU、内存、网络接口等）
- * 
- * 功能说明：
- * 1. 执行多种健康检查策略（CPU、内存、网络接口）
- * 2. 汇总检查结果
- * 3. 发送告警（如果不健康）
- * 4. 上报健康状态到服务管理适配器
- * 
- * @author BrowserGateway
+ * 系统健康检查任务，定期执行 CPU、内存、网络接口等多项检查，
+ * 汇总结果后发送/清除告警并上报健康状态到 CSE
  */
 @Component
 public class HealthCheckTask {
-    
-    private static final Logger log = LogManager.getLogger(HealthCheckTask.class);
 
-    /**
-     * 健康检查策略列表
-     */
-    private List<ICheckStrategy> strategies;
-    
-    /**
-     * 当前健康状态
-     */
-    private boolean isHealthy;
-    
-    /**
-     * 检查错误信息
-     */
-    private String checkErrMsg;
+    private static final Logger log = LogManager.getLogger(HealthCheckTask.class);
 
     @Value("${browsergw.healthCheck.cpu-trigger-threshold}")
     private float cpuTriggerThreshold;
-    
     @Value("${browsergw.healthCheck.cpu-recover-threshold}")
     private float cpuRecoverThreshold;
-    
     @Value("${browsergw.healthCheck.memory-trigger-threshold}")
     private float memoryTriggerThreshold;
-    
     @Value("${browsergw.healthCheck.memory-recover-threshold}")
     private float memoryRecoverThreshold;
 
+    /** 检查周期（毫秒），默认 60 秒 */
+    @Value("${browsergw.scheduled.health-check-period:60000}")
+    private long period;
+
     @Autowired
     private IAlarm alarm;
-    
     @Autowired
     private ServiceManagementAdapter serviceManagementAdapter;
-
     @Autowired
     private ResourceMonitorAdapter resourceMonitorAdapter;
 
-    @Value("${browsergw.scheduled.health-check-period:60000}")
-    private long period;
-    
+    private List<ICheckStrategy> strategies;
     private ScheduledExecutorService scheduler;
 
-    /**
-     * 初始化定时任务
-     */
     @PostConstruct
     private void init() {
         log.info("cpuTriggerThreshold:{}, cpuRecoverThreshold:{}, memoryTriggerThreshold:{}, memoryRecoverThreshold:{}",
                 cpuTriggerThreshold, cpuRecoverThreshold, memoryTriggerThreshold, memoryRecoverThreshold);
 
-        // 初始化健康检查策略
         strategies = new ArrayList<>();
         strategies.add(new CpuUsageCheck(cpuTriggerThreshold, cpuRecoverThreshold, resourceMonitorAdapter));
         strategies.add(new MemoryUsageCheck(memoryTriggerThreshold, memoryRecoverThreshold, resourceMonitorAdapter));
@@ -103,61 +73,64 @@ public class HealthCheckTask {
         log.info("Health check task initialized, period: {}ms", period);
     }
 
-    /**
-     * 执行健康检查并上报结果
-     */
+    /** 执行所有检查策略，汇总结果后上报 */
     private void checkAndReport() {
-        check();
-        report();
+        CheckSummary summary = runChecks();
+        report(summary);
     }
 
     /**
-     * 执行健康检查
+     * 依次执行所有检查策略，汇总健康状态和错误信息
+     *
+     * @return 汇总结果
      */
-    private void check() {
-        boolean isHealthy = true;
+    private CheckSummary runChecks() {
+        boolean healthy = true;
         StringBuilder errMsg = new StringBuilder();
-        
         for (ICheckStrategy strategy : strategies) {
-            HealthCheckResult check = strategy.check();
-            if (!check.isHealthy()) {
-                isHealthy = false;
-                errMsg.append(check.getErrorMsg());
+            HealthCheckResult result = strategy.check();
+            if (!result.isHealthy()) {
+                healthy = false;
+                errMsg.append(result.getErrorMsg());
             }
         }
-        
-        this.isHealthy = isHealthy;
-        this.checkErrMsg = errMsg.toString();
+        return new CheckSummary(healthy, errMsg.toString());
     }
 
     /**
-     * 上报健康检查结果
+     * 根据检查结果发送/清除告警，并将健康状态上报到 CSE
+     *
+     * @param summary 检查汇总结果
      */
-    private void report() {
-        Map<String, String> healthResult = new HashMap<>();
-        healthResult.put("isHealthy", Boolean.toString(isHealthy));
-        healthResult.put("checkMsg", checkErrMsg);
-        
-        // 处理告警
-        if (isHealthy) {
+    private void report(CheckSummary summary) {
+        if (summary.healthy) {
             alarm.clearAlarm(new AlarmEvent(AlarmEnum.ALARM_300032, "Sub-healthy health check passed"));
         } else {
-            alarm.sendAlarm(new AlarmEvent(AlarmEnum.ALARM_300032, "Sub‑health check failed"));
+            alarm.sendAlarm(new AlarmEvent(AlarmEnum.ALARM_300032, "Sub\u2011health check failed"));
         }
 
-        // 上报健康状态到服务管理适配器
+        Map<String, String> healthResult = new HashMap<>();
+        healthResult.put("isHealthy", Boolean.toString(summary.healthy));
+        healthResult.put("checkMsg", summary.errMsg);
         serviceManagementAdapter.reportInstanceProperties(healthResult);
-
     }
 
-    /**
-     * 销毁定时任务
-     */
     @PreDestroy
     public void destroy() {
         if (scheduler != null) {
             scheduler.shutdown();
             log.info("Health check task destroyed.");
+        }
+    }
+
+    /** 单次检查的汇总结果值对象 */
+    private static class CheckSummary {
+        final boolean healthy;
+        final String errMsg;
+
+        CheckSummary(boolean healthy, String errMsg) {
+            this.healthy = healthy;
+            this.errMsg = errMsg;
         }
     }
 }

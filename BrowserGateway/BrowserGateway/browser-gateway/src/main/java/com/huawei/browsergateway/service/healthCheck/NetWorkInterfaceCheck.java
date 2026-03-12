@@ -15,7 +15,6 @@ public class NetWorkInterfaceCheck implements ICheckStrategy {
 
     private static final Logger log = LogManager.getLogger(NetWorkInterfaceCheck.class);
 
-    // todo：待增加trunck和fabric平面
     private final List<String> interfaceList = Arrays.asList("bond-base", "bond-external");
 
     @Override

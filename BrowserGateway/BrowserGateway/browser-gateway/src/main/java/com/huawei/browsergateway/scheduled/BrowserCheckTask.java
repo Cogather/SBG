@@ -22,37 +22,25 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
 /**
- * 浏览器检查任务
- * 定期检查浏览器实例状态，清理异常实例
- * 
- * 功能说明：
- * 1. 执行Chrome健康检查
- * 2. 获取所有用户实例
- * 3. 找出异常的浏览器实例（通过proxyContextId匹配错误上下文）
- * 4. 删除异常实例
- * 
- * @author BrowserGateway
+ * 浏览器实例健康检查任务，定期通过 ChromeDriver 健康检查接口识别并清理异常实例
  */
 @Component
 public class BrowserCheckTask {
-    
+
     private static final Logger log = LogManager.getLogger(BrowserCheckTask.class);
-    
+
     @Autowired
     private IChromeSet chromeSet;
-    
     @Autowired
     private Config config;
-    
+
+    /** 检查周期（毫秒），默认 30 分钟 */
     @Value("${browsergw.scheduled.check-browser-period:1800000}")
     private long period;
-    
+
     private ScheduledExecutorService scheduler;
     private DriverClient client;
 
-    /**
-     * 初始化定时任务
-     */
     @PostConstruct
     public void init() {
         client = new ClientImpl(config.getChrome().getEndpoint());
@@ -62,53 +50,38 @@ public class BrowserCheckTask {
     }
 
     /**
-     * 检查浏览器状态
-     * 执行健康检查，找出异常实例并清理
+     * 执行健康检查：若全部正常则直接返回；否则找出错误上下文对应的用户实例并删除
      */
     public void checkBrowsers() {
         try {
             log.info("begin scheduled task for check browsers status.");
             long start = System.currentTimeMillis();
-            
-            // 执行Chrome健康检查
+
             Type.HealthCheckResult result = client.browser().healthCheck();
             if (result.isSuccess()) {
                 log.info("check browsers success. cost:{}ms", System.currentTimeMillis() - start);
                 return;
             }
 
-            // 获取所有用户实例
-            Set<String> users = chromeSet.getAllUser();
             Set<String> delUsers = new HashSet<>();
-            
-            // 找出异常的浏览器实例
-            for (String user : users) {
+            for (String user : chromeSet.getAllUser()) {
                 UserChrome userChrome = chromeSet.get(user);
-                if (userChrome == null) {
-                    continue;
-                }
-                
-                String proxyContextId = userChrome.getChromeDriver().getProxyContextId();
-                if (result.getErrContexts().contains(proxyContextId)) {
+                if (userChrome != null && result.getErrContexts().contains(userChrome.getChromeDriver().getProxyContextId())) {
                     delUsers.add(user);
                 }
             }
-            
-            // 删除异常实例
+
             if (!delUsers.isEmpty()) {
                 log.info("These user instances have expired:{}, close.", JSONUtil.toJsonStr(delUsers));
                 delUsers.forEach(chromeSet::delete);
             }
-            
+
             log.info("end scheduled task for check browsers status. cost:{}ms", System.currentTimeMillis() - start);
         } catch (Exception e) {
             log.error("check browser task error.", e);
         }
     }
 
-    /**
-     * 销毁定时任务
-     */
     @PreDestroy
     public void destroy() {
         if (scheduler != null) {

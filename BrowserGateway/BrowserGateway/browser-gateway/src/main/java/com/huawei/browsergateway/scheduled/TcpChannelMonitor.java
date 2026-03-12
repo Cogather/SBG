@@ -20,38 +20,26 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
 /**
- * TCP连接监控任务
- * 监控TCP连接的心跳状态，清理超时连接，统计流量
- * 
- * 功能说明：
- * 1. 定期检查控制通道和媒体通道的TCP连接
- * 2. 根据心跳时间判断连接是否超时
- * 3. 清理超时的连接
- * 
- * @author BrowserGateway
+ * TCP 连接心跳监控任务，定期扫描控制通道和媒体通道，清理心跳超时的连接
  */
 @Component
 public class TcpChannelMonitor {
-    
+
     private static final Logger log = LogManager.getLogger(TcpChannelMonitor.class);
 
     @Autowired
     private ControlClientSet controlClientSet;
-
     @Autowired
     private MediaClientSet mediaClientSet;
-
     @Autowired
     private Config config;
 
+    /** 检查周期（毫秒），默认 10 分钟 */
     @Value("${browsergw.scheduled.tcp-heartbeat-period:600000}")
     private long period;
 
     private ScheduledExecutorService scheduler;
 
-    /**
-     * 初始化定时任务
-     */
     @PostConstruct
     public void init() {
         scheduler = Executors.newSingleThreadScheduledExecutor();
@@ -59,9 +47,7 @@ public class TcpChannelMonitor {
         log.info("TCP channel monitor task initialized, period: {}ms", period);
     }
 
-    /**
-     * 监控TCP客户端心跳
-     */
+    /** 检查控制通道和媒体通道的心跳，移除超时连接 */
     public void tcpClientMonitor() {
         log.info("begin scheduled task for monitoring TCP client heartbeats.");
         try {
@@ -74,30 +60,23 @@ public class TcpChannelMonitor {
     }
 
     /**
-     * 检查TCP连接心跳
-     * 
-     * @param clientSet 客户端集合
-     * @param ttl 心跳超时时间（纳秒）
+     * 遍历客户端集合，将心跳超时的连接收集后统一删除
+     *
+     * @param clientSet 待检查的客户端集合
+     * @param ttl       心跳超时阈值（纳秒）
      */
     private static void checkTcpHeartbeat(ClientSet clientSet, long ttl) {
-        Set<String> deleteKeys = new HashSet<>();
+        Set<String> expired = new HashSet<>();
         clientSet.allClient().forEach(key -> {
             Client client = clientSet.get(key);
-            if (client == null) {
-                return;
-            }
-            if (System.nanoTime() - client.getTime(Client.VAL_HEARTBEAT_TIME) > ttl) {
+            if (client != null && System.nanoTime() - client.getTime(Client.VAL_HEARTBEAT_TIME) > ttl) {
                 log.info("client {} is expired, close it.", key);
-                deleteKeys.add(key);
+                expired.add(key);
             }
         });
-
-        deleteKeys.forEach(clientSet::del);
+        expired.forEach(clientSet::del);
     }
 
-    /**
-     * 销毁定时任务
-     */
     @PreDestroy
     public void destroy() {
         if (scheduler != null) {

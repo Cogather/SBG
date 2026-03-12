@@ -19,42 +19,31 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
 /**
- * 浏览器关闭任务
- * 关闭长时间无心跳的浏览器实例，释放系统资源
- * 
- * 功能说明：
- * 1. 定期检查所有浏览器实例
- * 2. 判断实例是否活跃（通过UserBind检查）
- * 3. 判断实例是否过期（通过心跳时间检查）
- * 4. 关闭过期或不活跃的实例
- * 
- * @author BrowserGateway
+ * 浏览器实例超时关闭任务，定期检查所有实例的活跃状态和心跳时间，
+ * 对不活跃或心跳超时的实例执行关闭操作
  */
 @Component
 public class BrowserCloserTask {
-    
+
     private static final Logger log = LogManager.getLogger(BrowserCloserTask.class);
 
     @Autowired
     private IRemote remote;
-
     @Autowired
     private IChromeSet chromeSet;
-
     @Autowired
     private Config config;
 
+    /** 检查周期（毫秒），默认 10 分钟 */
     @Value("${browsergw.scheduled.close-browser-period:600000}")
     private long period;
 
+    /** 浏览器实例心跳超时阈值（纳秒） */
     @Value("${browsergw.chrome.ttl}")
     private long ttl;
 
     private ScheduledExecutorService scheduler;
 
-    /**
-     * 初始化定时任务
-     */
     @PostConstruct
     public void init() {
         scheduler = Executors.newSingleThreadScheduledExecutor();
@@ -62,9 +51,7 @@ public class BrowserCloserTask {
         log.info("Browser closer task initialized, period: {}ms, ttl: {}ns", period, ttl);
     }
 
-    /**
-     * 关闭过期的浏览器实例
-     */
+    /** 遍历所有用户实例，关闭不活跃或心跳超时的实例 */
     public void closeBrowser() {
         log.info("begin scheduled task for monitoring browser instances.");
         List<String> userIds = new ArrayList<>(chromeSet.getAllUser());
@@ -72,7 +59,7 @@ public class BrowserCloserTask {
             for (String userId : userIds) {
                 try {
                     UserBind ub = remote.getUserBind(userId);
-                    if (!isActive(ub) || ifExpired(userId)) {
+                    if (!isActive(ub) || isExpired(userId)) {
                         log.info("browser {} is expired, close it.", userId);
                         chromeSet.delete(userId);
                     }
@@ -86,58 +73,28 @@ public class BrowserCloserTask {
     }
 
     /**
-     * 处理单个用户的浏览器实例
-     * 检查是否过期或不活跃，如果是则关闭
-     * 
-     * @param userId 用户ID
+     * 判断心跳是否超时
+     *
+     * @param userId 用户 ID
+     * @return true 表示已超时
      */
-    private void processUserBrowser(String userId) {
-        try {
-            UserBind ub = remote.getUserBind(userId);
-            if (!isActive(ub) || ifExpired(userId)) {
-                log.info("browser {} is expired, close it.", userId);
-                chromeSet.delete(userId);
-            }
-        } catch (Exception e) {
-            log.error("failed to close user {} browser", userId, e);
-        }
-    }
-
-    /**
-     * 判断浏览器实例是否过期
-     * 
-     * @param userId 用户ID
-     * @return true表示已过期，false表示未过期
-     */
-    private boolean ifExpired(String userId) {
+    private boolean isExpired(String userId) {
         return System.nanoTime() - chromeSet.getHeartbeats(userId) > ttl;
     }
 
     /**
-     * 判断浏览器实例是否活跃
-     * 
+     * 判断用户绑定是否有效（绑定到本实例且心跳记录存在）
+     *
      * @param userBind 用户绑定信息
-     * @return true表示活跃，false表示不活跃
+     * @return true 表示活跃
      */
     private boolean isActive(UserBind userBind) {
-        if (userBind == null) {
-            return false;
-        }
-        if (userBind.getBrowserInstance() == null) {
-            return false;
-        }
-        if (!config.getSelfAddr().equals(userBind.getBrowserInstance())) {
-            return false;
-        }
-        if (userBind.getHeartbeats() == null) {
-            return false;
-        }
-        return true;
+        return userBind != null
+                && userBind.getBrowserInstance() != null
+                && config.getSelfAddr().equals(userBind.getBrowserInstance())
+                && userBind.getHeartbeats() != null;
     }
 
-    /**
-     * 销毁定时任务
-     */
     @PreDestroy
     public void destroy() {
         if (scheduler != null) {
