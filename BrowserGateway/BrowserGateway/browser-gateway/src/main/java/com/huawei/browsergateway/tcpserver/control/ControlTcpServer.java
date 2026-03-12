@@ -19,19 +19,26 @@ import org.springframework.stereotype.Component;
 import javax.annotation.PostConstruct;
 import javax.annotation.PreDestroy;
 
-
+/**
+ * 控制流TCP服务器（TLS加密）
+ * 处理客户端的控制指令和浏览器管理操作
+ */
 @Component
 public class ControlTcpServer extends AbstractTcpServer {
     private static final Logger log = LogManager.getLogger(ControlTcpServer.class);
 
     @Autowired
     private Config config;
+
     @Autowired
     private IRemote remote;
+
     @Autowired
     private IChromeSet chromeSet;
+
     @Autowired
-    private ControlClientSet cs;
+    private ControlClientSet clientSet;
+
     @Autowired
     private FlowRateTracker flowRateTracker;
 
@@ -56,7 +63,7 @@ public class ControlTcpServer extends AbstractTcpServer {
 
     @Override
     protected ChannelHandler getHandler() {
-        return new ControlTcpServerHandler(remote, cs, chromeSet, flowRateTracker);
+        return new ControlTcpServerHandler(remote, clientSet, chromeSet, flowRateTracker);
     }
 
     @Override
@@ -69,11 +76,17 @@ public class ControlTcpServer extends AbstractTcpServer {
         return new TlvDecoder(Constant.TCP_DECODER_MAX_SIZE, flowRateTracker, Constant.CONTROL_SERVICE_TYPE);
     }
 
+    /**
+     * 启动控制流TLS服务器
+     */
     @PostConstruct
     public void startServer() {
         start(true);
     }
 
+    /**
+     * 停止控制流服务器
+     */
     @PreDestroy
     public void stopServer() {
         stop();
