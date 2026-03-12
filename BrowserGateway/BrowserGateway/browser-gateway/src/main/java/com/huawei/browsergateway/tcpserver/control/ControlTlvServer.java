@@ -19,18 +19,26 @@ import org.springframework.stereotype.Component;
 import javax.annotation.PostConstruct;
 import javax.annotation.PreDestroy;
 
+/**
+ * 控制流TLV服务器（非加密）
+ * 处理客户端的控制指令，使用TLV协议格式
+ */
 @Component
 public class ControlTlvServer extends AbstractTcpServer {
     private static final Logger log = LogManager.getLogger(ControlTlvServer.class);
 
     @Autowired
     private Config config;
+
     @Autowired
     private IRemote remote;
+
     @Autowired
     private IChromeSet chromeSet;
+
     @Autowired
-    private ControlClientSet cs;
+    private ControlClientSet clientSet;
+
     @Autowired
     private FlowRateTracker flowRateTracker;
 
@@ -55,7 +63,7 @@ public class ControlTlvServer extends AbstractTcpServer {
 
     @Override
     protected ChannelHandler getHandler() {
-        return new ControlTcpServerHandler(remote, cs, chromeSet, flowRateTracker);
+        return new ControlTcpServerHandler(remote, clientSet, chromeSet, flowRateTracker);
     }
 
     @Override
@@ -68,16 +76,23 @@ public class ControlTlvServer extends AbstractTcpServer {
         return new TlvDecoder(Constant.TCP_DECODER_MAX_SIZE, flowRateTracker, Constant.CONTROL_SERVICE_TYPE);
     }
 
+    /**
+     * 启动控制流TLV服务器
+     * 仅在HTTP模式启用时启动
+     */
     @PostConstruct
     public void startServer() {
         if (!config.getTcp().isEnableHttp()) {
-            log.info("get env enableHttp if false, not start Tlv");
+            log.info("HTTP mode disabled, TLV server will not start");
             return;
         }
-        log.info("get env enableHttp if true, start tlv server");
+        log.info("HTTP mode enabled, starting TLV server");
         start(false);
     }
 
+    /**
+     * 停止控制流服务器
+     */
     @PreDestroy
     public void stopServer() {
         stop();

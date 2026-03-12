@@ -14,104 +14,167 @@ import org.apache.logging.log4j.Logger;
 import java.io.InputStream;
 import java.util.Arrays;
 
+/**
+ * TCP服务器抽象基类
+ * 提供TCP/TLS服务器的通用启动和停止逻辑
+ */
 public abstract class AbstractTcpServer {
+    private static final int CONNECTION_QUEUE_SIZE = 128;
+    private static final String[] TLS_CIPHER_SUITES = {
+            "TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256",
+            "TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384",
+            "TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256",
+            "TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384"
+    };
+    private static final String[] TLS_PROTOCOLS = {"TLSv1.2", "TLSv1.3"};
+
     private EventLoopGroup bossGroup;
     private EventLoopGroup workerGroup;
     private ChannelFuture channelFuture;
 
+    /**
+     * 获取日志记录器
+     */
     protected abstract Logger getLogger();
 
+    /**
+     * 获取服务器监听端口
+     */
     protected abstract Integer getPort();
+
+    /**
+     * 获取服务器绑定地址
+     */
     protected abstract String getAddress();
 
+    /**
+     * 获取业务处理器
+     */
     protected abstract ChannelHandler getHandler();
 
+    /**
+     * 获取编码器
+     */
     protected abstract ChannelHandler getEncoder();
 
+    /**
+     * 获取解码器
+     */
     protected abstract ChannelHandler getDecoder();
 
-
-    public void start(boolean isTLS) {
+    /**
+     * 启动TCP服务器
+     *
+     * @param enableTls 是否启用TLS加密
+     */
+    public void start(boolean enableTls) {
         Integer port = getPort();
         String address = getAddress();
-        getLogger().info("start {} server, port: {}", isTLS? "TLS": "TCP", port);
+        String serverType = enableTls ? "TLS" : "TCP";
+        getLogger().info("Starting {} server on {}:{}", serverType, address, port);
 
-        // 创建两个事件循环组，bossGroup用于接收客户端连接，workerGroup用于处理客户端数据
         bossGroup = new NioEventLoopGroup();
         workerGroup = new NioEventLoopGroup();
 
-        ThreadUtil.execute(() -> {
-            try {
-                SslContext sslCtx;
-                CertInfo certInstance = CertInfo.getInstance();
-                if (certInstance.isCertReady() && isTLS) {
-                    getLogger().info("ca and device cert is ready, start Tls server");
-                    InputStream caInfo = certInstance.Ca();
-                    InputStream certInfo = certInstance.Device();
-                    InputStream keyInfo = certInstance.Key();
-                    sslCtx = SslContextBuilder.forServer(certInfo, keyInfo).
-                            ciphers(Arrays.asList(
-                                    "TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256",
-                                    "TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384",
-                                    "TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256",
-                                    "TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384"
-                            )).protocols("TLSv1.2", "TLSv1.3").trustManager(caInfo).build();
-                } else {
-                    getLogger().info("ca and device cert is null or not tls server, start Tlv server");
-                    sslCtx = null;
-                }
-                // 服务器启动辅助类
-                ServerBootstrap bootstrap = new ServerBootstrap();
-                bootstrap.group(bossGroup, workerGroup)
-                        .channel(NioServerSocketChannel.class)  // 使用NIO的服务器通道
-                        .childHandler(new ChannelInitializer<SocketChannel>() {  // 客户端连接处理器
-                            @Override
-                            protected void initChannel(SocketChannel ch) {
-                                if (certInstance.isCertReady() && isTLS) {
-                                    getLogger().info("ca and device cert is ready, add sslContext handler");
-                                    ch.pipeline().addLast(sslCtx.newHandler(ch.alloc()));
-                                }
-                                // 添加自定义处理器
-                                ch.pipeline().
-                                        addLast(getDecoder()).
-                                        addLast(getEncoder()).
-                                        addLast(getHandler());
-                            }
-                        })
-                        .option(ChannelOption.SO_BACKLOG, 128)  // 连接队列大小
-                        .childOption(ChannelOption.SO_KEEPALIVE, true);  // 保持连接
-
-                // 绑定端口并启动服务器
-                channelFuture = bootstrap.bind(address, port).sync();
-                getLogger().info(String.format("tcp started on port(s): %d", port));
-                channelFuture.channel().closeFuture().sync();
-            } catch (Exception e) {
-                getLogger().error("start tcp server error", e);
-            }
-        });
+        ThreadUtil.execute(() -> startServerAsync(enableTls, address, port));
     }
 
+    /**
+     * 异步启动服务器
+     */
+    private void startServerAsync(boolean enableTls, String address, Integer port) {
+        try {
+            SslContext sslContext = createSslContext(enableTls);
+            ServerBootstrap bootstrap = configureServerBootstrap(sslContext, enableTls);
+
+            channelFuture = bootstrap.bind(address, port).sync();
+            getLogger().info("TCP server started successfully on port: {}", port);
+            channelFuture.channel().closeFuture().sync();
+        } catch (Exception e) {
+            getLogger().error("Failed to start TCP server", e);
+        }
+    }
+
+    /**
+     * 创建SSL上下文
+     */
+    private SslContext createSslContext(boolean enableTls) throws Exception {
+        CertInfo certInfo = CertInfo.getInstance();
+
+        if (!certInfo.isCertReady() || !enableTls) {
+            getLogger().info("Certificate not ready or TLS disabled, starting plain TCP server");
+            return null;
+        }
+
+        getLogger().info("Certificate ready, configuring TLS server");
+        InputStream caStream = certInfo.Ca();
+        InputStream certStream = certInfo.Device();
+        InputStream keyStream = certInfo.Key();
+
+        return SslContextBuilder.forServer(certStream, keyStream)
+                .ciphers(Arrays.asList(TLS_CIPHER_SUITES))
+                .protocols(TLS_PROTOCOLS)
+                .trustManager(caStream)
+                .build();
+    }
+
+    /**
+     * 配置服务器启动器
+     */
+    private ServerBootstrap configureServerBootstrap(SslContext sslContext, boolean enableTls) {
+        ServerBootstrap bootstrap = new ServerBootstrap();
+        bootstrap.group(bossGroup, workerGroup)
+                .channel(NioServerSocketChannel.class)
+                .childHandler(new ChannelInitializer<SocketChannel>() {
+                    @Override
+                    protected void initChannel(SocketChannel ch) {
+                        ChannelPipeline pipeline = ch.pipeline();
+
+                        if (sslContext != null && enableTls) {
+                            getLogger().info("Adding SSL handler to pipeline");
+                            pipeline.addLast(sslContext.newHandler(ch.alloc()));
+                        }
+
+                        pipeline.addLast(getDecoder())
+                                .addLast(getEncoder())
+                                .addLast(getHandler());
+                    }
+                })
+                .option(ChannelOption.SO_BACKLOG, CONNECTION_QUEUE_SIZE)
+                .childOption(ChannelOption.SO_KEEPALIVE, true);
+
+        return bootstrap;
+    }
+
+    /**
+     * 停止TCP服务器
+     */
     public void stop() {
-        getLogger().info("stop tcp server");
+        getLogger().info("Stopping TCP server");
 
         if (channelFuture != null) {
             try {
-                // 等待服务器通道关闭
                 channelFuture.channel().close().sync();
             } catch (InterruptedException e) {
-                getLogger().warn("stop tcp server interrupted", e);
+                getLogger().warn("TCP server stop interrupted", e);
                 Thread.currentThread().interrupt();
             }
         }
 
-        // 优雅关闭事件循环组
+        shutdownEventLoopGroups();
+
+        getLogger().info("TCP server stopped successfully");
+    }
+
+    /**
+     * 优雅关闭事件循环组
+     */
+    private void shutdownEventLoopGroups() {
         if (workerGroup != null) {
             workerGroup.shutdownGracefully();
         }
         if (bossGroup != null) {
             bossGroup.shutdownGracefully();
         }
-
-        getLogger().info("tcp server stopped");
     }
 }

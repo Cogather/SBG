@@ -18,9 +18,13 @@ import org.springframework.stereotype.Component;
 import javax.annotation.PostConstruct;
 import javax.annotation.PreDestroy;
 
+/**
+ * 媒体流TLV服务器（非加密）
+ * 处理客户端的媒体数据传输，使用TLV协议格式
+ */
 @Component
 public class MediaTlvServer extends AbstractTcpServer {
-    private static final Logger log = LogManager.getLogger(MediaTcpServer.class);
+    private static final Logger log = LogManager.getLogger(MediaTlvServer.class);
 
     @Autowired
     private Config config;
@@ -30,6 +34,7 @@ public class MediaTlvServer extends AbstractTcpServer {
 
     @Autowired
     private IRemote remote;
+
     @Autowired
     private FlowRateTracker flowRateTracker;
 
@@ -67,16 +72,23 @@ public class MediaTlvServer extends AbstractTcpServer {
         return new TlvDecoder(Constant.TCP_DECODER_MAX_SIZE, flowRateTracker, Constant.MEDIA_SERVICE_TYPE);
     }
 
+    /**
+     * 启动媒体流TLV服务器
+     * 仅在HTTP模式启用时启动
+     */
     @PostConstruct
     public void startServer() {
         if (!config.getTcp().isEnableHttp()) {
-            log.info("get env enableHttp if false, not start tlv");
+            log.info("HTTP mode disabled, TLV server will not start");
             return;
         }
-        log.info("get env enableHttp if true, start tlv server");
+        log.info("HTTP mode enabled, starting TLV server");
         start(false);
     }
 
+    /**
+     * 停止媒体流服务器
+     */
     @PreDestroy
     public void stopServer() {
         stop();

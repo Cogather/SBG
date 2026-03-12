@@ -18,6 +18,10 @@ import org.springframework.stereotype.Component;
 import javax.annotation.PostConstruct;
 import javax.annotation.PreDestroy;
 
+/**
+ * 媒体流TCP服务器（TLS加密）
+ * 处理客户端的媒体数据传输
+ */
 @Component
 public class MediaTcpServer extends AbstractTcpServer {
     private static final Logger log = LogManager.getLogger(MediaTcpServer.class);
@@ -30,6 +34,7 @@ public class MediaTcpServer extends AbstractTcpServer {
 
     @Autowired
     private IRemote remote;
+
     @Autowired
     private FlowRateTracker flowRateTracker;
 
@@ -67,11 +72,17 @@ public class MediaTcpServer extends AbstractTcpServer {
         return new TlvDecoder(Constant.TCP_DECODER_MAX_SIZE, flowRateTracker, Constant.MEDIA_SERVICE_TYPE);
     }
 
+    /**
+     * 启动媒体流TLS服务器
+     */
     @PostConstruct
     public void startServer() {
         start(true);
     }
 
+    /**
+     * 停止媒体流服务器
+     */
     @PreDestroy
     public void stopServer() {
         stop();

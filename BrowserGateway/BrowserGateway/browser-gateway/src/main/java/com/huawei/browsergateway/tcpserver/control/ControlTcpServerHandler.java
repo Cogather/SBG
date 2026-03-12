@@ -33,201 +33,272 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
-
+/**
+ * 控制流TCP服务器处理器
+ * 处理客户端登录、心跳和控制事件
+ */
 public class ControlTcpServerHandler extends ChannelInboundHandlerAdapter {
     private static final Logger log = LogManager.getLogger(ControlTcpServerHandler.class);
+    private static final String FALLBACK_FLAG = "true";
 
     private final IRemote remote;
-    private final ControlClientSet cs;
+    private final ControlClientSet clientSet;
     private final IChromeSet chromeSet;
-
     private final FlowRateTracker flowRateTracker;
-
     private final ConcurrentMap<String, Message> loginInfoMap = new ConcurrentHashMap<>();
 
-
-
-    public ControlTcpServerHandler(IRemote remote, ControlClientSet cs, IChromeSet chromeSet
-            , FlowRateTracker flowRateTracker) {
+    public ControlTcpServerHandler(IRemote remote, ControlClientSet clientSet,
+                                   IChromeSet chromeSet, FlowRateTracker flowRateTracker) {
         this.remote = remote;
-        this.cs = cs;
+        this.clientSet = clientSet;
         this.chromeSet = chromeSet;
         this.flowRateTracker = flowRateTracker;
     }
 
-    // 客户端连接建立时触发
     @Override
     public void channelActive(ChannelHandlerContext ctx) {
-        log.info("control client connected: {}", ctx.channel().remoteAddress());
+        log.info("Control client connected: {}", ctx.channel().remoteAddress());
     }
 
-    // 接收客户端发送的数据（字节数组）
     @Override
     public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
         Tlv tlv = (Tlv) msg;
-        int type = tlv.getType();
-        Client cli = Client.fromCtx(ctx);
-        switch (type) {
+        int messageType = tlv.getType();
+        Client client = Client.fromCtx(ctx);
+
+        switch (messageType) {
             case Type.LOGIN:
-                processLogin(cli, tlv);
+                processLogin(client, tlv);
                 break;
             case Type.HEARTBEATS:
-                processHeartbeats(cli, tlv);
+                processHeartbeats(client, tlv);
                 break;
             default:
-                processDefault(cli, tlv);
+                processDefault(client, tlv);
                 break;
         }
     }
 
-    private void createBrowser(Client cli, Message message, UserBind ub, Tlv tlv) {
+    /**
+     * 处理登录请求
+     */
+    private void processLogin(Client client, Tlv tlv) throws Exception {
+        Message message = parseMessage(tlv);
+        validateLoginRequest(message);
+
+        String sessionKey = Type.tcpBindKey(message.getImei(), message.getImsi());
+        UserBind userBind = validateUserBind(sessionKey, message);
+
+        initializeClientSession(client, message, sessionKey);
+        clientSet.set(sessionKey, client);
+        loginInfoMap.put(sessionKey, message);
+
+        client.ack(message.getType(), Code.OK);
+        chromeSet.updateHeartbeats(sessionKey, System.nanoTime());
+
+        UserBind updatedUserBind = remote.updateUserBind(sessionKey);
+        ThreadUtil.execute(() -> createBrowser(client, message, updatedUserBind, tlv));
+
+        recordSessionLogin(sessionKey, message.getAppType(), client.getStr(Client.VAL_TCP_UNIQUE_ID));
+    }
+
+    /**
+     * 解析TLV消息
+     */
+    private Message parseMessage(Tlv tlv) throws Exception {
+        Message message = new Message();
+        TlvCodec.unmarshal(tlv, message);
+        return message;
+    }
+
+    /**
+     * 验证登录请求参数
+     */
+    private void validateLoginRequest(Message message) {
+        if (message.getLcdWidth() == 0 || message.getLcdHeight() == 0) {
+            log.error("Invalid LCD dimensions: width={}, height={}",
+                    message.getLcdWidth(), message.getLcdHeight());
+            throw new RuntimeException("LCD width or height is invalid");
+        }
+    }
+
+    /**
+     * 验证用户绑定信息
+     */
+    private UserBind validateUserBind(String sessionKey, Message message) {
+        UserBind userBind = remote.getUserBind(sessionKey);
+        if (userBind == null) {
+            log.error("User not bound: {}", sessionKey);
+            throw new RuntimeException("User bind info not found");
+        }
+
+        if (ObjectUtil.notEqual(message.getToken(), userBind.getToken())) {
+            log.error("Invalid token for user: {}", sessionKey);
+            throw new RuntimeException("User token is invalid");
+        }
+
+        return userBind;
+    }
+
+    /**
+     * 初始化客户端会话信息
+     */
+    private void initializeClientSession(Client client, Message message, String sessionKey) {
+        long currentTime = System.currentTimeMillis();
+        String tcpUniqueId = UUID.randomUUID().toString();
+
+        client.set(Client.VAL_APP_TYPE, message.getAppType());
+        client.set(Client.VAL_SESSION_ID, sessionKey);
+        client.set(Client.VAL_HEARTBEAT_TIME, System.nanoTime());
+        client.set(Client.VAL_UPDATE_TIME, currentTime);
+        client.set(Client.VAL_START_TIME, currentTime);
+        client.set(Client.VAL_TCP_UNIQUE_ID, tcpUniqueId);
+        client.set(Client.VAL_NETWORK_TYPE, message.getNetworkType());
+    }
+
+    /**
+     * 创建浏览器实例
+     */
+    private void createBrowser(Client client, Message message, UserBind userBind, Tlv tlv) {
         try {
             String jsonString = JSONUtil.toJsonStr(message);
             InitBrowserRequest request = JSONUtil.toBean(jsonString, InitBrowserRequest.class);
-            request.setInnerMediaEndpoint(ub.getInnerMediaEndpoint());
-            byte[] bytes = tlv.marshal(ByteOrder.BIG_ENDIAN);
-            remote.createChrome(bytes, request, (f)-> {
-                cli.send(new LoginResponse(ub.getMediaEndpoint(), ub.getMediaTlsEndpoint()));
+            request.setInnerMediaEndpoint(userBind.getInnerMediaEndpoint());
+
+            byte[] tlvBytes = tlv.marshal(ByteOrder.BIG_ENDIAN);
+            remote.createChrome(tlvBytes, request, (future) -> {
+                client.send(new LoginResponse(userBind.getMediaEndpoint(), userBind.getMediaTlsEndpoint()));
             });
-        }catch (Exception e) {
-            cli.ack(message.getType(), Code.FAILED);
-            log.error("create chrome instance failed", e);
+        } catch (Exception e) {
+            client.ack(message.getType(), Code.FAILED);
+            log.error("Failed to create browser instance", e);
         }
-
     }
 
-    private void processLogin(Client cli, Tlv tlv) throws Exception {
-        // 解析成message
-        Message message = new Message();
-        TlvCodec.unmarshal(tlv, message);
-        if (message.getLcdWidth() == 0 || message.getLcdHeight() == 0) {
-            log.error("login failed, lcd width or height is invalid, width:{}, height:{}"
-                    , message.getLcdWidth(), message.getLcdHeight());
-            throw new RuntimeException("lcd width or height is invalid");
-        }
+    /**
+     * 处理默认控制事件
+     */
+    private void processDefault(Client client, Tlv tlv) throws Exception {
+        long startTime = System.currentTimeMillis();
 
-        String key = Type.tcpBindKey(message.getImei(), message.getImsi());
-        UserBind ub = remote.getUserBind(key);
-        if (ub == null) {
-            log.error("login failed, user not bind, user:{}", key);
-            throw new RuntimeException("not found user bind info");
-        }
-        if (ObjectUtil.notEqual(message.getToken(), ub.getToken())) {
-            log.error("login failed, user token is invalid, user:{}", key);
-            throw new RuntimeException("user token is invalid");
-        }
-        long now = System.currentTimeMillis();
-        String tcpUniqueId = UUID.randomUUID().toString(); // 生成唯一标识符
-        cli.set(Client.VAL_APP_TYPE, message.getAppType());
-        cli.set(Client.VAL_SESSION_ID, key);
-        cli.set(Client.VAL_HEARTBEAT_TIME, System.nanoTime());
-        cli.set(Client.VAL_UPDATE_TIME, now);
-        cli.set(Client.VAL_START_TIME, now);
-        cli.set(Client.VAL_TCP_UNIQUE_ID, tcpUniqueId);
-        cli.set(Client.VAL_NETWORK_TYPE, message.getNetworkType());
+        Message message = parseMessage(tlv);
+        client.ack(message.getType(), Code.OK);
 
-        cs.set(key, cli);
-        loginInfoMap.put(key, message);
-        cli.ack(message.getType(), Code.OK);
-        chromeSet.updateHeartbeats(key, System.nanoTime());
-        UserBind newUserBind = remote.updateUserBind(key);
-        ThreadUtil.execute(() -> createBrowser(cli, message, newUserBind, tlv));
+        byte[] tlvBytes = tlv.marshal(ByteOrder.BIG_ENDIAN);
+        remote.handleEvent(tlvBytes, client.getStr(Client.VAL_SESSION_ID));
 
-        this.sessionLoginIn(key, message.getAppType(), tcpUniqueId);
+        log.info("Processed control event, cost: {}ms", System.currentTimeMillis() - startTime);
     }
 
-    private void processDefault(Client cli, Tlv tlv) throws Exception {
-        long start = System.currentTimeMillis();
-        Message message = new Message();
-        TlvCodec.unmarshal(tlv, message);
-        cli.ack(message.getType(), Code.OK);
-        byte[] bytes = tlv.marshal(ByteOrder.BIG_ENDIAN);
-        remote.handleEvent(bytes, cli.getStr(Client.VAL_SESSION_ID));
-        log.info("process control event, cost:{}", System.currentTimeMillis() - start);
+    /**
+     * 处理心跳请求
+     */
+    private void processHeartbeats(Client client, Tlv tlv) throws Exception {
+        Message message = parseMessage(tlv);
+
+        client.set(Client.VAL_UPDATE_TIME, System.currentTimeMillis());
+        client.set(Client.VAL_HEARTBEAT_TIME, System.nanoTime());
+        client.ack(message.getType(), Code.OK);
+
+        String sessionKey = client.getStr(Client.VAL_SESSION_ID);
+        chromeSet.updateHeartbeats(sessionKey, System.nanoTime());
+        remote.expiredUserBind(sessionKey);
     }
 
-    private void processHeartbeats(Client cli, Tlv tlv) throws Exception {
-        Message message = new Message();
-        TlvCodec.unmarshal(tlv, message);
-        cli.set(Client.VAL_UPDATE_TIME, System.currentTimeMillis());
-        cli.set(Client.VAL_HEARTBEAT_TIME, System.nanoTime());
-        cli.ack(message.getType(), Code.OK);
-        String key = cli.getStr(Client.VAL_SESSION_ID);
-        chromeSet.updateHeartbeats(key, System.nanoTime());
-        remote.expiredUserBind(key);
-    }
-
-    // 异常处理
     @Override
     public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) {
-        log.error("control exception caught!", cause);
-        this.close(ctx, true);
+        log.error("Control channel exception", cause);
+        closeConnection(ctx, true);
     }
 
-    // 客户端断开连接时触发
     @Override
     public void channelInactive(ChannelHandlerContext ctx) {
-        log.info("control client disconnected: {}", ctx.channel().remoteAddress());
-        this.close(ctx, false);
+        log.info("Control client disconnected: {}", ctx.channel().remoteAddress());
+        closeConnection(ctx, false);
     }
 
-    private void close(ChannelHandlerContext ctx, boolean closeByError) {
-        Client cli = Client.fromCtx(ctx);
-        closeSession(cli);
-        String key = cli.getStr(Client.VAL_SESSION_ID);
-        this.uploadControlFlowStatEvent(key);
-        if (! closeByError && "true".equals(cli.getStr(Client.HAS_BEEN_FALLBACK))) {
+    /**
+     * 关闭连接并清理资源
+     */
+    private void closeConnection(ChannelHandlerContext ctx, boolean isError) {
+        Client client = Client.fromCtx(ctx);
+        String sessionKey = client.getStr(Client.VAL_SESSION_ID);
+
+        uploadControlFlowStatEvent(sessionKey);
+        recordSessionLogout(client);
+
+        if (!isError && FALLBACK_FLAG.equals(client.getStr(Client.HAS_BEEN_FALLBACK))) {
             return;
         }
-        if (closeByError) {
-            remote.fallbackByError(key);
+
+        if (isError) {
+            remote.fallbackByError(sessionKey);
         } else {
-            remote.fallback(key);
+            remote.fallback(sessionKey);
         }
     }
 
+    /**
+     * 上报控制流流量统计事件
+     */
     private void uploadControlFlowStatEvent(String sessionId) {
-        long flowRate = this.flowRateTracker.flowRateStat(sessionId, Constant.CONTROL_SERVICE_TYPE);
-        Message message = this.loginInfoMap.get(sessionId);
+        long flowRate = flowRateTracker.flowRateStat(sessionId, Constant.CONTROL_SERVICE_TYPE);
+        Message message = loginInfoMap.get(sessionId);
+
         if (message == null) {
-            log.warn("[control flow stat event]login info not found, sessionId={}", sessionId);
+            log.warn("Login info not found for flow stat event, sessionId={}", sessionId);
             return;
         }
+
         FlowStatEvent event = new FlowStatEvent(message);
         Date now = new Date();
         event.setServiceType(Constant.CONTROL_SERVICE_TYPE);
         event.setExitTime(now);
         event.setDataSize(flowRate);
+
         EventInfo<FlowStatEvent> uploadEvent = EventInfo.create(event, EventTypeEnum.APP_FLOW_RATE_STAT, now);
-        this.loginInfoMap.remove(sessionId);
+        loginInfoMap.remove(sessionId);
         remote.reportEvent(uploadEvent);
     }
 
+    /**
+     * 记录会话登出
+     */
+    private void recordSessionLogout(Client client) {
+        String sessionKey = client.getStr(Client.VAL_SESSION_ID);
+        Integer appType = client.getInt(Client.VAL_APP_TYPE);
+        long startMillis = client.getTime(Client.VAL_START_TIME);
+        String tcpUniqueId = client.getStr(Client.VAL_TCP_UNIQUE_ID);
 
-    private void closeSession(Client cli) {
-        String key = cli.getStr(Client.VAL_SESSION_ID);
-        int appType = cli.getInt(Client.VAL_APP_TYPE);
-        long startMillis = cli.getTime(Client.VAL_START_TIME);
-        String tcpUniqueId = cli.getStr(Client.VAL_TCP_UNIQUE_ID);
-        this.sessionLoginOut(key, appType, startMillis, tcpUniqueId);
+        sessionLoginOut(sessionKey, appType, startMillis, tcpUniqueId);
     }
 
-    public void sessionLoginIn(String imeiAndImsi, int appType, String tcpUniqueId) {
+    /**
+     * 记录会话登入
+     */
+    private void recordSessionLogin(String imeiAndImsi, int appType, String tcpUniqueId) {
         long now = System.currentTimeMillis();
-        String startStr = DateTimeUtil.millisToDate(now);
-        Session session = new Session(imeiAndImsi, appType, startStr, null, tcpUniqueId);
-        log.info("Session login in : imeiAndImsi={}, appType={}, startedAt={}, tcpUniqueId={}",
-                imeiAndImsi, appType, startStr, tcpUniqueId);
+        String startTime = DateTimeUtil.millisToDate(now);
+
+        Session session = new Session(imeiAndImsi, appType, startTime, null, tcpUniqueId);
+        log.info("Session login: imeiAndImsi={}, appType={}, startedAt={}, tcpUniqueId={}",
+                imeiAndImsi, appType, startTime, tcpUniqueId);
+
         remote.sendSession(JSONUtil.toJsonStr(session));
     }
 
-    public void sessionLoginOut(String imeiAndImsi, int appType, long startMillis, String tcpUniqueId) {
+    /**
+     * 记录会话登出
+     */
+    private void sessionLoginOut(String imeiAndImsi, int appType, long startMillis, String tcpUniqueId) {
         long now = System.currentTimeMillis();
-        String endStr = DateTimeUtil.millisToDate(now);
-        String startStr = DateTimeUtil.millisToDate(startMillis);
-        Session session = new Session(imeiAndImsi, appType, startStr, endStr, tcpUniqueId);
-        log.info("Session login out : imeiAndImsi={}, appType={}, startedAt={}, finishedAt={}, tcpUniqueId={}",
-                imeiAndImsi, appType, startStr, endStr, tcpUniqueId);
+        String endTime = DateTimeUtil.millisToDate(now);
+        String startTime = DateTimeUtil.millisToDate(startMillis);
+
+        Session session = new Session(imeiAndImsi, appType, startTime, endTime, tcpUniqueId);
+        log.info("Session logout: imeiAndImsi={}, appType={}, startedAt={}, finishedAt={}, tcpUniqueId={}",
+                imeiAndImsi, appType, startTime, endTime, tcpUniqueId);
+
         remote.sendSession(JSONUtil.toJsonStr(session));
     }
 }
