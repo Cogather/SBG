@@ -8,7 +8,11 @@ import java.net.SocketException;
 import java.util.Arrays;
 import java.util.List;
 
+/**
+ * 网络接口健康检查策略，验证关键网络接口是否存在且处于 UP 状态。
+ */
 public class NetWorkInterfaceCheck implements ICheckStrategy {
+
     private static final Logger log = LogManager.getLogger(NetWorkInterfaceCheck.class);
 
     // todo：待增加trunck和fabric平面
@@ -33,13 +37,15 @@ public class NetWorkInterfaceCheck implements ICheckStrategy {
                 log.error("get interface error", e);
             }
         }
+
         if (!isHealthy) {
             log.warn("[NetWorkInterfaceCheck] check result: {}", errMsg);
         }
+
         HealthCheckResult result = new HealthCheckResult();
+        result.setCheckItem("NetWorkInterface");
         result.setHealthy(isHealthy);
         result.setErrorMsg(errMsg.toString());
-        result.setCheckItem("NetWorkInterface");
         return result;
     }
 }

@@ -1,7 +1,6 @@
 package com.huawei.browsergateway.service.impl;
 
 import cn.hutool.json.JSONUtil;
-
 import com.huawei.browsergateway.adapter.dto.AlarmInfo;
 import com.huawei.browsergateway.adapter.AlarmAdapter;
 import com.huawei.browsergateway.adapter.SystemUtilAdapter;
@@ -22,22 +21,31 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
+/**
+ * 告警服务实现，负责告警的发送、清除及历史告警的启动时恢复处理
+ */
 @Service
 public class AlarmServiceImpl implements IAlarm {
+
     private static final Logger log = LogManager.getLogger(AlarmServiceImpl.class);
 
-    private static final Integer ONE_MINUTE = 10 * 60 * 1000;
+    /** 告警冷却时间（毫秒），10 分钟内不重复发送同一告警 */
+    private static final int ONE_MINUTE = 10 * 60 * 1000;
 
     private final AlarmAdapter alarmAdapter;
     private final SystemUtilAdapter systemUtilAdapter;
 
+    /** 已发送告警的记录，key 为告警 ID，value 为发送时间戳 */
     public static ConcurrentHashMap<String, Long> alarmMap = new ConcurrentHashMap<>();
+
+    /** 防止 Spring 上下文刷新事件重复触发初始化 */
+    private boolean isInitialized = false;
 
     @Autowired
     public AlarmServiceImpl(AlarmAdapter alarmAdapter, SystemUtilAdapter systemUtilAdapter) {
         this.alarmAdapter = alarmAdapter;
         this.systemUtilAdapter = systemUtilAdapter;
-    };
+    }
 
     @Override
     public void sendAlarm(AlarmEvent alarmEvent) {
@@ -45,8 +53,7 @@ public class AlarmServiceImpl implements IAlarm {
         boolean result = alarmAdapter.sendAlarm(
                 alarmEvent.getAlarmCodeEnum().getAlarmId(),
                 AlarmAdapter.AlarmType.GENERATE,
-                buildAlarmParameters(alarmEvent)
-        );
+                buildAlarmParameters(alarmEvent));
         if (result) {
             log.info("send alarm successfully.");
         } else {
@@ -56,13 +63,13 @@ public class AlarmServiceImpl implements IAlarm {
 
     @Override
     public void clearAlarm(AlarmEvent alarmEvent) {
-        if (!alarmMap.containsKey(alarmEvent.getAlarmCodeEnum().getAlarmId())) {
+        String alarmId = alarmEvent.getAlarmCodeEnum().getAlarmId();
+        if (!alarmMap.containsKey(alarmId)) {
             return;
         }
-
-        boolean result = alarmAdapter.clearAlarm(alarmEvent.getAlarmCodeEnum().getAlarmId());
+        boolean result = alarmAdapter.clearAlarm(alarmId);
         if (result) {
-            alarmMap.remove(alarmEvent.getAlarmCodeEnum().getAlarmId());
+            alarmMap.remove(alarmId);
             log.info("send recover alarm successfully.");
         } else {
             log.info("Failed to send recover alarm.");
@@ -70,24 +77,8 @@ public class AlarmServiceImpl implements IAlarm {
     }
 
     /**
-     * 构建告警参数
-     * @param alarmEvent 告警事件
-     * @return 告警参数Map
+     * Spring 上下文就绪后执行一次，清除所有历史遗留告警
      */
-    private Map<String, String> buildAlarmParameters(AlarmEvent alarmEvent) {
-        Map<String, String> parameters = new HashMap<>();
-        parameters.put("source", systemUtilAdapter.getEnvString("SERVICENAME", "browser-gateway"));
-        parameters.put("kind", "service");
-        parameters.put("name", systemUtilAdapter.getEnvString("PODNAME", "unknown"));
-        parameters.put("namespace", systemUtilAdapter.getEnvString("NAMESPACE", "default"));
-        parameters.put("EventMessage", alarmEvent.getEventMessage());
-        parameters.put("EventSource", "BrowserGW Service");
-        parameters.put("OriginalEventTime", TimeUtil.getCurrentDate());
-        return parameters;
-    }
-
-    private boolean isInitialized = false;
-
     @EventListener(ContextRefreshedEvent.class)
     public void runAfterStartup(ContextRefreshedEvent event) {
         if (isInitialized) {
@@ -100,10 +91,12 @@ public class AlarmServiceImpl implements IAlarm {
         isInitialized = true;
     }
 
+    /**
+     * 查询并清除所有历史遗留告警，防止重启后告警状态不一致
+     */
     public void handleHistoryAlarm() {
         try {
-            String alarmIds = AlarmEnum.getAllCodes();
-            List<String> alarmIdList = Arrays.asList(alarmIds.split("&"));
+            List<String> alarmIdList = Arrays.asList(AlarmEnum.getAllCodes().split("&"));
             List<AlarmInfo> alarms = alarmAdapter.queryHistoricalAlarms(alarmIdList);
             if (alarms == null || alarms.isEmpty()) {
                 log.info("No historical alarms found.");
@@ -111,7 +104,6 @@ public class AlarmServiceImpl implements IAlarm {
             }
             for (AlarmInfo alarmInfo : alarms) {
                 log.info("Processing historical alarm: {}", alarmInfo.getAlarmId());
-                // 取消告警
                 boolean result = alarmAdapter.clearAlarm(alarmInfo.getAlarmId());
                 if (result) {
                     log.info("Send recover alarm successfully for alarmId: {}", alarmInfo.getAlarmId());
@@ -122,5 +114,18 @@ public class AlarmServiceImpl implements IAlarm {
         } catch (Exception e) {
             log.error("Error processing historical alarms", e);
         }
+    }
+
+    /** 构建告警上报所需的参数 Map */
+    private Map<String, String> buildAlarmParameters(AlarmEvent alarmEvent) {
+        Map<String, String> parameters = new HashMap<>();
+        parameters.put("source", systemUtilAdapter.getEnvString("SERVICENAME", "browser-gateway"));
+        parameters.put("kind", "service");
+        parameters.put("name", systemUtilAdapter.getEnvString("PODNAME", "unknown"));
+        parameters.put("namespace", systemUtilAdapter.getEnvString("NAMESPACE", "default"));
+        parameters.put("EventMessage", alarmEvent.getEventMessage());
+        parameters.put("EventSource", "BrowserGW Service");
+        parameters.put("OriginalEventTime", TimeUtil.getCurrentDate());
+        return parameters;
     }
 }

@@ -22,24 +22,23 @@ import org.springframework.stereotype.Component;
 import javax.annotation.PostConstruct;
 import java.nio.file.Paths;
 
+/**
+ * 插件管理实现，负责 SDK JAR 的动态加载、JS 扩展文件的部署，
+ * 以及插件状态的维护和告警上报
+ */
 @Component
 public class PluginManageImpl implements IPluginManage {
 
     @Autowired
     private IFileStorage fs;
-
     @Autowired
     private Config config;
-
     @Autowired
     private ICse cse;
-
     @Autowired
     private ControlClientSet controlClientSet;
-
     @Autowired
     private MuenSessionManager muenSessionManager;
-
     @Autowired
     private IAlarm alarm;
 
@@ -49,6 +48,7 @@ public class PluginManageImpl implements IPluginManage {
     private PluginActive pluginActive = new PluginActive();
     private MuenPluginClassLoader muenPluginClassLoader;
 
+    /** 初始化插件状态为未启动 */
     @PostConstruct
     void initPluginActive() {
         pluginActive = new PluginActive();
@@ -63,9 +63,9 @@ public class PluginManageImpl implements IPluginManage {
 
     @Override
     public void updatePluginActive(String name, String version, String type) {
-        this.pluginActive.setName(name);
-        this.pluginActive.setVersion(version);
-        this.pluginActive.setType(type);
+        pluginActive.setName(name);
+        pluginActive.setVersion(version);
+        pluginActive.setType(type);
     }
 
     @Override
@@ -79,14 +79,12 @@ public class PluginManageImpl implements IPluginManage {
 
     @Override
     public void updateStatus(String pluginStatus) {
-        // 上报插件创建失败告警
         if (Constant.COMPLETE.equals(pluginStatus)) {
             alarm.clearAlarm(new AlarmEvent(AlarmEnum.ALARM_300030, "plugin has return to normal"));
         } else {
             alarm.sendAlarm(new AlarmEvent(AlarmEnum.ALARM_300030, "ERROR:Failed to create plugin"));
         }
-
-        this.pluginActive.setStatus(pluginStatus);
+        pluginActive.setStatus(pluginStatus);
     }
 
     @Override
@@ -96,45 +94,50 @@ public class PluginManageImpl implements IPluginManage {
 
     @Override
     public MuenDriver createDriver(String userId) {
-        if (muenPluginClassLoader != null) {
-            String websocketAddr = address + ":" + config.getWebsocket().getMediaPort();
-            String localTmp = config.getTmpPath();
-            HWCallbackImpl hwCallback = new HWCallbackImpl(cse.getReportEndpoint(), fs, controlClientSet, muenSessionManager, userId
-                    , websocketAddr, localTmp);
-            return muenPluginClassLoader.createDriverInstance(hwCallback);
+        if (muenPluginClassLoader == null) {
+            return null;
         }
-        return null;
+        String websocketAddr = address + ":" + config.getWebsocket().getMediaPort();
+        HWCallbackImpl hwCallback = new HWCallbackImpl(
+                cse.getReportEndpoint(), fs, controlClientSet, muenSessionManager,
+                userId, websocketAddr, config.getTmpPath());
+        return muenPluginClassLoader.createDriverInstance(hwCallback);
     }
 
-
+    /**
+     * 加载 JS 扩展文件（keys 和 touch 目录）到配置的扩展路径
+     */
     public boolean loadJSExtension(String keyPath, String touchPath) {
-        if (!StringUtil.isBlank(keyPath)) {
-            FileUtil.del(config.getKeyExtensionPath());
-            FileUtil.copy(keyPath, FileUtil.getParent(config.getKeyExtensionPath(), 1), true);
-        }
-        if (!StringUtil.isBlank(touchPath)) {
-            FileUtil.del(config.getTouchExtensionPath());
-            FileUtil.copy(touchPath, FileUtil.getParent(config.getTouchExtensionPath(), 1), true);
-        }
-
+        copyExtensionIfNotBlank(keyPath, config.getKeyExtensionPath());
+        copyExtensionIfNotBlank(touchPath, config.getTouchExtensionPath());
         return true;
     }
 
-
+    /**
+     * 加载 SDK JAR 文件，替换旧版本并重新初始化类加载器
+     */
     public boolean loadSDK(String jarPath) {
         if (StringUtil.isBlank(jarPath)) {
             return true;
         }
-        if (muenPluginClassLoader !=null) {
+        if (muenPluginClassLoader != null) {
             muenPluginClassLoader.close();
         }
         FileUtil.mkdir(config.getJarDirPath());
         FileUtil.clean(config.getJarDirPath());
         FileUtil.copy(jarPath, config.getJarDirPath(), true);
+
         String name = FileUtil.getName(jarPath);
         String path = FileUtil.file(config.getJarDirPath(), name).getAbsolutePath();
-
         muenPluginClassLoader = new MuenPluginClassLoader();
         return muenPluginClassLoader.init(Paths.get(path));
+    }
+
+    /** 若源路径非空，则删除目标路径后将源文件复制过去 */
+    private void copyExtensionIfNotBlank(String sourcePath, String targetPath) {
+        if (!StringUtil.isBlank(sourcePath)) {
+            FileUtil.del(targetPath);
+            FileUtil.copy(sourcePath, FileUtil.getParent(targetPath, 1), true);
+        }
     }
 }
