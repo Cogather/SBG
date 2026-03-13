@@ -2,8 +2,8 @@ package com.huawei.browsergateway.adapter.impl.csp;
 
 import com.huawei.browsergateway.adapter.dto.ServiceInstance;
 import com.huawei.browsergateway.adapter.ServiceManagementAdapter;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.springframework.stereotype.Component;
 
 import java.lang.reflect.Method;
@@ -17,7 +17,7 @@ import java.util.Map;
 @Component("cspServiceManagementAdapter")
 public class CspServiceManagementAdapter implements ServiceManagementAdapter {
     
-    private static final Logger logger = LoggerFactory.getLogger(CspServiceManagementAdapter.class);
+    private static final Logger logger = LogManager.getLogger(CspServiceManagementAdapter.class);
     
     @Override
     public boolean reportInstanceProperties(Map<String, String> properties) {

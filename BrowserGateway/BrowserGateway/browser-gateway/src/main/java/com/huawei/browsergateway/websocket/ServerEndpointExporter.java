@@ -1,8 +1,8 @@
 package com.huawei.browsergateway.websocket;
 
 import org.apache.servicecomb.foundation.common.utils.BeanUtils;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.springframework.beans.TypeConverter;
 import org.springframework.beans.TypeMismatchException;
 import org.springframework.beans.factory.SmartInitializingSingleton;
@@ -36,7 +36,7 @@ import java.util.*;
 @Component
 public class ServerEndpointExporter implements SmartInitializingSingleton {
 
-    private static final Logger logger = LoggerFactory.getLogger(ServerEndpointExporter.class);
+    private static final Logger logger = LogManager.getLogger(ServerEndpointExporter.class);
     private static final String BASE_PACKAGE = "com.huawei.browsergateway";
 
     private final Map<InetSocketAddress, WebsocketServer> addressWebsocketServerMap = new HashMap<>();

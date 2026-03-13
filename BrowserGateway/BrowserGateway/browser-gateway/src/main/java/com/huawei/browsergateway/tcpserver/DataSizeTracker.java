@@ -5,8 +5,8 @@ import com.huawei.browsergateway.common.Constant;
 import com.huawei.browsergateway.entity.operate.Traffic;
 import com.huawei.browsergateway.service.IRemote;
 import com.huawei.browsergateway.util.DateTimeUtil;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.springframework.beans.factory.annotation.Value;
 
 import javax.annotation.PostConstruct;
@@ -23,7 +23,7 @@ import java.util.concurrent.atomic.AtomicLong;
  * 定期统计并上报TCP连接的数据流量信息
  */
 public class DataSizeTracker {
-    private static final Logger log = LoggerFactory.getLogger(DataSizeTracker.class);
+    private static final Logger log = LogManager.getLogger(DataSizeTracker.class);
     private static final String KEY_SEPARATOR = "@";
     private static final int BATCH_SIZE = 1000;
 

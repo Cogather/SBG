@@ -3,15 +3,15 @@ package com.huawei.browsergateway.util;
 import com.huawei.browsergateway.adapter.SystemUtilAdapter;
 import com.huawei.browsergateway.adapter.config.AdapterConfig;
 import org.apache.commons.lang3.StringUtils;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 /**
  * 部署环境工具类，通过适配器模式支持内网/外网两种环境
  */
 public class DeployUtil {
 
-    private static final Logger log = LoggerFactory.getLogger(DeployUtil.class);
+    private static final Logger log = LogManager.getLogger(DeployUtil.class);
 
     private static final String APP_ID_KEY = "APPID";
     private static final String APP_NAME_KEY = "APPNAME";

@@ -125,14 +125,14 @@ public class ExtensionManageService {
 
         var packageJsonPath = Paths.get(unzipDir, "package.json").toString();
         if (!FileUtil.exist(packageJsonPath)) {
-            log.info("not found package.json file in {}", unzipDir);
+            log.info("package.json not found in directory: {}", unzipDir);
             throw new RuntimeException("not found package.json file in" + unzipDir);
         }
         log.info("extension package.json is {}", FileUtil.readUtf8String(packageJsonPath));
 
         var gzipFilePath = Paths.get(unzipDir, zipFilePrefix + ".tar.gz").toString();
         if (!FileUtil.exist(gzipFilePath)) {
-            log.info("not found {} gzip file in {}", zipFilePrefix + ".tar.gz", unzipDir);
+            log.info("Gzip archive not found, expectedPath: {}, unzipDir: {}", gzipFilePath, unzipDir);
             throw new RuntimeException("not found " + zipFilePrefix + ".tar.gz gzip file in" + unzipDir);
         }
 
@@ -153,7 +153,7 @@ public class ExtensionManageService {
                 }
             }
         } catch (Exception e) {
-            log.error("find jar file error, dir:{}", path);
+            log.error("Failed to find jar file in directory: {}", path);
             throw new RuntimeException("find jar file error" + path);
         }
         return StrUtil.EMPTY;

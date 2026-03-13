@@ -1,8 +1,8 @@
 package com.huawei.browsergateway.adapter.impl.csp;
 
 import com.huawei.browsergateway.adapter.SystemUtilAdapter;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.springframework.stereotype.Component;
 
 import java.lang.reflect.Method;
@@ -13,7 +13,7 @@ import java.lang.reflect.Method;
 @Component("cspSystemUtilAdapter")
 public class CspSystemUtilAdapter implements SystemUtilAdapter {
     
-    private static final Logger logger = LoggerFactory.getLogger(CspSystemUtilAdapter.class);
+    private static final Logger logger = LogManager.getLogger(CspSystemUtilAdapter.class);
     
     @Override
     public String getEnvString(String key, String defaultValue) {

@@ -5,13 +5,13 @@ import cn.hutool.json.JSONUtil;
 import com.huawei.browsergateway.entity.event.EventInfo;
 import com.moon.cloud.browser.sdk.model.pojo.ReportEvent;
 import org.apache.hc.client5.http.classic.methods.HttpPost;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 /** 事件上报工具类 */
 public final class ReportEventUtil {
 
-    private static final Logger log = LoggerFactory.getLogger(ReportEventUtil.class);
+    private static final Logger log = LogManager.getLogger(ReportEventUtil.class);
     private static final String EVENT_API = "/server/event/v1/uploadEvent";
     private static final JSONConfig DATE_CONFIG =
             JSONConfig.create().setDateFormat("yyyy-MM-dd HH:mm:ss");

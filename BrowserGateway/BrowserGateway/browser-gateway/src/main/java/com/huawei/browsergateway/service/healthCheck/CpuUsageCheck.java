@@ -2,8 +2,8 @@ package com.huawei.browsergateway.service.healthCheck;
 
 import com.huawei.browsergateway.adapter.ResourceMonitorAdapter;
 import com.huawei.browsergateway.adapter.dto.ResourceStatistics;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 /**
  * CPU 使用率健康检查策略。
@@ -11,7 +11,7 @@ import org.slf4j.LoggerFactory;
  */
 public class CpuUsageCheck implements ICheckStrategy {
 
-    private static final Logger log = LoggerFactory.getLogger(CpuUsageCheck.class);
+    private static final Logger log = LogManager.getLogger(CpuUsageCheck.class);
 
     private final float triggerThreshold;
     private final float recoverThreshold;

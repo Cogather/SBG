@@ -108,14 +108,14 @@ public class HWCallbackImpl implements HWCallback {
             try {
                 Files.createDirectories(parentDir);
             } catch (IOException e) {
-                log.error("Failed to create directory: " + parentDir, e);
+                log.error("Failed to create parent directory for download, path: {}", parentDir, e);
                 throw new RuntimeException("Failed to create directory: " + parentDir, e);
             }
         }
 
         FileUtil.del(localFilePath.toFile());
         fileStorage.downloadFile(localFilePath.toString(), remoteUrl);
-        log.info("sdk download file from remote:{} to local:{}", remoteUrl, localFilePath.toAbsolutePath());
+        log.info("SDK downloaded file, remote: {}, local: {}", remoteUrl, localFilePath.toAbsolutePath());
         return localFilePath.toFile();
     }
 

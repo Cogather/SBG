@@ -2,15 +2,15 @@ package com.huawei.browsergateway.util;
 
 import com.github.luben.zstd.ZstdInputStream;
 import com.github.luben.zstd.ZstdOutputStream;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import java.io.*;
 
 /** Zstd 压缩/解压工具类，仅支持 JSON 文件 */
 public final class ZstdUtil {
 
-    private static final Logger log = LoggerFactory.getLogger(ZstdUtil.class);
+    private static final Logger log = LogManager.getLogger(ZstdUtil.class);
 
     /** 压缩级别（1-22） */
     private static final int COMPRESSION_LEVEL = 6;

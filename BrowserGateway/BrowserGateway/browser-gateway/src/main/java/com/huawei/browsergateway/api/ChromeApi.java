@@ -83,12 +83,11 @@ public class ChromeApi {
         try {
             UserChrome userChromeInfo = chromeSet.get(userId);
             if (userChromeInfo != null) {
-                log.info("The user has a browser instance, before delete user data, " +
-                        "close the browser instance, userId:{}", userId);
+                log.info("Closing existing browser instance before deleting user data, userId:{}", userId);
                 chromeSet.delete(userId);
             }
         } catch (Exception e) {
-            log.error("close existing browser instance failed, userId:{}", userId, e);
+            log.error("Failed to close existing browser instance, userId:{}", userId, e);
             throw e;
         }
     }

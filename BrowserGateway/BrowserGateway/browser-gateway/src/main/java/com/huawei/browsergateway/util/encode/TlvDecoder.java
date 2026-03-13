@@ -5,8 +5,8 @@ import com.huawei.browsergateway.tcpserver.FlowRateTracker;
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.handler.codec.ByteToMessageDecoder;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import java.util.List;
 
@@ -15,7 +15,7 @@ import static com.huawei.browsergateway.util.encode.Tlv.MAGIC;
 /** TLV 协议解码器，从字节流中解析出 {@link Tlv} 对象 */
 public class TlvDecoder extends ByteToMessageDecoder {
 
-    private static final Logger log = LoggerFactory.getLogger(TlvDecoder.class);
+    private static final Logger log = LogManager.getLogger(TlvDecoder.class);
 
     /** 头部最小长度：magic(2) + count(4) + dataLen(4) */
     private static final int HEADER_SIZE = 10;

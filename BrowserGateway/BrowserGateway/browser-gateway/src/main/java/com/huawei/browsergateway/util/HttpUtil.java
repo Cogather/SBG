@@ -13,15 +13,15 @@ import org.apache.hc.core5.http.HttpEntity;
 import org.apache.hc.core5.http.io.entity.EntityUtils;
 import org.apache.hc.core5.http.io.entity.StringEntity;
 import org.apache.hc.core5.util.TimeValue;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import java.io.IOException;
 
 /** HTTP 请求工具类，内部使用连接池复用连接 */
 public final class HttpUtil {
 
-    private static final Logger log = LoggerFactory.getLogger(HttpUtil.class);
+    private static final Logger log = LogManager.getLogger(HttpUtil.class);
 
     @Getter
     private static final CloseableHttpClient httpClient;

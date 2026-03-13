@@ -3,8 +3,8 @@ package com.huawei.browsergateway.adapter.impl.csp;
 import com.huawei.browsergateway.adapter.dto.CertScene;
 import com.huawei.browsergateway.adapter.dto.CertUpdateCallback;
 import com.huawei.browsergateway.adapter.CertificateAdapter;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.springframework.stereotype.Component;
 
 import java.lang.reflect.Method;
@@ -18,7 +18,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 @Component("cspCertificateAdapter")
 public class CspCertificateAdapter implements CertificateAdapter {
     
-    private static final Logger logger = LoggerFactory.getLogger(CspCertificateAdapter.class);
+    private static final Logger logger = LogManager.getLogger(CspCertificateAdapter.class);
     
     private String caContent = "";
     private String deviceContent = "";

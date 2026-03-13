@@ -1,8 +1,8 @@
 package com.huawei.browsergateway.adapter.impl.csp;
 
 import com.huawei.browsergateway.adapter.FrameworkAdapter;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.springframework.stereotype.Component;
 
 /**
@@ -12,7 +12,7 @@ import org.springframework.stereotype.Component;
 @Component("cspFrameworkAdapter")
 public class CspFrameworkAdapter implements FrameworkAdapter {
     
-    private static final Logger logger = LoggerFactory.getLogger(CspFrameworkAdapter.class);
+    private static final Logger logger = LogManager.getLogger(CspFrameworkAdapter.class);
     
     private boolean isStarted = false;
     

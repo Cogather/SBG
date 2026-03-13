@@ -2,8 +2,8 @@ package com.huawei.browsergateway.adapter.impl.csp;
 
 import com.huawei.browsergateway.adapter.dto.ResourceStatistics;
 import com.huawei.browsergateway.adapter.ResourceMonitorAdapter;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.springframework.stereotype.Component;
 
 import java.lang.reflect.Method;
@@ -14,7 +14,7 @@ import java.lang.reflect.Method;
 @Component("cspResourceMonitorAdapter")
 public class CspResourceMonitorAdapter implements ResourceMonitorAdapter {
     
-    private static final Logger logger = LoggerFactory.getLogger(CspResourceMonitorAdapter.class);
+    private static final Logger logger = LogManager.getLogger(CspResourceMonitorAdapter.class);
     
     @Override
     public float getCpuUsage() {
