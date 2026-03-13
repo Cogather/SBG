@@ -7,6 +7,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.stereotype.Component;
 
+import java.io.InputStream;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.List;
@@ -78,7 +79,22 @@ public class CspCertificateAdapter implements CertificateAdapter {
     public String getPrivateKey() {
         return privateKey;
     }
-    
+
+    @Override
+    public InputStream getCaCertificateStream() {
+        return null;
+    }
+
+    @Override
+    public InputStream getDeviceCertificateStream() {
+        return null;
+    }
+
+    @Override
+    public InputStream getPrivateKeyStream() {
+        return null;
+    }
+
     @Override
     public boolean isCertificateReady() {
         return caContent != null && !caContent.isEmpty() && 

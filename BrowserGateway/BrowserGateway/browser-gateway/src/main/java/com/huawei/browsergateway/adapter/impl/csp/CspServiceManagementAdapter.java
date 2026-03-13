@@ -45,30 +45,8 @@ public class CspServiceManagementAdapter implements ServiceManagementAdapter {
     }
     
     @Override
-    public List<ServiceInstance> findServiceInstances(String applicationId, String serviceName, String version) {
-        try {
-            Class<?> registryUtilsClass = Class.forName("org.apache.servicecomb.serviceregistry.RegistryUtils");
-            Method findServiceInstance = registryUtilsClass.getMethod("findServiceInstance", 
-                    String.class, String.class, String.class);
-            @SuppressWarnings("unchecked")
-            List<Object> instances = (List<Object>) findServiceInstance.invoke(null, applicationId, serviceName, version);
-            
-            if (instances == null) {
-                return new ArrayList<>();
-            }
-            
-            List<ServiceInstance> result = new ArrayList<>();
-            for (Object instance : instances) {
-                ServiceInstance si = convertToServiceInstance(instance);
-                if (si != null) {
-                    result.add(si);
-                }
-            }
-            return result;
-        } catch (Exception e) {
-            logger.error("Failed to find service instances via CSP SDK", e);
-            return new ArrayList<>();
-        }
+    public List<ServiceInstance> findServiceInstances(String serviceName) {
+        return new ArrayList<>();
     }
     
     @Override

@@ -6,6 +6,7 @@ import com.huawei.browsergateway.adapter.CertificateAdapter;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import java.io.InputStream;
 import java.util.List;
 
 /**
@@ -42,7 +43,22 @@ public class CustomCertificateAdapter implements CertificateAdapter {
     public String getPrivateKey() {
         return privateKey;
     }
-    
+
+    @Override
+    public InputStream getCaCertificateStream() {
+        return null;
+    }
+
+    @Override
+    public InputStream getDeviceCertificateStream() {
+        return null;
+    }
+
+    @Override
+    public InputStream getPrivateKeyStream() {
+        return null;
+    }
+
     @Override
     public boolean isCertificateReady() {
         return caContent != null && !caContent.isEmpty() && 

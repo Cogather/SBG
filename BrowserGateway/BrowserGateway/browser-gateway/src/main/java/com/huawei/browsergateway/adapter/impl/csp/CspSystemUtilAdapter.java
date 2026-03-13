@@ -41,31 +41,7 @@ public class CspSystemUtilAdapter implements SystemUtilAdapter {
         }
     }
     
-    @Override
-    public long getEnvLong(String key, long defaultValue) {
-        try {
-            Class<?> systemUtilClass = Class.forName("com.huawei.csp.csejsdk.common.utils.SystemUtil");
-            Method getLongFromEnv = systemUtilClass.getMethod("getLongFromEnv", String.class);
-            Long value = (Long) getLongFromEnv.invoke(null, key);
-            return value != null ? value : defaultValue;
-        } catch (Exception e) {
-            logger.warn("Failed to get env long from CSP SDK, using default value", e);
-            return defaultValue;
-        }
-    }
-    
-    @Override
-    public boolean getEnvBoolean(String key, boolean defaultValue) {
-        try {
-            Class<?> systemUtilClass = Class.forName("com.huawei.csp.csejsdk.common.utils.SystemUtil");
-            Method getBooleanFromEnv = systemUtilClass.getMethod("getBooleanFromEnv", String.class);
-            Boolean value = (Boolean) getBooleanFromEnv.invoke(null, key);
-            return value != null ? value : defaultValue;
-        } catch (Exception e) {
-            logger.warn("Failed to get env boolean from CSP SDK, using default value", e);
-            return defaultValue;
-        }
-    }
+
     
     @Override
     public void setEnv(String key, String value) {

@@ -36,7 +36,7 @@ public class CustomServiceManagementAdapter implements ServiceManagementAdapter 
     }
     
     @Override
-    public List<ServiceInstance> findServiceInstances(String applicationId, String serviceName, String version) {
+    public List<ServiceInstance> findServiceInstances(String serviceName) {
         // 返回模拟的服务实例列表
         List<ServiceInstance> instances = serviceInstances.get(serviceName);
         if (instances == null) {

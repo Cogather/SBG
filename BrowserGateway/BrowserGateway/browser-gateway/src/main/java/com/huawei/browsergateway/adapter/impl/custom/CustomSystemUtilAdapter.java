@@ -47,28 +47,7 @@ public class CustomSystemUtilAdapter implements SystemUtilAdapter {
         }
     }
     
-    @Override
-    public long getEnvLong(String key, long defaultValue) {
-        String value = getEnvString(key, null);
-        if (value == null) {
-            return defaultValue;
-        }
-        try {
-            return Long.parseLong(value);
-        } catch (NumberFormatException e) {
-            logger.warn("Failed to parse long from env {}: {}", key, value);
-            return defaultValue;
-        }
-    }
-    
-    @Override
-    public boolean getEnvBoolean(String key, boolean defaultValue) {
-        String value = getEnvString(key, null);
-        if (value == null) {
-            return defaultValue;
-        }
-        return Boolean.parseBoolean(value);
-    }
+
     
     @Override
     public void setEnv(String key, String value) {

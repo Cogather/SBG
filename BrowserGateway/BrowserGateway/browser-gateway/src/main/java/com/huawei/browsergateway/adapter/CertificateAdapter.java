@@ -3,6 +3,7 @@ package com.huawei.browsergateway.adapter;
 import com.huawei.browsergateway.adapter.dto.CertScene;
 import com.huawei.browsergateway.adapter.dto.CertUpdateCallback;
 
+import java.io.InputStream;
 import java.util.List;
 
 /**
@@ -39,7 +40,24 @@ public interface CertificateAdapter {
      * @return 私钥内容
      */
     String getPrivateKey();
-    
+
+    /**
+     * 获取CA证书输入流
+     * @return CA证书输入流
+     */
+    InputStream getCaCertificateStream();
+
+    /**
+     * 获取设备证书输入流
+     * @return 设备证书输入流
+     */
+    InputStream getDeviceCertificateStream();
+
+    /**
+     * 获取私钥输入流（已转换为PKCS#8格式）
+     * @return 私钥输入流
+     */
+    InputStream getPrivateKeyStream();
     /**
      * 检查证书是否就绪
      * @return 证书是否就绪
