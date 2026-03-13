@@ -12,12 +12,12 @@ import static org.junit.jupiter.api.Assertions.*;
  * ServerEndpointExporter 功能一致性测试
  * 确保重构后功能100%一致
  */
-@DisplayName("ServerEndpointExporter 功能一致性测试")
+@DisplayName("ServerEndpointExporter functional consistency tests")
 class ServerEndpointExporterFunctionalTest {
 
     @Test
-    @DisplayName("buildConfig 方法参数数量验证")
-    void testBuildConfig方法参数() throws Exception {
+    @DisplayName("buildConfig method parameter count")
+    void testBuildConfigParameterCount() throws Exception {
         // Given
         Method method = ServerEndpointExporter.class.getDeclaredMethod("buildConfig", ServerEndpoint.class);
         method.setAccessible(true);
@@ -29,8 +29,8 @@ class ServerEndpointExporterFunctionalTest {
     }
 
     @Test
-    @DisplayName("resolveAnnotationValue 方法签名验证")
-    void testResolveAnnotationValue方法签名() throws Exception {
+    @DisplayName("resolveAnnotationValue method signature")
+    void testResolveAnnotationValueSignature() throws Exception {
         // Given
         Method method = ServerEndpointExporter.class.getDeclaredMethod(
                 "resolveAnnotationValue", Object.class, Class.class, String.class);
@@ -44,8 +44,8 @@ class ServerEndpointExporterFunctionalTest {
     }
 
     @Test
-    @DisplayName("验证所有必需的私有方法存在")
-    void test验证所有私有方法存在() {
+    @DisplayName("All required private methods exist")
+    void testAllRequiredPrivateMethodsExist() {
         // Given
         String[] requiredMethods = {
                 "registerEndpoints",
@@ -70,8 +70,8 @@ class ServerEndpointExporterFunctionalTest {
     }
 
     @Test
-    @DisplayName("验证 EndpointClassPathScanner 内部类存在")
-    void test验证内部类存在() {
+    @DisplayName("EndpointClassPathScanner inner class exists")
+    void testEndpointClassPathScannerInnerClassExists() {
         // Given
         Class<?>[] innerClasses = ServerEndpointExporter.class.getDeclaredClasses();
 
@@ -87,8 +87,8 @@ class ServerEndpointExporterFunctionalTest {
     }
 
     @Test
-    @DisplayName("验证 EndpointClassPathScanner 继承关系")
-    void test验证内部类继承关系() {
+    @DisplayName("EndpointClassPathScanner inheritance")
+    void testEndpointClassPathScannerInheritance() {
         // Given
         Class<?> scannerClass = null;
         for (Class<?> innerClass : ServerEndpointExporter.class.getDeclaredClasses()) {
@@ -106,8 +106,8 @@ class ServerEndpointExporterFunctionalTest {
     }
 
     @Test
-    @DisplayName("验证 registerEndpoints 方法可见性")
-    void test验证registerEndpoints可见性() throws Exception {
+    @DisplayName("registerEndpoints method visibility")
+    void testRegisterEndpointsVisibility() throws Exception {
         // Given
         Method method = ServerEndpointExporter.class.getDeclaredMethod("registerEndpoints");
 
@@ -119,8 +119,8 @@ class ServerEndpointExporterFunctionalTest {
     }
 
     @Test
-    @DisplayName("验证类的字段")
-    void test验证类字段() throws Exception {
+    @DisplayName("Class fields")
+    void testClassFields() throws Exception {
         // Given
         ServerEndpointExporter exporter = new ServerEndpointExporter();
 
@@ -141,8 +141,8 @@ class ServerEndpointExporterFunctionalTest {
     }
 
     @Test
-    @DisplayName("验证 buildConfig 返回非null配置")
-    void testBuildConfig返回类型() throws Exception {
+    @DisplayName("buildConfig returns non-null config")
+    void testBuildConfigReturnType() throws Exception {
         // Given
         Method method = ServerEndpointExporter.class.getDeclaredMethod("buildConfig", ServerEndpoint.class);
 

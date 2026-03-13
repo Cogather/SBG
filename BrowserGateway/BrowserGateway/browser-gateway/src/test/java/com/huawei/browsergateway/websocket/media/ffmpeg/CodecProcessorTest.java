@@ -11,17 +11,17 @@ import static org.junit.jupiter.api.Assertions.*;
  * CodecProcessor 接口测试
  * 验证接口契约的一致性
  */
-@DisplayName("CodecProcessor 接口测试")
+@DisplayName("CodecProcessor interface tests")
 class CodecProcessorTest {
 
     @Test
-    @DisplayName("验证接口存在")
+    @DisplayName("Interface exists")
     void testInterfaceExists() {
         assertTrue(CodecProcessor.class.isInterface(), "CodecProcessor 应该是接口");
     }
 
     @Test
-    @DisplayName("验证 init 方法存在")
+    @DisplayName("init method exists")
     void testInitMethodExists() throws Exception {
         Method method = CodecProcessor.class.getMethod("init",
                 com.huawei.browsergateway.websocket.media.MediaParam.class,
@@ -34,7 +34,7 @@ class CodecProcessorTest {
     }
 
     @Test
-    @DisplayName("验证 getStreamIndex 方法存在")
+    @DisplayName("getStreamIndex method exists")
     void testGetStreamIndexMethodExists() throws Exception {
         Method method = CodecProcessor.class.getMethod("getStreamIndex");
 
@@ -45,7 +45,7 @@ class CodecProcessorTest {
     }
 
     @Test
-    @DisplayName("验证 streamCodec 方法存在")
+    @DisplayName("streamCodec method exists")
     void testStreamCodecMethodExists() throws Exception {
         Method method = CodecProcessor.class.getMethod("streamCodec",
                 org.bytedeco.ffmpeg.avcodec.AVPacket.class);
@@ -56,7 +56,7 @@ class CodecProcessorTest {
     }
 
     @Test
-    @DisplayName("验证 close 方法存在")
+    @DisplayName("close method exists")
     void testCloseMethodExists() throws Exception {
         Method method = CodecProcessor.class.getMethod("close");
 
@@ -66,7 +66,7 @@ class CodecProcessorTest {
     }
 
     @Test
-    @DisplayName("验证接口方法数量")
+    @DisplayName("Interface method count")
     void testInterfaceMethodCount() {
         Method[] methods = CodecProcessor.class.getDeclaredMethods();
         assertEquals(4, methods.length, "CodecProcessor 接口应该有 4 个方法");

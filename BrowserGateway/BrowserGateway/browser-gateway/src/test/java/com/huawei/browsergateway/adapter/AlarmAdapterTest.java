@@ -17,7 +17,7 @@ import static org.junit.jupiter.api.Assertions.*;
 class AlarmAdapterTest {
 
     @Test
-    void testAlarmType枚举值() {
+    void testAlarmTypeEnumValues() {
         // Then
         assertNotNull(AlarmAdapter.AlarmType.GENERATE, "GENERATE类型应存在");
         assertNotNull(AlarmAdapter.AlarmType.CLEAR, "CLEAR类型应存在");
@@ -25,7 +25,7 @@ class AlarmAdapterTest {
     }
 
     @Test
-    void testAlarmRequest创建() {
+    void testAlarmRequestCreation() {
         // Given
         AlarmRequest request = new AlarmRequest();
         request.setAlarmId("ALARM_001");
@@ -42,7 +42,7 @@ class AlarmAdapterTest {
     }
 
     @Test
-    void testAlarmRequest批量创建() {
+    void testAlarmRequestBatchCreation() {
         // Given
         AlarmRequest request1 = new AlarmRequest();
         request1.setAlarmId("ALARM_001");

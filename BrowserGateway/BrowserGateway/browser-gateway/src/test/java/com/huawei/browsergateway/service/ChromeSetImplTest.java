@@ -38,7 +38,7 @@ class ChromeSetImplTest {
     }
 
     @Test
-    void testGetAllUser_初始状态应该为空() {
+    void testGetAllUser_emptyInitially() {
         // When
         Set<String> users = chromeSet.getAllUser();
 
@@ -47,7 +47,7 @@ class ChromeSetImplTest {
     }
 
     @Test
-    void testGetHeartbeats_不存在的用户应返回0() {
+    void testGetHeartbeats_returnsZeroForNonExistentUser() {
         // Given
         String userId = "non-existent-user";
 
@@ -59,7 +59,7 @@ class ChromeSetImplTest {
     }
 
     @Test
-    void testUpdateHeartbeats_不存在的用户应该被忽略() {
+    void testUpdateHeartbeats_ignoresNonExistentUser() {
         // Given
         String userId = "non-existent-user";
         long heartbeats = System.currentTimeMillis();
@@ -75,7 +75,7 @@ class ChromeSetImplTest {
     }
 
     @Test
-    void testGet_不存在的用户应返回null() {
+    void testGet_returnsNullForNonExistentUser() {
         // Given
         String userId = "non-existent-user";
 

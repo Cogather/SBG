@@ -21,7 +21,7 @@ import static org.mockito.Mockito.*;
  * ServerEndpointExporter 测试类
  * 测试 WebSocket 端点导出器的核心功能
  */
-@DisplayName("ServerEndpointExporter 测试")
+@DisplayName("ServerEndpointExporter tests")
 class ServerEndpointExporterTest {
 
     private ServerEndpointExporter exporter;
@@ -42,8 +42,8 @@ class ServerEndpointExporterTest {
     }
 
     @Test
-    @DisplayName("resolveAnnotationValue - 解析null值")
-    void testResolveAnnotationValue_null值() throws Exception {
+    @DisplayName("resolveAnnotationValue - null value")
+    void testResolveAnnotationValue_nullValue() throws Exception {
         // Given
         Method method = ServerEndpointExporter.class.getDeclaredMethod(
                 "resolveAnnotationValue", Object.class, Class.class, String.class);
@@ -57,16 +57,16 @@ class ServerEndpointExporterTest {
     }
 
     @Test
-    @DisplayName("resolveAnnotationValue - 解析非字符串值")
-    void testResolveAnnotationValue_非字符串值() throws Exception {
+    @DisplayName("resolveAnnotationValue - non-string value")
+    void testResolveAnnotationValue_nonStringValue() throws Exception {
         // 由于 resolveAnnotationValue 依赖 BeanUtils.getContext()，
         // 这个测试需要 Spring 上下文，暂时跳过
         // 实际项目中应该使用集成测试
     }
 
     @Test
-    @DisplayName("EndpointClassPathScanner - 构造函数")
-    void testEndpointClassPathScanner_构造函数() {
+    @DisplayName("EndpointClassPathScanner - constructor")
+    void testEndpointClassPathScanner_constructor() {
         // Given & When & Then
         // 验证内部类可以正常实例化
         assertDoesNotThrow(() -> {
@@ -76,16 +76,16 @@ class ServerEndpointExporterTest {
     }
 
     @Test
-    @DisplayName("验证类实现了 SmartInitializingSingleton 接口")
-    void test验证接口实现() {
+    @DisplayName("Implements SmartInitializingSingleton interface")
+    void testImplementsSmartInitializingSingleton() {
         // Then
         assertTrue(exporter instanceof org.springframework.beans.factory.SmartInitializingSingleton,
                 "ServerEndpointExporter 应该实现 SmartInitializingSingleton 接口");
     }
 
     @Test
-    @DisplayName("验证 afterSingletonsInstantiated 方法存在")
-    void test验证回调方法存在() throws Exception {
+    @DisplayName("afterSingletonsInstantiated method exists")
+    void testAfterSingletonsInstantiatedExists() throws Exception {
         // When
         Method method = ServerEndpointExporter.class.getMethod("afterSingletonsInstantiated");
 
@@ -95,8 +95,8 @@ class ServerEndpointExporterTest {
     }
 
     @Test
-    @DisplayName("验证 registerEndpoints 方法存在")
-    void test验证registerEndpoints方法存在() throws Exception {
+    @DisplayName("registerEndpoints method exists")
+    void testRegisterEndpointsExists() throws Exception {
         // When
         Method method = ServerEndpointExporter.class.getDeclaredMethod("registerEndpoints");
 
@@ -106,8 +106,8 @@ class ServerEndpointExporterTest {
     }
 
     @Test
-    @DisplayName("验证 buildConfig 方法存在")
-    void test验证buildConfig方法存在() throws Exception {
+    @DisplayName("buildConfig method exists")
+    void testBuildConfigExists() throws Exception {
         // When
         Method method = ServerEndpointExporter.class.getDeclaredMethod("buildConfig", ServerEndpoint.class);
 
@@ -118,8 +118,8 @@ class ServerEndpointExporterTest {
     }
 
     @Test
-    @DisplayName("验证 resolveAnnotationValue 方法存在")
-    void test验证resolveAnnotationValue方法存在() throws Exception {
+    @DisplayName("resolveAnnotationValue method exists")
+    void testResolveAnnotationValueExists() throws Exception {
         // When
         Method method = ServerEndpointExporter.class.getDeclaredMethod(
                 "resolveAnnotationValue", Object.class, Class.class, String.class);
@@ -131,8 +131,8 @@ class ServerEndpointExporterTest {
     }
 
     @Test
-    @DisplayName("验证 scanPackage 方法存在")
-    void test验证scanPackage方法存在() throws Exception {
+    @DisplayName("scanPackage method exists")
+    void testScanPackageExists() throws Exception {
         // When
         Method method = ServerEndpointExporter.class.getDeclaredMethod(
                 "scanPackage", org.springframework.context.ApplicationContext.class);
@@ -143,8 +143,8 @@ class ServerEndpointExporterTest {
     }
 
     @Test
-    @DisplayName("验证 init 方法存在")
-    void test验证init方法存在() throws Exception {
+    @DisplayName("init method exists")
+    void testInitExists() throws Exception {
         // When
         Method method = ServerEndpointExporter.class.getDeclaredMethod("init");
 
@@ -154,8 +154,8 @@ class ServerEndpointExporterTest {
     }
 
     @Test
-    @DisplayName("验证 registerEndpoint 方法存在")
-    void test验证registerEndpoint方法存在() throws Exception {
+    @DisplayName("registerEndpoint method exists")
+    void testRegisterEndpointExists() throws Exception {
         // When
         Method method = ServerEndpointExporter.class.getDeclaredMethod("registerEndpoint", Class.class);
 
@@ -165,8 +165,8 @@ class ServerEndpointExporterTest {
     }
 
     @Test
-    @DisplayName("验证类有正确的注解")
-    void test验证类注解() {
+    @DisplayName("Class has correct annotations")
+    void testClassAnnotations() {
         // Then
         assertTrue(exporter.getClass().isAnnotationPresent(org.springframework.stereotype.Component.class),
                 "ServerEndpointExporter 应该有 @Component 注解");

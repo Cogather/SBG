@@ -14,7 +14,7 @@ import static org.mockito.Mockito.*;
  * MediaSessionManager 测试类
  * 测试媒体会话管理器功能
  */
-@DisplayName("MediaSessionManager 测试")
+@DisplayName("MediaSessionManager tests")
 class MediaSessionManagerTest {
 
     private MediaSessionManager mediaSessionManager;
@@ -35,8 +35,8 @@ class MediaSessionManagerTest {
     }
 
     @Test
-    @DisplayName("添加处理器 - 正常添加")
-    void testAddProcessor_正常添加() {
+    @DisplayName("Add processor - normal add")
+    void testAddProcessor_normalAdd() {
         // Given
         String key = "user123";
 
@@ -51,8 +51,8 @@ class MediaSessionManagerTest {
     }
 
     @Test
-    @DisplayName("添加处理器 - 替换已存在的处理器")
-    void testAddProcessor_替换已存在的处理器() {
+    @DisplayName("Add processor - replace existing")
+    void testAddProcessor_replaceExisting() {
         // Given
         String key = "user123";
         mediaSessionManager.addProcessor(key, mockProcessor1);
@@ -68,8 +68,8 @@ class MediaSessionManagerTest {
     }
 
     @Test
-    @DisplayName("获取处理器 - 存在的处理器")
-    void testGetProcessor_存在的处理器() {
+    @DisplayName("Get processor - existing")
+    void testGetProcessor_existing() {
         // Given
         String key = "user123";
         mediaSessionManager.addProcessor(key, mockProcessor1);
@@ -83,8 +83,8 @@ class MediaSessionManagerTest {
     }
 
     @Test
-    @DisplayName("获取处理器 - 不存在的处理器")
-    void testGetProcessor_不存在的处理器() {
+    @DisplayName("Get processor - non-existing")
+    void testGetProcessor_nonExisting() {
         // When
         MediaStreamProcessor retrievedProcessor = mediaSessionManager.getProcessor("nonexistent");
 
@@ -93,8 +93,8 @@ class MediaSessionManagerTest {
     }
 
     @Test
-    @DisplayName("删除处理器 - 存在的处理器")
-    void testDelProcessor_存在的处理器() {
+    @DisplayName("Delete processor - existing")
+    void testDelProcessor_existing() {
         // Given
         String key = "user123";
         mediaSessionManager.addProcessor(key, mockProcessor1);
@@ -109,16 +109,16 @@ class MediaSessionManagerTest {
     }
 
     @Test
-    @DisplayName("删除处理器 - 不存在的处理器")
-    void testDelProcessor_不存在的处理器() {
+    @DisplayName("Delete processor - non-existing")
+    void testDelProcessor_nonExisting() {
         // When & Then - 不应该抛出异常
         assertDoesNotThrow(() -> mediaSessionManager.delProcessor("nonexistent"),
             "删除不存在的处理器不应该抛出异常");
     }
 
     @Test
-    @DisplayName("删除会话 - 同时删除处理器和会话")
-    void testDel_同时删除处理器和会话() {
+    @DisplayName("Delete session - removes both processor and session")
+    void testDel_removesProcessorAndSession() {
         // Given
         String key = "user123";
         mediaSessionManager.addSession(key, mockSession);
@@ -135,8 +135,8 @@ class MediaSessionManagerTest {
     }
 
     @Test
-    @DisplayName("继承功能 - 添加和获取会话")
-    void test继承功能_添加和获取会话() {
+    @DisplayName("Inherited - add and get session")
+    void testInheritedAddAndGetSession() {
         // Given
         String key = "user123";
 
@@ -150,8 +150,8 @@ class MediaSessionManagerTest {
     }
 
     @Test
-    @DisplayName("继承功能 - 获取所有会话键")
-    void test继承功能_获取所有会话键() {
+    @DisplayName("Inherited - get all session keys")
+    void testInheritedGetAllSessionKeys() {
         // Given
         mediaSessionManager.addSession("user1", mockSession);
         mediaSessionManager.addProcessor("user1", mockProcessor1);

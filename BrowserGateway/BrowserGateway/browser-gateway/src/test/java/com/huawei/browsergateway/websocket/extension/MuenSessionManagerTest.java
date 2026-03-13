@@ -14,7 +14,7 @@ import static org.mockito.Mockito.*;
  * MuenSessionManager 测试类
  * 测试 Muen 会话管理器功能
  */
-@DisplayName("MuenSessionManager 测试")
+@DisplayName("MuenSessionManager tests")
 class MuenSessionManagerTest {
 
     private MuenSessionManager muenSessionManager;
@@ -32,8 +32,8 @@ class MuenSessionManagerTest {
     }
 
     @Test
-    @DisplayName("继承功能 - 添加会话")
-    void test继承功能_添加会话() {
+    @DisplayName("Inherited - add session")
+    void testInheritedAddSession() {
         // Given
         String key = "user123";
 
@@ -47,8 +47,8 @@ class MuenSessionManagerTest {
     }
 
     @Test
-    @DisplayName("继承功能 - 替换已存在的会话")
-    void test继承功能_替换已存在的会话() {
+    @DisplayName("Inherited - replace existing session")
+    void testInheritedReplaceExistingSession() {
         // Given
         String key = "user123";
         muenSessionManager.addSession(key, mockSession1);
@@ -63,8 +63,8 @@ class MuenSessionManagerTest {
     }
 
     @Test
-    @DisplayName("继承功能 - 获取会话")
-    void test继承功能_获取会话() {
+    @DisplayName("Inherited - get session")
+    void testInheritedGetSession() {
         // Given
         String key = "user123";
         muenSessionManager.addSession(key, mockSession1);
@@ -78,8 +78,8 @@ class MuenSessionManagerTest {
     }
 
     @Test
-    @DisplayName("继承功能 - 删除会话")
-    void test继承功能_删除会话() {
+    @DisplayName("Inherited - delete session")
+    void testInheritedDeleteSession() {
         // Given
         String key = "user123";
         muenSessionManager.addSession(key, mockSession1);
@@ -94,8 +94,8 @@ class MuenSessionManagerTest {
     }
 
     @Test
-    @DisplayName("继承功能 - 获取所有会话键")
-    void test继承功能_获取所有会话键() {
+    @DisplayName("Inherited - get all session keys")
+    void testInheritedGetAllSessionKeys() {
         // Given
         muenSessionManager.addSession("user1", mockSession1);
         muenSessionManager.addSession("user2", mockSession2);

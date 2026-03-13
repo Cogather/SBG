@@ -12,11 +12,11 @@ import static org.junit.jupiter.api.Assertions.*;
  * FfmpegCodecService 功能一致性测试
  * 确保重构后功能100%一致
  */
-@DisplayName("FfmpegCodecService 功能一致性测试")
+@DisplayName("FfmpegCodecService functional consistency tests")
 class FfmpegCodecServiceTest {
 
     @Test
-    @DisplayName("验证类实现了 CodecProcessor 接口")
+    @DisplayName("Class implements CodecProcessor interface")
     void testImplementsCodecProcessor() {
         // VideoCodecProcessor 和 AudioCodecProcessor 应该实现 CodecProcessor
         assertTrue(CodecProcessor.class.isAssignableFrom(VideoCodecProcessor.class),
@@ -26,7 +26,7 @@ class FfmpegCodecServiceTest {
     }
 
     @Test
-    @DisplayName("验证 FfmpegCodecService 构造函数")
+    @DisplayName("FfmpegCodecService constructor")
     void testConstructor() throws Exception {
         var constructor = FfmpegCodecService.class.getConstructor(
                 com.huawei.browsergateway.websocket.media.MediaParam.class);
@@ -34,7 +34,7 @@ class FfmpegCodecServiceTest {
     }
 
     @Test
-    @DisplayName("验证 init 方法存在")
+    @DisplayName("init method exists")
     void testInitMethodExists() throws Exception {
         Method method = FfmpegCodecService.class.getMethod("init",
                 org.bytedeco.javacpp.Pointer.class,
@@ -47,7 +47,7 @@ class FfmpegCodecServiceTest {
     }
 
     @Test
-    @DisplayName("验证 start 方法存在")
+    @DisplayName("start method exists")
     void testStartMethodExists() throws Exception {
         Method method = FfmpegCodecService.class.getMethod("start");
         assertNotNull(method, "start 方法应该存在");
@@ -55,7 +55,7 @@ class FfmpegCodecServiceTest {
     }
 
     @Test
-    @DisplayName("验证 close 方法存在")
+    @DisplayName("close method exists")
     void testCloseMethodExists() throws Exception {
         Method method = FfmpegCodecService.class.getMethod("close");
         assertNotNull(method, "close 方法应该存在");
@@ -63,7 +63,7 @@ class FfmpegCodecServiceTest {
     }
 
     @Test
-    @DisplayName("验证私有字段存在")
+    @DisplayName("Private fields exist")
     void testPrivateFieldsExist() throws Exception {
         Field mediaParamField = FfmpegCodecService.class.getDeclaredField("mediaParam");
         Field videoCodecField = FfmpegCodecService.class.getDeclaredField("videoCodecCtx");
@@ -75,7 +75,7 @@ class FfmpegCodecServiceTest {
     }
 
     @Test
-    @DisplayName("验证 VideoCodecProcessor 方法存在")
+    @DisplayName("VideoCodecProcessor methods exist")
     void testVideoCodecProcessorMethods() throws Exception {
         Method initMethod = VideoCodecProcessor.class.getMethod("init",
                 com.huawei.browsergateway.websocket.media.MediaParam.class,
@@ -95,7 +95,7 @@ class FfmpegCodecServiceTest {
     }
 
     @Test
-    @DisplayName("验证 AudioCodecProcessor 方法存在")
+    @DisplayName("AudioCodecProcessor methods exist")
     void testAudioCodecProcessorMethods() throws Exception {
         Method initMethod = AudioCodecProcessor.class.getMethod("init",
                 com.huawei.browsergateway.websocket.media.MediaParam.class,
@@ -115,7 +115,7 @@ class FfmpegCodecServiceTest {
     }
 
     @Test
-    @DisplayName("验证 VideoCodecProcessor 私有字段")
+    @DisplayName("VideoCodecProcessor private fields")
     void testVideoCodecProcessorFields() throws Exception {
         Field[] expectedFields = {
                 VideoCodecProcessor.class.getDeclaredField("decodeCtx"),
@@ -131,7 +131,7 @@ class FfmpegCodecServiceTest {
     }
 
     @Test
-    @DisplayName("验证 AudioCodecProcessor 私有字段")
+    @DisplayName("AudioCodecProcessor private fields")
     void testAudioCodecProcessorFields() throws Exception {
         Field[] expectedFields = {
                 AudioCodecProcessor.class.getDeclaredField("decodeCtx"),

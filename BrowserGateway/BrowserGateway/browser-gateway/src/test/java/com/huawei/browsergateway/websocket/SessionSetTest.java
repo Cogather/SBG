@@ -16,7 +16,7 @@ import static org.mockito.Mockito.*;
  * SessionSet 测试类
  * 测试 WebSocket 会话集合管理功能
  */
-@DisplayName("SessionSet 测试")
+@DisplayName("SessionSet tests")
 class SessionSetTest {
 
     private SessionSet sessionSet;
@@ -34,8 +34,8 @@ class SessionSetTest {
     }
 
     @Test
-    @DisplayName("添加会话 - 正常添加")
-    void testAddSession_正常添加() {
+    @DisplayName("Add session - normal add")
+    void testAddSession_normalAdd() {
         // Given
         String key = "user123";
 
@@ -50,8 +50,8 @@ class SessionSetTest {
     }
 
     @Test
-    @DisplayName("添加会话 - 替换已存在的会话")
-    void testAddSession_替换已存在的会话() {
+    @DisplayName("Add session - replace existing")
+    void testAddSession_replaceExisting() {
         // Given
         String key = "user123";
         sessionSet.addSession(key, mockSession1);
@@ -67,8 +67,8 @@ class SessionSetTest {
     }
 
     @Test
-    @DisplayName("获取会话 - 存在的会话")
-    void testGetSession_存在的会话() {
+    @DisplayName("Get session - existing")
+    void testGetSession_existing() {
         // Given
         String key = "user123";
         sessionSet.addSession(key, mockSession1);
@@ -82,8 +82,8 @@ class SessionSetTest {
     }
 
     @Test
-    @DisplayName("获取会话 - 不存在的会话")
-    void testGetSession_不存在的会话() {
+    @DisplayName("Get session - non-existing")
+    void testGetSession_nonExisting() {
         // When
         Session retrievedSession = sessionSet.getSession("nonexistent");
 
@@ -92,8 +92,8 @@ class SessionSetTest {
     }
 
     @Test
-    @DisplayName("删除会话 - 存在的会话")
-    void testDel_存在的会话() {
+    @DisplayName("Delete session - existing")
+    void testDel_existing() {
         // Given
         String key = "user123";
         sessionSet.addSession(key, mockSession1);
@@ -108,15 +108,15 @@ class SessionSetTest {
     }
 
     @Test
-    @DisplayName("删除会话 - 不存在的会话")
-    void testDel_不存在的会话() {
+    @DisplayName("Delete session - non-existing")
+    void testDel_nonExisting() {
         // When & Then - 不应该抛出异常
         assertDoesNotThrow(() -> sessionSet.del("nonexistent"),
             "删除不存在的会话不应该抛出异常");
     }
 
     @Test
-    @DisplayName("获取所有会话键")
+    @DisplayName("Get all session keys")
     void testAllSessions() {
         // Given
         sessionSet.addSession("user1", mockSession1);
@@ -133,8 +133,8 @@ class SessionSetTest {
     }
 
     @Test
-    @DisplayName("获取所有会话键 - 空集合")
-    void testAllSessions_空集合() {
+    @DisplayName("Get all session keys - empty set")
+    void testAllSessions_emptySet() {
         // When
         Set<String> allKeys = sessionSet.allSessions();
 
@@ -144,8 +144,8 @@ class SessionSetTest {
     }
 
     @Test
-    @DisplayName("并发添加会话 - 线程安全测试")
-    void testAddSession_并发测试() throws InterruptedException {
+    @DisplayName("Concurrent add session - thread safety")
+    void testAddSession_concurrent() throws InterruptedException {
         // Given
         int threadCount = 10;
         Thread[] threads = new Thread[threadCount];

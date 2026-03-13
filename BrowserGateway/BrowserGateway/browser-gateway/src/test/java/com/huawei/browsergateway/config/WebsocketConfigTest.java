@@ -10,7 +10,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * WebsocketConfig 测试类
  * 测试 WebSocket 配置功能
  */
-@DisplayName("WebsocketConfig 测试")
+@DisplayName("WebsocketConfig tests")
 class WebsocketConfigTest {
 
     private WebsocketConfig websocketConfig;
@@ -21,7 +21,7 @@ class WebsocketConfigTest {
     }
 
     @Test
-    @DisplayName("设置和获取 mediaPort")
+    @DisplayName("Set and get mediaPort")
     void testMediaPort() {
         // Given
         Integer expectedPort = 8080;
@@ -34,7 +34,7 @@ class WebsocketConfigTest {
     }
 
     @Test
-    @DisplayName("设置和获取 muenPort")
+    @DisplayName("Set and get muenPort")
     void testMuenPort() {
         // Given
         Integer expectedPort = 8081;
@@ -47,7 +47,7 @@ class WebsocketConfigTest {
     }
 
     @Test
-    @DisplayName("设置和获取 boss 线程数")
+    @DisplayName("Set and get boss threads")
     void testBoss() {
         // Given
         Integer expectedBoss = 2;
@@ -60,7 +60,7 @@ class WebsocketConfigTest {
     }
 
     @Test
-    @DisplayName("设置和获取 worker 线程数")
+    @DisplayName("Set and get worker threads")
     void testWorker() {
         // Given
         Integer expectedWorker = 4;
@@ -73,7 +73,7 @@ class WebsocketConfigTest {
     }
 
     @Test
-    @DisplayName("设置和获取 heartbeatTtl")
+    @DisplayName("Set and get heartbeatTtl")
     void testHeartbeatTtl() {
         // Given
         Long expectedTtl = 60000L;
@@ -86,8 +86,8 @@ class WebsocketConfigTest {
     }
 
     @Test
-    @DisplayName("默认值测试 - 所有字段初始为null")
-    void test默认值() {
+    @DisplayName("Default values - all fields initially null")
+    void testDefaultValues() {
         // Then
         assertNull(websocketConfig.getMediaPort(), "mediaPort 初始值应该为null");
         assertNull(websocketConfig.getMuenPort(), "muenPort 初始值应该为null");
@@ -97,8 +97,8 @@ class WebsocketConfigTest {
     }
 
     @Test
-    @DisplayName("设置null值")
-    void test设置null值() {
+    @DisplayName("Set null values")
+    void testSetNullValues() {
         // Given
         websocketConfig.setMediaPort(8080);
         websocketConfig.setMuenPort(8081);
