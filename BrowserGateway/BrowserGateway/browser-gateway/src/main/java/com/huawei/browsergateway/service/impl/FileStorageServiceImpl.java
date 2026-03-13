@@ -1,5 +1,6 @@
 package com.huawei.browsergateway.service.impl;
 
+import cn.hutool.core.util.StrUtil;
 import cn.hutool.json.JSONUtil;
 import com.huawei.browsergateway.entity.BaseResponse;
 import com.huawei.browsergateway.service.ICse;
@@ -22,6 +23,8 @@ import org.springframework.stereotype.Service;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 
@@ -41,6 +44,8 @@ public class FileStorageServiceImpl implements IFileStorage {
 
     @Override
     public void uploadFile(String localFilePath, String remoteUrl) {
+        validatePathNotBlank(localFilePath, "localPath");
+        validatePathNotBlank(remoteUrl, "remotePath");
         S3Path s3Path = parseS3Url(remoteUrl);
         File file = Path.of(localFilePath).toFile();
         String url = buildFileUrl(s3Path);
@@ -67,6 +72,8 @@ public class FileStorageServiceImpl implements IFileStorage {
 
     @Override
     public void downloadFile(String localFilePath, String remoteUrl) {
+        validatePathNotBlank(localFilePath, "localPath");
+        validatePathNotBlank(remoteUrl, "remotePath");
         S3Path s3Path = parseS3Url(remoteUrl);
         String url = buildFileUrl(s3Path);
 
@@ -91,6 +98,7 @@ public class FileStorageServiceImpl implements IFileStorage {
 
     @Override
     public void deleteFile(String remoteUrl) {
+        validatePathNotBlank(remoteUrl, "path");
         S3Path s3Path = parseS3Url(remoteUrl);
         String url = buildFileUrl(s3Path);
 
@@ -110,6 +118,7 @@ public class FileStorageServiceImpl implements IFileStorage {
 
     @Override
     public boolean exist(String remoteUrl) {
+        validatePathNotBlank(remoteUrl, "path");
         S3Path s3Path = parseS3Url(remoteUrl);
         String url = buildExistUrl(s3Path);
         boolean result = false;
@@ -142,11 +151,31 @@ public class FileStorageServiceImpl implements IFileStorage {
     }
 
     /**
+     * 校验路径非空
+     */
+    private static void validatePathNotBlank(String path, String paramName) {
+        if (StrUtil.isBlank(path)) {
+            throw new IllegalArgumentException(paramName + " must not be blank");
+        }
+    }
+
+    /**
      * 将远端路径解析为 S3Path（bucket + 扁平化文件名）。
      * 路径中第一段为 bucket，其余部分用 "_" 拼接为文件名。
      */
     private static S3Path parseS3Url(String url) {
-        Path path = Paths.get(url);
+        if (StrUtil.isBlank(url)) {
+            throw new IllegalArgumentException("remotePath must not be blank");
+        }
+        Path path;
+        try {
+            path = Paths.get(url);
+        } catch (InvalidPathException e) {
+            throw new IllegalArgumentException("remotePath is invalid: " + url, e);
+        }
+        if (path.getNameCount() < 2) {
+            throw new IllegalArgumentException("remotePath must contain bucket and key: " + url);
+        }
         String bucketName = path.getName(0).toString();
         String name = path.subpath(1, path.getNameCount()).toString().replace("/", "_");
         return new S3Path(bucketName, name);
@@ -157,14 +186,15 @@ public class FileStorageServiceImpl implements IFileStorage {
         try {
             HttpEntity entity = response.getEntity();
             if (entity != null) {
-                BaseResponse badResponse = JSONUtil.toBean(entity.toString(), BaseResponse.class);
+                String body = EntityUtils.toString(entity, StandardCharsets.UTF_8);
+                BaseResponse badResponse = JSONUtil.toBean(body, BaseResponse.class);
                 log.error("{} failed, file:{}, code:{}, msg:{}", method, file,
                         badResponse.getCode(), badResponse.getMessage());
             } else {
                 log.error("{} failed, file:{}, code:{}", method, file, response.getCode());
             }
         } catch (Exception e) {
-            log.error("{} failed, file:{}, http status:{}", method, file, response.getCode());
+            log.error("{} failed, file:{}, http status:{}", method, file, response.getCode(), e);
         }
     }
 

@@ -12,6 +12,7 @@ import com.huawei.browsergateway.service.IFileStorage;
 import com.huawei.browsergateway.service.IRemote;
 import com.huawei.browsergateway.service.impl.UserChrome;
 import com.huawei.browsergateway.service.impl.UserData;
+import com.huawei.browsergateway.util.ParamValidator;
 import com.huawei.browsergateway.util.UserIdUtil;
 import com.huawei.browsergateway.util.encode.Message;
 import com.huawei.browsergateway.util.encode.Tlv;
@@ -56,6 +57,11 @@ public class ChromeApi {
      */
     @DeleteMapping("/userdata/delete")
     public CommonResult<DeleteUserDataResponse> deleteUserData(@RequestBody DeleteUserDataRequest param) {
+        String validateError = ParamValidator.validateDeleteUserDataRequest(param);
+        if (validateError != null) {
+            log.warn("delete user data invalid param: {}", validateError);
+            return CommonResult.error(ResultCode.VALIDATE_ERROR.getCode(), validateError);
+        }
         String userId = null;
         try {
             userId = UserIdUtil.generateUserIdByImeiAndImsi(param.getImei(), param.getImsi());
@@ -116,6 +122,11 @@ public class ChromeApi {
      */
     @PostMapping("/preOpen")
     public CommonResult<String> preOpenBrowser(@RequestBody InitBrowserRequest param) {
+        String validateError = ParamValidator.validateInitBrowserRequest(param);
+        if (validateError != null) {
+            log.warn("pre open browser invalid param: {}", validateError);
+            return CommonResult.error(ResultCode.VALIDATE_ERROR.getCode(), validateError);
+        }
         String userId = UserIdUtil.generateUserIdByImeiAndImsi(param.getImei(), param.getImsi());
         log.info("pre open browser request, params:{}", JSONUtil.toJsonStr(param));
 

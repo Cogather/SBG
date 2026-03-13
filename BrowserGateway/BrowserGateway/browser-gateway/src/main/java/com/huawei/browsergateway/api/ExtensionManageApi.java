@@ -7,6 +7,7 @@ import com.huawei.browsergateway.entity.plugin.PluginActive;
 import com.huawei.browsergateway.entity.request.LoadExtensionRequest;
 import com.huawei.browsergateway.entity.response.LoadExtensionResponse;
 import com.huawei.browsergateway.service.ExtensionManageService;
+import com.huawei.browsergateway.util.ParamValidator;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.servicecomb.provider.rest.common.RestSchema;
@@ -36,6 +37,11 @@ public class ExtensionManageApi {
      */
     @PostMapping("/load")
     public CommonResult<LoadExtensionResponse> loadExtension(@RequestBody LoadExtensionRequest param) {
+        String validateError = ParamValidator.validateLoadExtensionRequest(param);
+        if (validateError != null) {
+            log.warn("load extension invalid param: {}", validateError);
+            return CommonResult.error(ResultCode.VALIDATE_ERROR.getCode(), validateError);
+        }
         try {
             log.info("update muen plugin, reload extension, params:{}", JSONUtil.toJsonStr(param));
 
