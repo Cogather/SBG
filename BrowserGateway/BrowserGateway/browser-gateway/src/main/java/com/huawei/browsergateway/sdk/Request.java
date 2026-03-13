@@ -57,16 +57,16 @@ public class Request {
          * @return 创建浏览器请求对象
          */
         public static CreateBrowser from(BrowserOptions options, String id) {
-            CreateBrowser request = new CreateBrowser();
-            request.setBrowserType(options.getBrowserType());
-            request.setExecutablePath(options.getExecutablePath());
-            request.setExtensionIds(options.getExtensionIds());
-            request.setExtensionPaths(options.getExtensionPaths());
-            request.setAllowlistedExtensionId(options.getAllowlistedExtensionId());
-            request.setBaseData(FileUtil.file(options.getBaseDataDir(), id).getAbsolutePath());
-            request.setHeadless(options.isHeadless());
-            request.setLanguage(options.getLanguage());
-            return request;
+            CreateBrowser req = new CreateBrowser();
+            req.setBrowserType(options.getBrowserType());
+            req.setExecutablePath(options.getExecutablePath());
+            req.setExtensionIds(options.getExtensionIds());
+            req.setExtensionPaths(options.getExtensionPaths());
+            req.setAllowlistedExtensionId(options.getAllowlistedExtensionId());
+            req.setBaseData(FileUtil.file(options.getBaseDataDir(), id).getAbsolutePath());
+            req.setHeadless(options.isHeadless());
+            req.setLanguage(options.getLanguage());
+            return req;
         }
     }
 
@@ -122,13 +122,13 @@ public class Request {
          * @return 创建上下文请求对象
          */
         public static CreateContext from(BrowserOptions options) {
-            CreateContext request = new CreateContext();
-            request.setUrl(options.getUrl());
-            request.setUserdata(options.getUserdata());
-            request.setViewport(options.getViewpoint());
-            request.setData(options.getRecordData());
-            request.setLanguage(options.getLanguage());
-            return request;
+            CreateContext req = new CreateContext();
+            req.setUrl(options.getUrl());
+            req.setUserdata(options.getUserdata());
+            req.setViewport(options.getViewpoint());
+            req.setData(options.getRecordData());
+            req.setLanguage(options.getLanguage());
+            return req;
         }
     }
 

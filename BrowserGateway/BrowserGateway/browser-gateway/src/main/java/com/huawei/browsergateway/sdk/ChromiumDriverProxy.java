@@ -27,8 +27,21 @@ import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.logging.Level;
 
+/**
+ * Chromium 驱动代理实现。
+ * 通过 CDP 服务提供与 Selenium 兼容的浏览器自动化接口。
+ * 多数 Selenium 原生方法不支持，将抛出 UnsupportedOperationException。
+ */
 public class ChromiumDriverProxy extends ChromiumDriver implements WebDriver.TargetLocator {
 
+    private static final Log log = LogFactory.get();
+    private static final String UNSUPPORTED_MESSAGE = "ChromiumDriverProxy 不支持该操作";
+    private static final String HISTORY_GO_SCRIPT = "window.history.go";
+    private static final String HISTORY_LENGTH_SCRIPT = "window.history.length";
+
+    /**
+     * 用于 Selenium 兼容的命令执行器代理。
+     */
     static class CommandExecutorProxy implements CommandExecutor {
         @Override
         public Response execute(Command command) {
@@ -36,25 +49,45 @@ public class ChromiumDriverProxy extends ChromiumDriver implements WebDriver.Tar
         }
     }
 
-    private static final Log log = LogFactory.get();
-
     private final BrowserDriver driver;
     private final DevToolsProxy devTools;
     private final WindowProxy webDriver;
 
+    /**
+     * 使用指定配置选项构造 ChromiumDriverProxy。
+     *
+     * @param options 浏览器配置选项
+     */
     public ChromiumDriverProxy(BrowserOptions options) {
         super(new CommandExecutorProxy(), new ChromeOptions(), "goog:chromeOptions");
-        driver = new BrowserDriver(options);
-        devTools = new DevToolsProxy(driver);
-        webDriver = new WindowProxy(driver);
+        this.driver = new BrowserDriver(options);
+        this.devTools = new DevToolsProxy(driver);
+        this.webDriver = new WindowProxy(driver);
     }
 
+    /**
+     * 获取代理的上下文 ID。
+     *
+     * @return 上下文 ID
+     */
     public String getProxyContextId() {
         return driver.getContext().getId();
     }
 
+    /**
+     * 保存当前上下文的用户数据。
+     */
     public void saveUserdata() {
         driver.saveUserdata();
+    }
+
+    /**
+     * 使用标准消息抛出 UnsupportedOperationException。
+     *
+     * @throws UnsupportedOperationException 始终抛出
+     */
+    private void throwUnsupported() {
+        throw new UnsupportedOperationException(UNSUPPORTED_MESSAGE);
     }
 
     @Override
@@ -68,34 +101,47 @@ public class ChromiumDriverProxy extends ChromiumDriver implements WebDriver.Tar
         return driver.getContext().getCurrent();
     }
 
+    /**
+     * 在当前页面执行 JavaScript。
+     * 处理历史记录相关操作的特殊情况。
+     *
+     * @param script JavaScript 代码
+     * @param args   脚本参数
+     * @return 执行结果
+     */
     @Override
     public Object executeScript(String script, Object... args) {
-        log.info("chromium proxy execute script: {}", script);
-        if (StrUtil.contains(script,"window.history.go")) {
-            // fallback操作手动执行
-            driver.gotoUrl("about:blank");
-            driver.executeCdp("Page.resetNavigationHistory", Map.of());
+        log.info("执行脚本: {}", script);
+
+        if (StrUtil.contains(script, HISTORY_GO_SCRIPT)) {
+            handleHistoryGoScript();
             return null;
         }
 
-        if (StrUtil.contains(script, "window.history.length")) {
+        if (StrUtil.contains(script, HISTORY_LENGTH_SCRIPT)) {
             return 2L;
         }
+
         return driver.executeScript(script);
     }
 
+    /**
+     * 通过重置导航历史处理 window.history.go() 脚本。
+     */
+    private void handleHistoryGoScript() {
+        driver.gotoUrl("about:blank");
+        driver.executeCdp("Page.resetNavigationHistory", Map.of());
+    }
 
     @Override
     public void get(String url) {
         driver.gotoUrl(url);
     }
 
-
     @Override
     public void quit() {
         driver.close();
     }
-
 
     @Override
     public Options manage() {
@@ -107,279 +153,60 @@ public class ChromiumDriverProxy extends ChromiumDriver implements WebDriver.Tar
         return driver.executeCdp(commandName, parameters);
     }
 
-
     @Override
     public String getCurrentUrl() {
         return driver.getCurrentUrl();
     }
 
-
-    // 关闭当前页面
     @Override
     public void close() {
         driver.closeCurrentPage();
     }
-
 
     @Override
     public TargetLocator switchTo() {
         return this;
     }
 
-
     @Override
     public WebDriver window(String nameOrHandle) {
-        log.info("ignore switch to window: {}", nameOrHandle);
+        log.info("忽略切换到窗口: {}", nameOrHandle);
         return this;
     }
 
-
     @Override
     public void perform(Collection<Sequence> actions) {
-        log.info("ignore perform: {}", actions);
+        log.info("忽略 perform: {}", actions);
     }
 
-
-    /***************************************************selenium 原生******************************************************/
-
-    @Override
-    public WebDriver frame(int index) {
-        throw new UnsupportedOperationException("chromium proxy is not support");
-    }
-
-    @Override
-    public WebDriver frame(String nameOrId) {
-        throw new UnsupportedOperationException("chromium proxy is not support");
-    }
-
-    @Override
-    public WebDriver frame(WebElement frameElement) {
-        throw new UnsupportedOperationException("chromium proxy is not support");
-    }
-
-    @Override
-    public WebDriver parentFrame() {
-        throw new UnsupportedOperationException("chromium proxy is not support");
-    }
-
-
-    @Override
-    public WebDriver newWindow(WindowType typeHint) {
-        throw new UnsupportedOperationException("chromium proxy is not support");
-    }
-
-    @Override
-    public WebDriver defaultContent() {
-        throw new UnsupportedOperationException("chromium proxy is not support");
-    }
-
-    @Override
-    public WebElement activeElement() {
-        throw new UnsupportedOperationException("chromium proxy is not support");
-    }
-
-    @Override
-    public Alert alert() {
-        throw new UnsupportedOperationException("chromium proxy is not support");
-    }
-
-    @Override
-    public ScriptKey pin(String script) {
-        throw new UnsupportedOperationException("chromium proxy is not support");
-    }
-
-    @Override
-    public Set<ScriptKey> getPinnedScripts() {
-        throw new UnsupportedOperationException("chromium proxy is not support");
-    }
-
-    @Override
-    public void unpin(ScriptKey key) {
-        throw new UnsupportedOperationException("chromium proxy is not support");
-    }
-
-    @Override
-    public Object executeScript(ScriptKey key, Object... args) {
-        throw new UnsupportedOperationException("chromium proxy is not support");
-    }
-
-    @Override
-    public void setFileDetector(FileDetector detector) {
-        throw new UnsupportedOperationException("chromium proxy is not support");
-    }
-
-    @Override
-    public <X> void onLogEvent(EventType<X> kind) {
-        throw new UnsupportedOperationException("chromium proxy is not support");
-    }
-
-    @Override
-    public void register(Predicate<URI> whenThisMatches, Supplier<Credentials> useTheseCredentials) {
-        throw new UnsupportedOperationException("chromium proxy is not support");
-    }
-
-    @Override
-    public void launchApp(String id) {
-        throw new UnsupportedOperationException("chromium proxy is not support");
-    }
-
-    @Override
-    public Optional<BiDi> maybeGetBiDi() {
-        throw new UnsupportedOperationException("chromium proxy is not support");
-    }
-
-    @Override
-    public List<Map<String, String>> getCastSinks() {
-        throw new UnsupportedOperationException("chromium proxy is not support");
-    }
-
-    @Override
-    public String getCastIssueMessage() {
-        throw new UnsupportedOperationException("chromium proxy is not support");
-    }
-
-    @Override
-    public void selectCastSink(String deviceName) {
-        throw new UnsupportedOperationException("chromium proxy is not support");
-    }
-
-    @Override
-    public void startDesktopMirroring(String deviceName) {
-        throw new UnsupportedOperationException("chromium proxy is not support");
-    }
-
-    @Override
-    public void startTabMirroring(String deviceName) {
-        throw new UnsupportedOperationException("chromium proxy is not support");
-    }
-
-    @Override
-    public void stopCasting(String deviceName) {
-        throw new UnsupportedOperationException("chromium proxy is not support");
-    }
-
-    @Override
-    public void setPermission(String name, String value) {
-        throw new UnsupportedOperationException("chromium proxy is not support");
-    }
-
-    @Override
-    public ChromiumNetworkConditions getNetworkConditions() {
-        throw new UnsupportedOperationException("chromium proxy is not support");
-    }
-
-    @Override
-    public void setNetworkConditions(ChromiumNetworkConditions networkConditions) {
-        throw new UnsupportedOperationException("chromium proxy is not support");
-    }
-
-    @Override
-    public void deleteNetworkConditions() {
-        throw new UnsupportedOperationException("chromium proxy is not support");
-    }
-
-    @Override
-    public void register(Supplier<Credentials> alwaysUseTheseCredentials) {
-        throw new UnsupportedOperationException("chromium proxy is not support");
-    }
-
-    @Override
-    public BiDi getBiDi() {
-        throw new UnsupportedOperationException("chromium proxy is not support");
-    }
-
-    @Override
-    public SessionId getSessionId() {
-        throw new UnsupportedOperationException("chromium proxy is not support");
-    }
-
-    @Override
-    protected void setSessionId(String opaqueKey) {
-        throw new UnsupportedOperationException("chromium proxy is not support");
-    }
-
-    @Override
-    protected void startSession(Capabilities capabilities) {
-
-    }
-
-    @Override
-    public ErrorHandler getErrorHandler() {
-        throw new UnsupportedOperationException("chromium proxy is not support");
-    }
-
-    @Override
-    public void setErrorHandler(ErrorHandler handler) {
-        throw new UnsupportedOperationException("chromium proxy is not support");
-    }
-
-    @Override
-    public CommandExecutor getCommandExecutor() {
-        throw new UnsupportedOperationException("chromium proxy is not support");
-    }
-
-    @Override
-    protected void setCommandExecutor(CommandExecutor executor) {
-        throw new UnsupportedOperationException("chromium proxy is not support");
-    }
-
-    @Override
-    public String getTitle() {
-        throw new UnsupportedOperationException("chromium proxy is not support");
-    }
-
-    @Override
-    public <X> X getScreenshotAs(OutputType<X> outputType) throws WebDriverException {
-        throw new UnsupportedOperationException("chromium proxy is not support");
-    }
-
-    @Override
-    public Pdf print(PrintOptions printOptions) throws WebDriverException {
-        throw new UnsupportedOperationException("chromium proxy is not support");
-    }
-
+    /**
+     * 根据定位器查找元素。
+     * 仅支持 By.ByTagName 定位器。
+     *
+     * @param locator 元素定位器
+     * @return WebElement 实例
+     * @throws UnsupportedOperationException 定位器类型不支持时抛出
+     */
     @Override
     public WebElement findElement(By locator) {
         if (locator instanceof By.ByTagName) {
-            //By.ByTagName类中，字段tagName私有无法直接获取，从toString结果中提取。
-            String prefix = "By.tagName: ";
-            String  tagName = locator.toString().substring(prefix.length());
+            String tagName = extractTagName(locator);
             return driver.findElementByTagName(tagName);
         }
-        throw new UnsupportedOperationException("chromium proxy is not support");
+        throwUnsupported();
+        return null;
     }
 
-    @Override
-    public List<WebElement> findElements(By locator) {
-        throw new UnsupportedOperationException("chromium proxy is not support");
+    /**
+     * 从 By.ByTagName 定位器中提取标签名。
+     *
+     * @param locator By.ByTagName 定位器
+     * @return 标签名字符串
+     */
+    private String extractTagName(By locator) {
+        String prefix = "By.tagName: ";
+        return locator.toString().substring(prefix.length());
     }
-
-    @Override
-    public List<WebElement> findElements(SearchContext context, BiFunction<String, Object, CommandPayload> findCommand, By locator) {
-        throw new UnsupportedOperationException("chromium proxy is not support");
-    }
-
-    @Override
-    protected void setFoundBy(SearchContext context, WebElement element, String by, String using) {
-        throw new UnsupportedOperationException("chromium proxy is not support");
-    }
-
-    @Override
-    public String getPageSource() {
-        throw new UnsupportedOperationException("chromium proxy is not support");
-    }
-
-    @Override
-    @Nonnull
-    public Set<String> getWindowHandles() {
-        throw new UnsupportedOperationException("chromium proxy is not support");
-    }
-
-    @Override
-    public Object executeAsyncScript(String script, Object... args) {
-        throw new UnsupportedOperationException("chromium proxy is not support");
-    }
-
 
     @Override
     public Navigation navigate() {
@@ -387,107 +214,372 @@ public class ChromiumDriverProxy extends ChromiumDriver implements WebDriver.Tar
     }
 
     @Override
+    public String toString() {
+        return "ChromiumDriverProxy";
+    }
+
+    // Selenium 原生方法 - 不支持
+
+    @Override
+    public WebDriver frame(int index) {
+        throwUnsupported();
+        return null;
+    }
+
+    @Override
+    public WebDriver frame(String nameOrId) {
+        throwUnsupported();
+        return null;
+    }
+
+    @Override
+    public WebDriver frame(WebElement frameElement) {
+        throwUnsupported();
+        return null;
+    }
+
+    @Override
+    public WebDriver parentFrame() {
+        throwUnsupported();
+        return null;
+    }
+
+    @Override
+    public WebDriver newWindow(WindowType typeHint) {
+        throwUnsupported();
+        return null;
+    }
+
+    @Override
+    public WebDriver defaultContent() {
+        throwUnsupported();
+        return null;
+    }
+
+    @Override
+    public WebElement activeElement() {
+        throwUnsupported();
+        return null;
+    }
+
+    @Override
+    public Alert alert() {
+        throwUnsupported();
+        return null;
+    }
+
+    @Override
+    public ScriptKey pin(String script) {
+        throwUnsupported();
+        return null;
+    }
+
+    @Override
+    public Set<ScriptKey> getPinnedScripts() {
+        throwUnsupported();
+        return null;
+    }
+
+    @Override
+    public void unpin(ScriptKey key) {
+        throwUnsupported();
+    }
+
+    @Override
+    public Object executeScript(ScriptKey key, Object... args) {
+        throwUnsupported();
+        return null;
+    }
+
+    @Override
+    public void setFileDetector(FileDetector detector) {
+        throwUnsupported();
+    }
+
+    @Override
+    public <X> void onLogEvent(EventType<X> kind) {
+        throwUnsupported();
+    }
+
+    @Override
+    public void register(Predicate<URI> whenThisMatches, Supplier<Credentials> useTheseCredentials) {
+        throwUnsupported();
+    }
+
+    @Override
+    public void launchApp(String id) {
+        throwUnsupported();
+    }
+
+    @Override
+    public Optional<BiDi> maybeGetBiDi() {
+        throwUnsupported();
+        return Optional.empty();
+    }
+
+    @Override
+    public List<Map<String, String>> getCastSinks() {
+        throwUnsupported();
+        return null;
+    }
+
+    @Override
+    public String getCastIssueMessage() {
+        throwUnsupported();
+        return null;
+    }
+
+    @Override
+    public void selectCastSink(String deviceName) {
+        throwUnsupported();
+    }
+
+    @Override
+    public void startDesktopMirroring(String deviceName) {
+        throwUnsupported();
+    }
+
+    @Override
+    public void startTabMirroring(String deviceName) {
+        throwUnsupported();
+    }
+
+    @Override
+    public void stopCasting(String deviceName) {
+        throwUnsupported();
+    }
+
+    @Override
+    public void setPermission(String name, String value) {
+        throwUnsupported();
+    }
+
+    @Override
+    public ChromiumNetworkConditions getNetworkConditions() {
+        throwUnsupported();
+        return null;
+    }
+
+    @Override
+    public void setNetworkConditions(ChromiumNetworkConditions networkConditions) {
+        throwUnsupported();
+    }
+
+    @Override
+    public void deleteNetworkConditions() {
+        throwUnsupported();
+    }
+
+    @Override
+    public void register(Supplier<Credentials> alwaysUseTheseCredentials) {
+        throwUnsupported();
+    }
+
+    @Override
+    public BiDi getBiDi() {
+        throwUnsupported();
+        return null;
+    }
+
+    @Override
+    public SessionId getSessionId() {
+        throwUnsupported();
+        return null;
+    }
+
+    @Override
+    protected void setSessionId(String opaqueKey) {
+        throwUnsupported();
+    }
+
+    @Override
+    protected void startSession(Capabilities capabilities) {
+        // 空实现，用于兼容
+    }
+
+    @Override
+    public ErrorHandler getErrorHandler() {
+        throwUnsupported();
+        return null;
+    }
+
+    @Override
+    public void setErrorHandler(ErrorHandler handler) {
+        throwUnsupported();
+    }
+
+    @Override
+    public CommandExecutor getCommandExecutor() {
+        throwUnsupported();
+        return null;
+    }
+
+    @Override
+    protected void setCommandExecutor(CommandExecutor executor) {
+        throwUnsupported();
+    }
+
+    @Override
+    public String getTitle() {
+        throwUnsupported();
+        return null;
+    }
+
+    @Override
+    public <X> X getScreenshotAs(OutputType<X> outputType) throws WebDriverException {
+        throwUnsupported();
+        return null;
+    }
+
+    @Override
+    public Pdf print(PrintOptions printOptions) throws WebDriverException {
+        throwUnsupported();
+        return null;
+    }
+
+    @Override
+    public List<WebElement> findElements(By locator) {
+        throwUnsupported();
+        return null;
+    }
+
+    @Override
+    public List<WebElement> findElements(SearchContext context, BiFunction<String, Object, CommandPayload> findCommand, By locator) {
+        throwUnsupported();
+        return null;
+    }
+
+    @Override
+    protected void setFoundBy(SearchContext context, WebElement element, String by, String using) {
+        throwUnsupported();
+    }
+
+    @Override
+    public String getPageSource() {
+        throwUnsupported();
+        return null;
+    }
+
+    @Override
+    @Nonnull
+    public Set<String> getWindowHandles() {
+        throwUnsupported();
+        return null;
+    }
+
+    @Override
+    public Object executeAsyncScript(String script, Object... args) {
+        throwUnsupported();
+        return null;
+    }
+
+    @Override
     public Script script() {
-        throw new UnsupportedOperationException("chromium proxy is not support");
+        throwUnsupported();
+        return null;
     }
 
     @Override
     public Network network() {
-        throw new UnsupportedOperationException("chromium proxy is not support");
+        throwUnsupported();
+        return null;
     }
 
     @Override
     protected JsonToWebElementConverter getElementConverter() {
-        throw new UnsupportedOperationException("chromium proxy is not support");
+        throwUnsupported();
+        return null;
     }
 
     @Override
     protected void setElementConverter(JsonToWebElementConverter converter) {
-        throw new UnsupportedOperationException("chromium proxy is not support");
+        throwUnsupported();
     }
 
     @Override
     public void setLogLevel(Level level) {
-        throw new UnsupportedOperationException("chromium proxy is not support");
+        throwUnsupported();
     }
 
     @Override
     protected Response execute(CommandPayload payload) {
-        throw new UnsupportedOperationException("chromium proxy is not support");
+        throwUnsupported();
+        return null;
     }
 
     @Override
     protected Response execute(String driverCommand, Map<String, ?> parameters) {
-        throw new UnsupportedOperationException("chromium proxy is not support");
+        throwUnsupported();
+        return null;
     }
 
     @Override
     protected Response execute(String command) {
-        throw new UnsupportedOperationException("chromium proxy is not support");
+        throwUnsupported();
+        return null;
     }
 
     @Override
     public void resetInputState() {
-        throw new UnsupportedOperationException("chromium proxy is not support");
+        throwUnsupported();
     }
 
     @Override
     public VirtualAuthenticator addVirtualAuthenticator(VirtualAuthenticatorOptions options) {
-        throw new UnsupportedOperationException("chromium proxy is not support");
+        throwUnsupported();
+        return null;
     }
 
     @Override
     public void removeVirtualAuthenticator(VirtualAuthenticator authenticator) {
-        throw new UnsupportedOperationException("chromium proxy is not support");
+        throwUnsupported();
     }
 
     @Override
     public List<String> getDownloadableFiles() {
-        throw new UnsupportedOperationException("chromium proxy is not support");
+        throwUnsupported();
+        return null;
     }
 
     @Override
     public void downloadFile(String fileName, Path targetLocation) throws IOException {
-        throw new UnsupportedOperationException("chromium proxy is not support");
+        throwUnsupported();
     }
 
     @Override
     public void deleteDownloadableFiles() {
-        throw new UnsupportedOperationException("chromium proxy is not support");
+        throwUnsupported();
     }
 
     @Override
     public void setDelayEnabled(boolean enabled) {
-        throw new UnsupportedOperationException("chromium proxy is not support");
+        throwUnsupported();
     }
 
     @Override
     public void resetCooldown() {
-        throw new UnsupportedOperationException("chromium proxy is not support");
+        throwUnsupported();
     }
 
     @Override
     public FederatedCredentialManagementDialog getFederatedCredentialManagementDialog() {
-        throw new UnsupportedOperationException("chromium proxy is not support");
+        throwUnsupported();
+        return null;
     }
 
     @Override
     protected void log(SessionId sessionId, String commandName, Object toLog, When when) {
-        throw new UnsupportedOperationException("chromium proxy is not support");
+        throwUnsupported();
     }
 
     @Override
     public FileDetector getFileDetector() {
-        throw new UnsupportedOperationException("chromium proxy is not support");
-    }
-
-    @Override
-    public String toString() {
-        return "";
+        throwUnsupported();
+        return null;
     }
 
     @Override
     public void requireDownloadsEnabled(Capabilities capabilities) {
-        throw new UnsupportedOperationException("chromium proxy is not support");
+        throwUnsupported();
     }
 }
