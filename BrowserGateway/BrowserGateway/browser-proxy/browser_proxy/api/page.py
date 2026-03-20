@@ -1,8 +1,11 @@
 import asyncio
 import base64
+import json
+import re
 
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import Response
+from playwright.async_api import JSHandle
 
 from .common import ElementWrapper, PageWrapper, browser_get
 from .logger_config import logger
@@ -11,247 +14,314 @@ router = APIRouter()
 
 PREFIX = "/browsers/{browser_id}/contexts/{context_id}"
 
-
-def _get_ctx(browser_id: str, context_id: str):
-    try:
-        browser = browser_get(browser_id)
-    except KeyError:
-        raise HTTPException(status_code=404, detail=f"Browser {browser_id} not found")
-    try:
-        return browser.get_context(context_id)
-    except KeyError:
-        raise HTTPException(status_code=404, detail=f"Context {context_id} not found")
+ELEMENT_JSON = 'ref: <Node>'
+FOCUS_ELEMENT = 'focusElement'
 
 
-# Task 21: POST .../pages — create new page
-@router.post(PREFIX + "/pages")
-async def create_page(browser_id: str, context_id: str, request: Request):
-    ctx = _get_ctx(browser_id, context_id)
-    try:
-        body = await request.json()
-        url = body.get("url")
-        page = await ctx.context.new_page()
-        page_wrapper = PageWrapper(
-            page=page,
-            browser_id=browser_id,
-            context_id=context_id,
-        )
-        ctx.append_page(page_wrapper)
-        if url:
-            await page.goto(url)
-        logger.info(f"Created page {page_wrapper.id} in context {context_id}")
-        return ctx.to_json()
-    except Exception as e:
-        logger.error(f"Failed to create page: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+async def handle_element_node(js_handler: JSHandle, page: PageWrapper, key=None):
+    if key is None:
+        element_p = js_handler.as_element()
+    else:
+        handler_p = await js_handler.get_property(key)
+        element_p = handler_p.as_element()
+    element = ElementWrapper(element_p)
+    ret = await element.as_json()
+    if key == FOCUS_ELEMENT:
+        await element_p.focus()
+        await element.close()
+    else:
+        page.set_element(element)
+    return ret
 
 
-# Task 22: POST .../pages/goto — navigate current page
 @router.post(PREFIX + "/pages/goto")
-async def goto(browser_id: str, context_id: str, request: Request):
-    ctx = _get_ctx(browser_id, context_id)
+async def goto_page(request: Request):
     try:
-        body = await request.json()
-        url = body["url"]
-        page = ctx.current
-        if page is None:
-            raise HTTPException(status_code=400, detail="No current page")
-        await page.page.goto(url)
-        return ctx.to_json()
+        browser_id = request.path_params.get('browser_id')
+        context_id = request.path_params.get('context_id')
+        browser = browser_get(browser_id)
+        context = browser.get_context(context_id)
+
+        request_body = await request.json()
+        url = request_body.get('url')
+
+        page_p = context.current.page
+        await page_p.goto(url)
+        return context.as_json()
     except HTTPException:
         raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    except Exception as error:
+        logger.error(str(error))
+        raise HTTPException(status_code=500, detail=str(error))
 
 
-# Task 23: POST .../pages/execute — execute JS
-@router.post(PREFIX + "/pages/execute")
-async def execute(browser_id: str, context_id: str, request: Request):
-    ctx = _get_ctx(browser_id, context_id)
-    try:
-        body = await request.json()
-        expression = body["expression"]
-        page = ctx.current
-        if page is None:
-            raise HTTPException(status_code=400, detail="No current page")
-        result = await page.page.evaluate(expression)
-        if result is None:
-            return {"result_type": "none", "value": None}
-        if isinstance(result, bool):
-            return {"result_type": "bool", "value": result}
-        if isinstance(result, int):
-            return {"result_type": "int", "value": result}
-        if isinstance(result, float):
-            return {"result_type": "float", "value": result}
-        if isinstance(result, str):
-            return {"result_type": "string", "value": result}
-        if isinstance(result, dict):
-            # Check if it looks like an element handle (has nodeType etc.) — treat as dict
-            return {"result_type": "dict", "value": result}
-        if isinstance(result, list):
-            return {"result_type": "list", "value": result}
-        # Fallback
-        return {"result_type": "string", "value": str(result)}
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-# Task 24: POST .../pages/execute_cdp — execute CDP command
 @router.post(PREFIX + "/pages/execute_cdp")
-async def execute_cdp(browser_id: str, context_id: str, request: Request):
-    ctx = _get_ctx(browser_id, context_id)
+async def pages_execute_cdp(request: Request):
     try:
-        page = ctx.current
-        if page is None:
-            raise HTTPException(status_code=400, detail="No current page")
-        if page.cdp_session is None:
-            raise HTTPException(status_code=500, detail="CDP session not supported")
-        body = await request.json()
-        method = body["method"]
-        params = body.get("params", {})
-        result = await page.cdp_session.send(method, params)
+        browser_id = request.path_params.get('browser_id')
+        context_id = request.path_params.get('context_id')
+
+        browser = browser_get(browser_id)
+        context = browser.get_context(context_id)
+
+        request_body = await request.json()
+        method = request_body.get('method')
+        params = request_body.get('params')
+
+        result = await context.current.cdp_session.send(method, params)
         return result
     except HTTPException:
         raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    except Exception as error:
+        logger.error(str(error))
+        raise HTTPException(status_code=500, detail=str(error))
 
 
-# Task 25: POST .../pages/find_element — find element by CSS selector
-@router.post(PREFIX + "/pages/find_element")
-async def find_element(browser_id: str, context_id: str, request: Request):
-    ctx = _get_ctx(browser_id, context_id)
+@router.post(PREFIX + "/pages/execute")
+async def pages_execute(request: Request):
     try:
-        body = await request.json()
-        selector = body["selector"]
-        page = ctx.current
-        if page is None:
-            raise HTTPException(status_code=400, detail="No current page")
-        locator = page.page.locator(selector).first
-        count = await page.page.locator(selector).count()
-        if count == 0:
-            return {"result_type": "none", "value": None}
-        preview = await locator.evaluate("el => el.outerHTML")
-        elem = ElementWrapper(element=locator, preview=preview)
-        page.set_element(elem)
-        return {"result_type": "element", "value": elem.to_json()}
+        browser_id = request.path_params.get('browser_id')
+        context_id = request.path_params.get('context_id')
+
+        request_body = await request.json()
+        expression = request_body.get('expression')
+        formatted_expression = f"() => {{{expression}}}"
+        if 'await' in expression:
+            formatted_expression = f"(async () => {{{expression}}})()"
+        browser = browser_get(browser_id)
+        context = browser.get_context(context_id)
+        js_handler = await context.current.page.evaluate_handle(formatted_expression)
+        eva_result = await js_handler.json_value()
+
+        if eva_result is None and 'activeElement' in expression:
+            js_handler = await context.current.page.evaluate_handle('() => document.activeElement')
+            await js_handler.evaluate('(e) => console.log(e)')
+            eva_result = await js_handler.json_value()
+
+        if isinstance(eva_result, str):
+            if eva_result == ELEMENT_JSON:
+                eva_result = await handle_element_node(js_handler, context.current)
+                return {
+                    'result_type': 'element',
+                    'value': json.dumps(eva_result)
+                }
+            return {
+                'result_type': 'string',
+                'value': eva_result
+            }
+        elif isinstance(eva_result, int):
+            return {
+                'result_type': 'int',
+                'value': eva_result
+            }
+        elif eva_result is None:
+            return {
+                'result_type': 'none',
+                'value': eva_result,
+            }
+        elif isinstance(eva_result, dict):
+            element_keys = []
+            for key in eva_result.keys():
+                if eva_result[key] == ELEMENT_JSON:
+                    eva_result[key] = await handle_element_node(js_handler, context.current, key=key)
+                    element_keys.append(key)
+            return {
+                'result_type': 'dict',
+                'element_keys': element_keys,
+                'value': json.dumps(eva_result),
+            }
+        raise HTTPException(status_code=500, detail='eva_result type is not supported')
     except HTTPException:
         raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    except Exception as error:
+        if "Execution context was destroyed" in str(error):
+            return {'result_type': 'none'}
+        if "is not a function" in str(error):
+            logger.warning("function not match")
+            return {'result_type': 'none'}
+        logger.error(str(error))
+        raise HTTPException(status_code=500, detail=str(error))
 
 
-# Task 26: POST .../pages/element — element actions
-@router.post(PREFIX + "/pages/element", status_code=204)
-async def element_action(browser_id: str, context_id: str, request: Request):
-    ctx = _get_ctx(browser_id, context_id)
+@router.post(PREFIX + "/pages/element")
+async def pages_element(request: Request):
     try:
-        body = await request.json()
-        element_id = body["element_id"]
-        action = body["action"]
-        value = body.get("value")
-        page = ctx.current
-        if page is None:
-            raise HTTPException(status_code=400, detail="No current page")
-        elem = page.get_element(element_id)
-        if action == "send_key":
-            await elem.element.fill(value or "")
-        elif action == "set_file":
-            await elem.element.set_input_files(value)
-        elif action == "focus":
-            await elem.element.focus()
+        browser_id = request.path_params.get('browser_id')
+        context_id = request.path_params.get('context_id')
+        browser = browser_get(browser_id)
+        context = browser.get_context(context_id)
+
+        request_body = await request.json()
+        element_id = request_body.get('element_id')
+        action = request_body.get('action')
+        value = request_body.get('value')
+        value = re.sub(r'\x00+', '', value)
+        element = context.current.get_element(element_id)
+        await element.element.focus()
+        if action == 'send_key':
+            await element.element.fill(value)
+        elif action == 'set_file':
+            await element.element.set_input_files(value)
+        elif action == 'focus':
+            pass
         else:
-            raise HTTPException(status_code=400, detail=f"Unknown action: {action}")
-        return Response(status_code=204)
+            raise HTTPException(status_code=500, detail='element action is not supported')
+        await element.close()
+        context.current.del_element(element_id)
     except HTTPException:
         raise
-    except KeyError:
-        raise HTTPException(status_code=404, detail="Element not found")
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    except Exception as error:
+        logger.error(str(error))
+        raise HTTPException(status_code=500, detail=str(error))
 
 
-# Task 27: POST .../pages/element/{element_id}/get_size — get element size
+@router.post(PREFIX + "/pages")
+async def new_page(request: Request):
+    try:
+        browser_id = request.path_params.get('browser_id')
+        context_id = request.path_params.get('context_id')
+        browser = browser_get(browser_id)
+        context = browser.get_context(context_id)
+
+        request_body = await request.json()
+        url = request_body.get('url')
+
+        context_p = context.context
+        page_p = await context_p.new_page()
+        await page_p.goto(url)
+        page = PageWrapper(page_p, browser_id, context_id)
+        context.append_page(page)
+
+        return context.as_json()
+    except HTTPException:
+        raise
+    except Exception as error:
+        logger.error(str(error))
+        raise HTTPException(status_code=500, detail=str(error))
+
+
+@router.delete(PREFIX + "/pages/{page_id}")
+async def del_pages(request: Request):
+    try:
+        browser_id = request.path_params.get('browser_id')
+        context_id = request.path_params.get('context_id')
+        page_id = request.path_params.get('page_id')
+
+        browser = browser_get(browser_id)
+        context = browser.get_context(context_id)
+        if len(context.pages) == 1:
+            raise HTTPException(status_code=500, detail='only one page is not supported')
+        page = context.get_page(page_id)
+        await page.close()
+        context.remove_page(page)
+        await context.current.page.bring_to_front()
+        return context.as_json()
+    except HTTPException:
+        raise
+    except Exception as error:
+        logger.error(str(error))
+        raise HTTPException(status_code=500, detail=str(error))
+
+
+@router.post(PREFIX + "/pages/go_back")
+async def go_back(request: Request):
+    try:
+        browser_id = request.path_params.get('browser_id')
+        context_id = request.path_params.get('context_id')
+
+        browser = browser_get(browser_id)
+        context = browser.get_context(context_id)
+        await context.current.page.go_back()
+    except HTTPException:
+        raise
+    except Exception as error:
+        logger.error(str(error))
+        raise HTTPException(status_code=500, detail=str(error))
+
+
+@router.post(PREFIX + "/pages/go_forward")
+async def go_forward(request: Request):
+    try:
+        browser_id = request.path_params.get('browser_id')
+        context_id = request.path_params.get('context_id')
+
+        browser = browser_get(browser_id)
+        context = browser.get_context(context_id)
+        await context.current.page.go_forward()
+    except HTTPException:
+        raise
+    except Exception as error:
+        logger.error(str(error))
+        raise HTTPException(status_code=500, detail=str(error))
+
+
+@router.post(PREFIX + "/pages/find_element")
+async def find_element(request: Request):
+    try:
+        browser_id = request.path_params.get('browser_id')
+        context_id = request.path_params.get('context_id')
+        request_body = await request.json()
+        selector = request_body.get('selector')
+
+        browser = browser_get(browser_id)
+        context = browser.get_context(context_id)
+        page = context.current.page
+        element_handle = await page.query_selector(selector)
+        ele_result = await handle_element_node(element_handle, context.current)
+        return {
+            'result_type': 'element',
+            'value': json.dumps(ele_result)
+        }
+    except HTTPException:
+        raise
+    except Exception as error:
+        logger.error(str(error))
+        raise HTTPException(status_code=500, detail=str(error))
+
+
 @router.post(PREFIX + "/pages/element/{element_id}/get_size")
-async def get_element_size(browser_id: str, context_id: str, element_id: str):
-    ctx = _get_ctx(browser_id, context_id)
+async def pages_get_size(request: Request):
     try:
-        page = ctx.current
-        if page is None:
-            raise HTTPException(status_code=400, detail="No current page")
-        elem = page.get_element(element_id)
-        box = await elem.element.bounding_box()
-        if box is None:
-            raise HTTPException(status_code=404, detail="Element has no bounding box")
-        return {"width": int(box["width"]), "height": int(box["height"])}
+        browser_id = request.path_params.get('browser_id')
+        context_id = request.path_params.get('context_id')
+        element_id = request.path_params.get('element_id')
+
+        browser = browser_get(browser_id)
+        context = browser.get_context(context_id)
+        element = context.current.get_element(element_id)
+
+        ele_info = await element.element.bounding_box()
+        if ele_info is None:
+            raise HTTPException(status_code=500, detail='element is not visible')
+        width = ele_info['width']
+        height = ele_info['height']
+        await element.close()
+        context.current.del_element(element_id)
+        return {
+            "width": width,
+            "height": height
+        }
     except HTTPException:
         raise
-    except KeyError:
-        raise HTTPException(status_code=404, detail="Element not found")
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    except Exception as error:
+        logger.error(str(error))
+        raise HTTPException(status_code=500, detail=str(error))
 
 
-# Task 28: DELETE .../pages/{page_id} — close page
-@router.delete(PREFIX + "/pages/{page_id}", status_code=204)
-async def delete_page(browser_id: str, context_id: str, page_id: str):
-    ctx = _get_ctx(browser_id, context_id)
-    try:
-        page = ctx.get_page(page_id)
-        await page.page.close()
-        ctx.remove_page(page)
-        return Response(status_code=204)
-    except KeyError:
-        raise HTTPException(status_code=404, detail=f"Page {page_id} not found")
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-# Task 29: POST .../pages/go_back and go_forward
-@router.post(PREFIX + "/pages/go_back", status_code=204)
-async def go_back(browser_id: str, context_id: str):
-    ctx = _get_ctx(browser_id, context_id)
-    try:
-        page = ctx.current
-        if page is None:
-            raise HTTPException(status_code=400, detail="No current page")
-        await page.page.go_back()
-        return Response(status_code=204)
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@router.post(PREFIX + "/pages/go_forward", status_code=204)
-async def go_forward(browser_id: str, context_id: str):
-    ctx = _get_ctx(browser_id, context_id)
-    try:
-        page = ctx.current
-        if page is None:
-            raise HTTPException(status_code=400, detail="No current page")
-        await page.page.go_forward()
-        return Response(status_code=204)
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-# Task 30: POST .../pages/screenshot — screenshot as base64 PNG
 @router.post(PREFIX + "/pages/screenshot")
-async def screenshot(browser_id: str, context_id: str, request: Request):
-    ctx = _get_ctx(browser_id, context_id)
+async def screenshot(request: Request):
     try:
+        browser_id = request.path_params.get('browser_id')
+        context_id = request.path_params.get('context_id')
+        browser = browser_get(browser_id)
+        context = browser.get_context(context_id)
         body = {}
         try:
             body = await request.json()
         except Exception:
             pass
         full_page = body.get("full_page", False)
-        page = ctx.current
+        page = context.current
         if page is None:
             raise HTTPException(status_code=400, detail="No current page")
         png_bytes = await page.page.screenshot(full_page=full_page)
@@ -262,17 +332,19 @@ async def screenshot(browser_id: str, context_id: str, request: Request):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-# Task 31: POST .../pages/scroll — scroll page
 @router.post(PREFIX + "/pages/scroll", status_code=204)
-async def scroll(browser_id: str, context_id: str, request: Request):
-    ctx = _get_ctx(browser_id, context_id)
+async def scroll(request: Request):
     try:
+        browser_id = request.path_params.get('browser_id')
+        context_id = request.path_params.get('context_id')
+        browser = browser_get(browser_id)
+        context = browser.get_context(context_id)
         body = await request.json()
         x = body["x"]
         y = body["y"]
         delta_x = body["delta_x"]
         delta_y = body["delta_y"]
-        page = ctx.current
+        page = context.current
         if page is None:
             raise HTTPException(status_code=400, detail="No current page")
         await page.page.mouse.wheel(delta_x, delta_y)
@@ -283,15 +355,17 @@ async def scroll(browser_id: str, context_id: str, request: Request):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-# Task 32: Touch operations via CDP
 @router.post(PREFIX + "/pages/tap", status_code=204)
-async def tap(browser_id: str, context_id: str, request: Request):
-    ctx = _get_ctx(browser_id, context_id)
+async def tap(request: Request):
     try:
+        browser_id = request.path_params.get('browser_id')
+        context_id = request.path_params.get('context_id')
+        browser = browser_get(browser_id)
+        context = browser.get_context(context_id)
         body = await request.json()
         x = body["x"]
         y = body["y"]
-        page = ctx.current
+        page = context.current
         if page is None:
             raise HTTPException(status_code=400, detail="No current page")
         if page.cdp_session is None:
@@ -312,16 +386,19 @@ async def tap(browser_id: str, context_id: str, request: Request):
 
 
 @router.post(PREFIX + "/pages/swipe", status_code=204)
-async def swipe(browser_id: str, context_id: str, request: Request):
-    ctx = _get_ctx(browser_id, context_id)
+async def swipe(request: Request):
     try:
+        browser_id = request.path_params.get('browser_id')
+        context_id = request.path_params.get('context_id')
+        browser = browser_get(browser_id)
+        context = browser.get_context(context_id)
         body = await request.json()
         start_x = body["start_x"]
         start_y = body["start_y"]
         end_x = body["end_x"]
         end_y = body["end_y"]
         duration_ms = body.get("duration_ms", 300)
-        page = ctx.current
+        page = context.current
         if page is None:
             raise HTTPException(status_code=400, detail="No current page")
         if page.cdp_session is None:
@@ -352,15 +429,18 @@ async def swipe(browser_id: str, context_id: str, request: Request):
 
 
 @router.post(PREFIX + "/pages/touch_scroll", status_code=204)
-async def touch_scroll(browser_id: str, context_id: str, request: Request):
-    ctx = _get_ctx(browser_id, context_id)
+async def touch_scroll(request: Request):
     try:
+        browser_id = request.path_params.get('browser_id')
+        context_id = request.path_params.get('context_id')
+        browser = browser_get(browser_id)
+        context = browser.get_context(context_id)
         body = await request.json()
         x = body["x"]
         y = body["y"]
         delta_x = body["delta_x"]
         delta_y = body["delta_y"]
-        page = ctx.current
+        page = context.current
         if page is None:
             raise HTTPException(status_code=400, detail="No current page")
         if page.cdp_session is None:
@@ -384,33 +464,41 @@ async def touch_scroll(browser_id: str, context_id: str, request: Request):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-# Task 33: Cookie management
 @router.get(PREFIX + "/pages/cookies")
-async def get_cookies(browser_id: str, context_id: str):
-    ctx = _get_ctx(browser_id, context_id)
+async def get_cookies(request: Request):
     try:
-        cookies = await ctx.context.cookies()
+        browser_id = request.path_params.get('browser_id')
+        context_id = request.path_params.get('context_id')
+        browser = browser_get(browser_id)
+        context = browser.get_context(context_id)
+        cookies = await context.context.cookies()
         return cookies
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.post(PREFIX + "/pages/cookies", status_code=204)
-async def set_cookies(browser_id: str, context_id: str, request: Request):
-    ctx = _get_ctx(browser_id, context_id)
+async def set_cookies(request: Request):
     try:
+        browser_id = request.path_params.get('browser_id')
+        context_id = request.path_params.get('context_id')
+        browser = browser_get(browser_id)
+        context = browser.get_context(context_id)
         cookies = await request.json()
-        await ctx.context.add_cookies(cookies)
+        await context.context.add_cookies(cookies)
         return Response(status_code=204)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.delete(PREFIX + "/pages/cookies", status_code=204)
-async def clear_cookies(browser_id: str, context_id: str):
-    ctx = _get_ctx(browser_id, context_id)
+async def clear_cookies(request: Request):
     try:
-        await ctx.context.clear_cookies()
+        browser_id = request.path_params.get('browser_id')
+        context_id = request.path_params.get('context_id')
+        browser = browser_get(browser_id)
+        context = browser.get_context(context_id)
+        await context.context.clear_cookies()
         return Response(status_code=204)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
