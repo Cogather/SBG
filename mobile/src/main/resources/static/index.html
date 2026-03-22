@@ -1,0 +1,537 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>云手机控制台</title>
+    <style>
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            font-size: 13px;
+            background: #1a1b1e;
+            color: #c9d1d9;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .app {
+            display: flex;
+            gap: 20px;
+            align-items: flex-start;
+            padding: 24px;
+        }
+
+        /* ── 左侧：屏幕 ── */
+        .video-panel {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .screen {
+            width: 240px;
+            height: 320px;
+            background: #111;
+            border-radius: 14px;
+            overflow: hidden;
+            border: 2px solid #30363d;
+            box-shadow: 0 0 0 1px #21262d, 0 12px 40px rgba(0,0,0,0.7);
+            position: relative;
+        }
+
+        .screen canvas { width: 100%; height: 100%; display: block; }
+
+        .screen-placeholder {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            color: #30363d;
+            pointer-events: none;
+        }
+
+        .screen-placeholder svg { opacity: 0.4; }
+        .screen-placeholder span { font-size: 11px; letter-spacing: 0.5px; opacity: 0.5; }
+
+        .status-bar {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 7px 10px;
+            background: #21262d;
+            border-radius: 8px;
+            border: 1px solid #30363d;
+        }
+
+        .status-dot {
+            width: 8px; height: 8px;
+            border-radius: 50%;
+            background: #484f58;
+            flex-shrink: 0;
+            transition: background 0.3s;
+        }
+        .status-dot.connected { background: #3fb950; }
+        .status-dot.connecting { background: #d29922; animation: blink 1s infinite; }
+        @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.3} }
+
+        .status-text { font-size: 11px; color: #8b949e; }
+
+        .conn-row {
+            display: flex;
+            gap: 6px;
+        }
+
+        .conn-row input {
+            flex: 1;
+            padding: 7px 9px;
+            background: #0d1117;
+            border: 1px solid #30363d;
+            border-radius: 7px;
+            color: #c9d1d9;
+            font-size: 11px;
+            outline: none;
+        }
+        .conn-row input:focus { border-color: #58a6ff; }
+
+        /* ── 右侧：控制面板 ── */
+        .control-panel {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            width: 320px;
+        }
+
+        .card {
+            background: #21262d;
+            border: 1px solid #30363d;
+            border-radius: 10px;
+            padding: 12px 14px;
+        }
+
+        .card-title {
+            font-size: 10px;
+            font-weight: 600;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            color: #484f58;
+            margin-bottom: 10px;
+        }
+
+        /* 按钮 */
+        .btn {
+            padding: 6px 13px;
+            font-size: 12px;
+            font-weight: 500;
+            cursor: pointer;
+            border-radius: 6px;
+            border: 1px solid #30363d;
+            background: #2d333b;
+            color: #c9d1d9;
+            transition: all 0.12s;
+            user-select: none;
+            white-space: nowrap;
+        }
+        .btn:hover { background: #373e47; border-color: #58a6ff; color: #79c0ff; }
+        .btn:active { transform: scale(0.96); }
+
+        .btn-primary { background: #238636; border-color: #2ea043; color: #fff; }
+        .btn-primary:hover { background: #2ea043; border-color: #3fb950; color: #fff; }
+
+        .btn-danger { background: #2d333b; border-color: #30363d; color: #f85149; }
+        .btn-danger:hover { background: #3d1f1f; border-color: #f85149; color: #f85149; }
+
+        .btn-muted { background: transparent; border-color: #21262d; color: #6e7681; font-size: 11px; }
+        .btn-muted:hover { background: #21262d; border-color: #30363d; color: #8b949e; }
+
+        /* 方向键 D-Pad */
+        .dpad-wrap { display: flex; gap: 16px; align-items: center; }
+
+        .dpad {
+            display: grid;
+            grid-template-columns: repeat(3, 38px);
+            grid-template-rows: repeat(3, 38px);
+            gap: 4px;
+        }
+
+        .dpad .btn {
+            width: 38px; height: 38px;
+            padding: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 15px;
+            border-radius: 8px;
+        }
+
+        .btn-ok {
+            background: #1c3a5e !important;
+            border-color: #388bfd !important;
+            color: #58a6ff !important;
+            font-size: 11px !important;
+            font-weight: 700 !important;
+        }
+        .btn-ok:hover { background: #388bfd !important; color: #fff !important; }
+
+        .dpad-gap { width: 38px; height: 38px; }
+
+        .func-col { display: flex; flex-direction: column; gap: 6px; }
+
+        /* 数字键盘 */
+        .numpad {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 5px;
+        }
+
+        .numpad .btn {
+            padding: 8px 0;
+            text-align: center;
+            font-family: 'SF Mono', monospace;
+            font-size: 13px;
+            border-radius: 7px;
+        }
+
+        /* 输入行 */
+        .row { display: flex; gap: 6px; align-items: center; }
+
+        .row input, .row select, .row-select {
+            flex: 1;
+            padding: 6px 8px;
+            background: #0d1117;
+            border: 1px solid #30363d;
+            border-radius: 6px;
+            color: #c9d1d9;
+            font-size: 12px;
+            outline: none;
+        }
+        .row input:focus, .row select:focus { border-color: #58a6ff; }
+        select option { background: #21262d; }
+
+        .row-select {
+            width: 90px;
+            flex: none;
+        }
+
+        /* 配置选择 */
+        .cfg-row { display: flex; gap: 6px; flex-wrap: wrap; }
+        .cfg-row select {
+            flex: 1;
+            min-width: 80px;
+            padding: 6px 7px;
+            background: #0d1117;
+            border: 1px solid #30363d;
+            border-radius: 6px;
+            color: #8b949e;
+            font-size: 11px;
+            outline: none;
+        }
+        .cfg-row select:focus { border-color: #58a6ff; color: #c9d1d9; }
+
+        .evt-row { display: flex; gap: 8px; }
+    </style>
+</head>
+<body>
+<div class="app">
+
+    <!-- 左：手机屏幕 -->
+    <div class="video-panel">
+        <div class="screen">
+            <canvas id="canvas" width="240" height="320"></canvas>
+            <div class="screen-placeholder" id="placeholder">
+                <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                    <rect x="5" y="2" width="14" height="20" rx="2"/>
+                    <circle cx="12" cy="18" r="1"/>
+                </svg>
+                <span>未连接</span>
+            </div>
+        </div>
+
+        <div class="status-bar">
+            <div class="status-dot" id="statusDot"></div>
+            <span class="status-text" id="statusText">等待连接</span>
+        </div>
+
+        <div class="conn-row">
+            <span style="font-size:11px;color:#8b949e;white-space:nowrap;padding:0 2px;">GIDS</span>
+            <input type="text" id="gidsAddr" value="http://127.0.0.1:9090" placeholder="GIDS 服务地址">
+            <button class="btn btn-primary" onclick="login()">连接</button>
+            <button class="btn btn-danger" onclick="logout()">断开</button>
+        </div>
+    </div>
+
+    <!-- 右：控制面板 -->
+    <div class="control-panel">
+
+        <!-- 配置 -->
+        <div class="card">
+            <div class="card-title">会话配置</div>
+            <div class="cfg-row">
+                <select id="canvasSize">
+                    <option value="240x320">240×320</option>
+                    <option value="360x480">360×480</option>
+                    <option value="405x540">405×540</option>
+                    <option value="540x720">540×720</option>
+                </select>
+                <select id="inputMode">
+                    <option value="keypad">按键模式</option>
+                    <option value="touchscreen">触屏模式</option>
+                </select>
+                <select id="appType">
+                    <option value="1">BBC</option>
+                    <option value="2">TikTok</option>
+                    <option value="3">Facebook</option>
+                    <option value="4">YouTube</option>
+                    <option value="5">Other</option>
+                </select>
+            </div>
+        </div>
+
+        <!-- 方向 + 功能键 -->
+        <div class="card">
+            <div class="card-title">控制键</div>
+            <div class="dpad-wrap">
+                <div class="dpad">
+                    <div class="dpad-gap"></div>
+                    <button class="btn" onclick="sendDirection('up')">↑</button>
+                    <div class="dpad-gap"></div>
+                    <button class="btn" onclick="sendDirection('left')">←</button>
+                    <button class="btn btn-ok" onclick="sendDirection('ok')">OK</button>
+                    <button class="btn" onclick="sendDirection('right')">→</button>
+                    <div class="dpad-gap"></div>
+                    <button class="btn" onclick="sendDirection('down')">↓</button>
+                    <div class="dpad-gap"></div>
+                </div>
+                <div class="func-col">
+                    <button class="btn" onclick="sendFunctionKey('menu')">菜单</button>
+                    <button class="btn" onclick="sendFunctionKey('back')">返回</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 数字键盘 -->
+        <div class="card">
+            <div class="card-title">数字键盘</div>
+            <div class="numpad">
+                <button class="btn" onclick="sendNum('1')">1</button>
+                <button class="btn" onclick="sendNum('2')">2</button>
+                <button class="btn" onclick="sendNum('3')">3</button>
+                <button class="btn" onclick="sendNum('4')">4</button>
+                <button class="btn" onclick="sendNum('5')">5</button>
+                <button class="btn" onclick="sendNum('6')">6</button>
+                <button class="btn" onclick="sendNum('7')">7</button>
+                <button class="btn" onclick="sendNum('8')">8</button>
+                <button class="btn" onclick="sendNum('9')">9</button>
+                <button class="btn btn-muted" onclick="sendNum('*')">＊</button>
+                <button class="btn" onclick="sendNum('0')">0</button>
+                <button class="btn btn-muted" onclick="sendNum('#')">#</button>
+            </div>
+        </div>
+
+        <!-- 输入 / 上传 -->
+        <div class="card">
+            <div class="card-title">输入 / 文件</div>
+            <div style="display:flex;flex-direction:column;gap:7px;">
+                <div class="row">
+                    <input type="text" id="content" placeholder="输入内容">
+                    <select class="row-select" id="fileType">
+                        <option value="1">类型 1</option>
+                        <option value="2">类型 2</option>
+                    </select>
+                    <button class="btn" onclick="sendContent()">发送</button>
+                </div>
+                <div class="row">
+                    <input type="text" id="fileAddr" placeholder="文件路径">
+                    <button class="btn" onclick="uploadFile()">上传</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 埋点 -->
+        <div class="card">
+            <div class="card-title">埋点</div>
+            <div class="evt-row">
+                <button class="btn btn-muted" onclick="sendError()">上报错误</button>
+                <button class="btn btn-muted" onclick="sendUseTime()">上报使用时长</button>
+            </div>
+        </div>
+
+    </div>
+</div>
+
+<script>
+    let ws, canvas, ctx, videoDecoder, audioContext;
+
+    window.onload = function() {
+        canvas = document.getElementById('canvas');
+        ctx = canvas.getContext('2d');
+        setupVideoDecoder();
+        setupAudioContext();
+        canvas.addEventListener('click', function(e) {
+            const rect = canvas.getBoundingClientRect();
+            const x = Math.floor((e.clientX - rect.left) * (canvas.width / rect.width));
+            const y = Math.floor((e.clientY - rect.top) * (canvas.height / rect.height));
+            sendTouchEvent(x, y);
+        });
+    };
+
+    function setStatus(state) {
+        const dot = document.getElementById('statusDot');
+        const text = document.getElementById('statusText');
+        const ph = document.getElementById('placeholder');
+        dot.className = 'status-dot ' + (state || '');
+        if (state === 'connected') { text.textContent = '已连接'; ph.style.display = 'none'; }
+        else if (state === 'connecting') { text.textContent = '连接中…'; ph.style.display = 'flex'; }
+        else { text.textContent = '等待连接'; ph.style.display = 'flex'; }
+    }
+
+    function setupVideoDecoder() {
+        if (typeof VideoDecoder === 'undefined') { console.error('VideoDecoder not supported'); return; }
+        const parts = (document.getElementById('canvasSize').value || '240x320').split('x');
+        const w = parseInt(parts[0]) || 240;
+        const h = parseInt(parts[1]) || 320;
+        if (videoDecoder && videoDecoder.state !== 'closed') videoDecoder.close();
+        videoDecoder = new VideoDecoder({
+            output: function(frame) { ctx.drawImage(frame, 0, 0, canvas.width, canvas.height); frame.close(); },
+            error: function(e) { console.error('Video decode error:', e); }
+        });
+        videoDecoder.configure({ codec: 'avc1.42E01E', width: w, height: h });
+    }
+
+    function setupAudioContext() {
+        audioContext = new (window.AudioContext || window.webkitAudioContext)();
+    }
+
+    function login() {
+        const imei = '6258412454025411';
+        const imsi = '68510155565211';
+        const sizeVal = document.getElementById('canvasSize').value || '240x320';
+        const sizeParts = sizeVal.split('x');
+        canvas.width = parseInt(sizeParts[0]) || 240;
+        canvas.height = parseInt(sizeParts[1]) || 320;
+        setupVideoDecoder();
+        setStatus('connecting');
+        ws = new WebSocket(`ws://localhost:40002/app/websocket/${imei}_${imsi}`);
+        ws.binaryType = 'arraybuffer';
+        ws.onopen = function() {
+            setStatus('connected');
+            ws.send(JSON.stringify({
+                type: 'login',
+                cs: sizeVal,
+                dv: 2,
+                at: parseInt(document.getElementById('appType').value) || 5,
+                ga: document.getElementById('gidsAddr').value
+            }));
+        };
+        ws.onmessage = function(e) {
+            if (e.data instanceof ArrayBuffer) handleBinaryMessage(e.data);
+            else handleTextMessage(e.data);
+        };
+        ws.onerror = function(e) { console.error('WS error', e); setStatus(''); };
+        ws.onclose = function() { setStatus(''); };
+    }
+
+    function logout() {
+        if (ws) { ws.send(JSON.stringify({ type: 'logout' })); ws.close(); }
+    }
+
+    function handleBinaryMessage(data) {
+        const h = new Uint8Array(data, 0, 2);
+        if (h[0] === 0x01) {
+            videoDecoder && videoDecoder.decode(new EncodedVideoChunk({
+                type: h[1] === 1 ? 'key' : 'delta',
+                timestamp: performance.now(),
+                data: new Uint8Array(data, 2)
+            }));
+        } else if (h[0] === 0x02) {
+            playAudio(new Uint8Array(data, 1));
+        }
+    }
+
+    function handleTextMessage(data) {
+        const msg = JSON.parse(data);
+        if (msg.type === 'callback') {
+            const info = [];
+            if (msg.elm != null) info.push('elm=' + msg.elm);
+            if (msg.info != null) info.push('info=' + msg.info);
+            if (msg.wt != null) info.push('wt=' + msg.wt);
+            if (msg.content) info.push('content=' + msg.content);
+            console.log('[callback]', info.join(' '));
+        } else if (msg.code != null && msg.code !== 0) {
+            console.error('[login error] code=' + msg.code + ' msg=' + msg.msg);
+            alert('连接失败: ' + msg.msg);
+            setStatus('');
+        }
+    }
+
+    function playAudio(audioData) {
+        audioContext.decodeAudioData(audioData.buffer.slice(), function(buf) {
+            const src = audioContext.createBufferSource();
+            src.buffer = buf;
+            src.connect(audioContext.destination);
+            src.start(0);
+        }, function(e) { console.error('Audio error:', e); });
+    }
+
+    function requireWs() {
+        if (!ws || ws.readyState !== WebSocket.OPEN) { alert('请先连接'); return false; }
+        return true;
+    }
+
+    function sendDirection(dir) {
+        if (!requireWs()) return;
+        const map = { up:[1,1], down:[2,1], left:[3,1], right:[4,1], ok:[5,1] };
+        const [ct, cv] = map[dir] || [1,1];
+        ws.send(JSON.stringify({ type:'direction', ct, cv }));
+    }
+
+    function sendFunctionKey(key) {
+        if (!requireWs()) return;
+        const ct = key === 'menu' ? 10 : 11;
+        ws.send(JSON.stringify({ type:'direction', ct, cv:1 }));
+    }
+
+    function sendNum(num) {
+        if (!requireWs()) return;
+        const content = document.getElementById('content').value + num;
+        document.getElementById('content').value = content;
+        ws.send(JSON.stringify({ type:'upload', ut:1, content }));
+    }
+
+    function sendContent() {
+        if (!requireWs()) return;
+        const content = document.getElementById('content').value;
+        const ut = parseInt(document.getElementById('fileType').value);
+        ws.send(JSON.stringify({ type:'upload', ut, content }));
+        document.getElementById('content').value = '';
+    }
+
+    function uploadFile() {
+        if (!requireWs()) return;
+        ws.send(JSON.stringify({ type:'upload_file', fa: document.getElementById('fileAddr').value }));
+    }
+
+    function sendTouchEvent(x, y) {
+        if (!requireWs()) return;
+        ws.send(JSON.stringify({ type:'touch', x, y }));
+    }
+
+    function sendError() {
+        if (!requireWs()) return;
+        ws.send(JSON.stringify({ type:'send_error' }));
+    }
+
+    function sendUseTime() {
+        if (!requireWs()) return;
+        ws.send(JSON.stringify({ type:'send_time' }));
+    }
+
+    window.onbeforeunload = function() { if (ws) logout(); };
+</script>
+</body>
+</html>

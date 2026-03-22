@@ -1,0 +1,18 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(cd D:/Code/SBG-Github/SBG/mobile && mvn compile 2>&1)",
+      "Bash(java -version 2>&1 && mvn -version 2>&1)",
+      "Bash(cd D:/Code/SBG-Github/SBG/mobile && mvn compile -e 2>&1 | grep -A5 'ExceptionInInitializerError' | head -30)",
+      "Bash(cd D:/Code/SBG-Github/SBG/mobile && openspec list --json 2>&1)",
+      "Bash(mvn compile:*)",
+      "Bash(cd D:/Code/SBG-Github/SBG/mobile && openspec new change \"mobile-initial-implementation\" 2>&1)",
+      "Bash(cd D:/Code/SBG-Github/SBG/mobile && openspec status --change \"mobile-initial-implementation\" --json 2>&1)",
+      "Bash(cd D:/Code/SBG-Github/SBG/mobile && openspec instructions proposal --change \"mobile-initial-implementation\" --json 2>&1)",
+      "Bash(cd D:/Code/SBG-Github/SBG/mobile && openspec instructions design --change \"mobile-initial-implementation\" --json 2>&1)",
+      "Bash(cd D:/Code/SBG-Github/SBG/mobile && openspec instructions specs --change \"mobile-initial-implementation\" --json 2>&1)",
+      "Bash(python3 D:/Code/SBG-Github/SBG/mobile/openspec/specs/mobile/append_spec.py 2>&1 || echo 'script error')",
+      "Bash(python3 'D:/Code/SBG-Github/SBG/mobile/openspec/specs/mobile/append_spec.py')"
+    ]
+  }
+}
