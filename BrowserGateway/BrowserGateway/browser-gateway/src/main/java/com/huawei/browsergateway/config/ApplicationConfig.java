@@ -37,17 +37,18 @@ public class ApplicationConfig {
     /**
      * 根据运行环境解析 application.yaml 的绝对路径：Windows 使用开发路径，其他使用 conf 目录。
      */
-    private static String resolveApplicationYamlPath(String jarParentPath) {
+    private static String resolveConfigDir(String jarParentPath) {
         String osName = System.getProperty("os.name", "").toLowerCase();
         Path base = Paths.get(jarParentPath);
         if (osName.contains("win")) {
-            return base.resolve(DEV_CONFIG_RELATIVE).resolve(APPLICATION_YAML).toString();
+            return base.resolve(DEV_CONFIG_RELATIVE).toString();
         }
-        return base.resolve(PROD_CONFIG_DIR).resolve(APPLICATION_YAML).toString();
+        return base.resolve(PROD_CONFIG_DIR).toString();
     }
 
     /**
-     * 注册占位符配置器，从 jar 所在目录（或开发目录）加载 application.yaml。
+     * 注册占位符配置器，从 jar 所在目录（或开发目录）加载 application.yaml，
+     * 并在存在激活 profile 时叠加 application-{profile}.yaml。
      *
      * @return 配置器实例
      */
@@ -55,20 +56,39 @@ public class ApplicationConfig {
     public static PropertySourcesPlaceholderConfigurer propertySourcesPlaceholderConfigurer() {
         String jarPath = new File(ApplicationConfig.class.getProtectionDomain()
                 .getCodeSource().getLocation().getPath()).getParent();
-        String applicationYamlPath = resolveApplicationYamlPath(jarPath);
+        String configDir = resolveConfigDir(jarPath);
 
+        // 加载基础配置
+        String applicationYamlPath = Paths.get(configDir).resolve(APPLICATION_YAML).toString();
         log.info("application.yaml path: {}", applicationYamlPath);
-
-        Resource fileResource = new FileSystemResource(applicationYamlPath);
-        YamlPropertiesFactoryBean yaml = new YamlPropertiesFactoryBean();
-        yaml.setResources(fileResource);
-        Properties properties = yaml.getObject();
-
+        Resource baseResource = new FileSystemResource(applicationYamlPath);
+        YamlPropertiesFactoryBean baseYaml = new YamlPropertiesFactoryBean();
+        baseYaml.setResources(baseResource);
+        Properties properties = baseYaml.getObject();
         log.info("application.yaml content: {}", properties);
 
+        // 叠加 profile 配置（如 application-local.yaml）
+        String activeProfile = System.getProperty("spring.profiles.active", "");
+        if (!activeProfile.isEmpty()) {
+            String profileYaml = "application-" + activeProfile + ".yaml";
+            File profileFile = Paths.get(configDir).resolve(profileYaml).toFile();
+            if (profileFile.exists()) {
+                log.info("Loading profile config: {}", profileFile.getAbsolutePath());
+                YamlPropertiesFactoryBean profileYamlFactory = new YamlPropertiesFactoryBean();
+                profileYamlFactory.setResources(new FileSystemResource(profileFile));
+                Properties profileProps = profileYamlFactory.getObject();
+                if (profileProps != null) {
+                    properties.putAll(profileProps);
+                    log.info("Profile config loaded: {}", profileProps);
+                }
+            } else {
+                log.warn("Profile config not found: {}", profileFile.getAbsolutePath());
+            }
+        }
+
         PropertySourcesPlaceholderConfigurer configurer = new PropertySourcesPlaceholderConfigurer();
-        configurer.setLocation(fileResource);
         configurer.setProperties(properties);
+        configurer.setLocalOverride(true);
         return configurer;
     }
 }

@@ -485,7 +485,7 @@
 
     function sendDirection(dir) {
         if (!requireWs()) return;
-        const map = { up:[1,1], down:[2,1], left:[3,1], right:[4,1], ok:[5,1] };
+        const map = { up:[1,100], down:[2,100], left:[3,100], right:[4,100], ok:[5,1] };
         const [ct, cv] = map[dir] || [1,1];
         ws.send(JSON.stringify({ type:'direction', ct, cv }));
     }

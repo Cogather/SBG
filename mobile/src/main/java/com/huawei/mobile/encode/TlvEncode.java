@@ -47,6 +47,7 @@ public class TlvEncode {
         } else {
             this.byteBuf.writeInt(0);
         }
+
     }
 
     public void writeByteBuf(int key, ByteBuf buf) {
@@ -59,6 +60,7 @@ public class TlvEncode {
         } else {
             this.byteBuf.writeInt(0);
         }
+
     }
 
     public void writeString(int key, String str) {
@@ -69,6 +71,7 @@ public class TlvEncode {
             this.byteBuf.writeInt(len);
             this.byteBuf.writeBytes(bytes);
         }
+
     }
 
     public void writeMap(TlvData<Object> data) {
@@ -91,10 +94,12 @@ public class TlvEncode {
                     log.error("[TlvEncode writeMap]  data：{}", JSONUtil.toJsonStr(data, JSONConfig.create().setIgnoreNullValue(false)));
                     throw new UnsupportedOperationException();
                 }
+
                 ByteBuf byteBuf = (ByteBuf) val;
                 byteBuf.readerIndex(0);
                 this.writeByteBuf(key, byteBuf);
             }
         }
+
     }
 }

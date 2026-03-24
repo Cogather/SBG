@@ -15,7 +15,7 @@
         <log4j.version>2.23.1</log4j.version>
         <selenium.version>4.28.0</selenium.version>
         <snakeyaml.version>2.2</snakeyaml.version>
-        <lombok.version>1.18.34</lombok.version>
+        <lombok.version>1.18.38</lombok.version>
     </properties>
 
     <!-- 华为云仓库，用于下载 servicecomb 2.8.14 -->
@@ -144,6 +144,14 @@
             <version>0.0.22</version>
             <scope>system</scope>
             <systemPath>${project.basedir}/src/main/resources/lib/original-browser-module-sdk-api-0.0.22.jar</systemPath>
+        </dependency>
+
+        <dependency>
+            <groupId>com.moon.cloud</groupId>
+            <artifactId>browser-module-sdk-biz</artifactId>
+            <version>0.0.22</version>
+            <scope>system</scope>
+            <systemPath>${project.basedir}/src/main/resources/lib/browser-module-sdk-biz-0.0.22.jar</systemPath>
         </dependency>
 
         <dependency>
@@ -321,6 +329,13 @@
                     <compilerArgs>
                         <arg>-parameters</arg>
                     </compilerArgs>
+                    <annotationProcessorPaths>
+                        <path>
+                            <groupId>org.projectlombok</groupId>
+                            <artifactId>lombok</artifactId>
+                            <version>${lombok.version}</version>
+                        </path>
+                    </annotationProcessorPaths>
                 </configuration>
             </plugin>
             <plugin>

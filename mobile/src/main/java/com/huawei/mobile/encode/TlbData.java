@@ -2,34 +2,23 @@ package com.huawei.mobile.encode;
 
 import io.netty.buffer.ByteBuf;
 
-public class TlbData extends TlvData<Object> {
+public class TlbData extends TlvData<ByteBuf> {
     public TlbData() {
     }
 
-    public TlbData(int initialCapacity) {
-        super();
-    }
-
-    @Override
-    public Object put(Integer key, Object value) {
-        if (value instanceof ByteBuf) {
-            addByteBufRef((ByteBuf) value);
+    public void release(int key) {
+        ByteBuf byteBuf = this.get(key);
+        if (byteBuf != null && byteBuf.release()) {
+            this.remove(key);
         }
-        return super.put(key, value);
+
     }
 
-    @Override
-    public void clear() {
-        super.values().forEach(v -> {
-            if (v instanceof ByteBuf) {
-                ((ByteBuf) v).release();
-            }
-        });
-        super.clear();
-    }
+    public void releaseAll() {
+        for (ByteBuf byteBuf : this.values()) {
+            byteBuf.release();
+        }
 
-    private void addByteBufRef(ByteBuf byteBuf) {
-        ByteBuf retainedBuf = byteBuf.retainedSlice();
-        retainedBuf.retain();
+        this.clear();
     }
 }

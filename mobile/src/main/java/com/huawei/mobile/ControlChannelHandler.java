@@ -1,5 +1,6 @@
 package com.huawei.mobile;
 
+import cn.hutool.core.thread.ThreadUtil;
 import cn.hutool.json.JSONUtil;
 import cn.hutool.log.Log;
 import cn.hutool.log.LogFactory;
@@ -8,74 +9,89 @@ import com.huawei.mobile.common.Type;
 import com.huawei.mobile.dto.CallbackMessage;
 import com.huawei.mobile.encode.TlbData;
 import com.huawei.mobile.encode.TlvData;
+import io.netty.buffer.ByteBuf;
+import io.netty.channel.Channel;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandlerAdapter;
 
+import java.nio.charset.StandardCharsets;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+
 public class ControlChannelHandler extends ChannelInboundHandlerAdapter {
     private static final Log log = LogFactory.get();
-    private BrowserContext browserContext;
 
-    public ControlChannelHandler(BrowserContext browserContext) {
-        this.browserContext = browserContext;
+    private volatile CountDownLatch latch;
+    private volatile int ackType;
+    private final BrowserContext demo;
+
+    public ControlChannelHandler(BrowserContext demo) {
+        this.demo = demo;
     }
 
-    @Override
-    public void channelRead(ChannelHandlerContext ctx, Object msg) {
+    public void channelRead(ChannelHandlerContext ctx, Object msg) throws InterruptedException {
         TlbData data = (TlbData) msg;
-        try {
-            Object typeObj = data.get(ID.TYPE);
-            if (typeObj == null) return;
-            int type;
-            if (typeObj instanceof Integer) {
-                type = (Integer) typeObj;
-            } else {
-                type = Integer.parseInt(typeObj.toString());
-            }
-            if (type == Type.ACK) {
-                handleAck(data);
-            } else if (type == Type.RETURN_MEDIA) {
-                handleMediaAddress(data);
-            } else if (type == Type.RETURN_CONTROL) {
-                handleControlResponse(data);
-            } else {
-                log.debug("control channel received type {}", type);
-            }
-        } finally {
-            data.clear();
+        int type = data.get(ID.TYPE).readInt();
+        switch (type) {
+            case Type.ACK:
+                int ackType = data.get(ID.ACK_TYPE).readInt();
+                int code = data.get(ID.CODE).readInt();
+                log.info("receive ack :{}, code is: {}", ackType, code);
+                if (code != 200) {
+                    ctx.close().sync();
+                }
+                if (ackType != Type.HEARTBEATS) {
+                    if (this.ackType == ackType) {
+                        latch.countDown();
+                    }
+                }
+                break;
+            case Type.RETURN_MEDIA:
+                ByteBuf byteBuf = data.get(ID.TCP_ADDR);
+                String addr = byteBuf.toString(StandardCharsets.UTF_8);
+                demo.callbackMediaAddr(addr);
+                ThreadUtil.execute(() -> {
+                    while (ctx.channel().isActive()) {
+                        try {
+                            TlvData<Object> tlvData = new TlvData<>();
+                            tlvData.put(ID.TYPE, Type.HEARTBEATS);
+                            ctx.channel().writeAndFlush(tlvData);
+                            ThreadUtil.sleep(30, TimeUnit.SECONDS);
+                        }catch (Exception e) {
+                            log.error(e);
+                            break;
+                        }
+                    }
+                });
+                break;
+            case Type.RETURN_CONTROL:
+                int elm = data.get(ID.CTRL_RSP_ELM).readInt();
+                int info = data.get(ID.CTRL_RSP_INFO).readInt();
+                String content = data.get(ID.CONTENT).toString(StandardCharsets.UTF_8);
+//                int wt = data.get(ID.WRITE_TYPE).readInt();
+                CallbackMessage cm = new CallbackMessage();
+                cm.setType("callback");
+                cm.setElm(elm);
+                cm.setInfo(info);
+                cm.setContent(content);
+//                cm.setWt(wt);
+                log.info("receive return control message: {}", cm);
+                demo.callbackMessage(cm);
+                break;
+            default:
+                break;
         }
+
+        data.releaseAll();
     }
 
-    private void handleAck(TlbData data) {
-        log.debug("control channel ACK received");
-    }
+    public void send(Channel channel, TlvData tlvData, int type) throws InterruptedException {
+        log.info("send control message type:{}", type);
+        this.latch = new CountDownLatch(1);
+        this.ackType = type;
 
-    private void handleMediaAddress(TlbData data) {
-        Object addrObj = data.get(ID.TCP_ADDR);
-        if (addrObj == null) return;
-        String tcpAddr = addrObj.toString();
-        log.info("RETURN_MEDIA: new media addr {}", tcpAddr);
-        browserContext.getMediaAddr().set(tcpAddr);
-        String[] parts = tcpAddr.split(":");
-        browserContext.doConnectMediaChannel(parts[0], Integer.parseInt(parts[1]));
-    }
-
-    private void handleControlResponse(TlbData data) {
-        CallbackMessage cb = new CallbackMessage();
-        Object elmObj = data.get(ID.CTRL_RSP_ELM);
-        Object infoObj = data.get(ID.CTRL_RSP_INFO);
-        Object contentObj = data.get(ID.CONTENT);
-        Object wtObj = data.get(ID.WRITE_TYPE);
-        cb.setType("callback");
-        if (elmObj != null) cb.setElm(elmObj instanceof Integer ? (Integer) elmObj : Integer.parseInt(elmObj.toString()));
-        if (infoObj != null) cb.setInfo(infoObj instanceof Integer ? (Integer) infoObj : Integer.parseInt(infoObj.toString()));
-        if (contentObj != null) cb.setContent(contentObj.toString());
-        if (wtObj != null) cb.setWt(wtObj instanceof Integer ? (Integer) wtObj : Integer.parseInt(wtObj.toString()));
-        browserContext.getSession().sendText(JSONUtil.toJsonStr(cb));
-    }
-
-    @Override
-    public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) {
-        log.error("exceptionCaught", cause);
-        ctx.close();
+        channel.writeAndFlush(tlvData);
+        this.latch.await();
+        log.info("success to wait ack for type:{}", type);
     }
 }

@@ -1,0 +1,18 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(cd browser-gateway-rewrite/src/main/java/com/huawei/browsergateway && mkdir -p adapter api common config entity exception scheduled sdk service tcpserver util websocket)",
+      "Bash(cp -r browser-gateway/src/main/java/com/huawei/browsergateway/adapter browser-gateway-rewrite/src/main/java/com/huawei/browsergateway/ && cp -r browser-gateway/src/main/java/com/huawei/browsergateway/api browser-gateway-rewrite/src/main/java/com/huawei/browsergateway/ && cp -r browser-gateway/src/main/java/com/huawei/browsergateway/common browser-gateway-rewrite/src/main/java/com/huawei/browsergateway/ && cp -r browser-gateway/src/main/java/com/huawei/browsergateway/config browser-gateway-rewrite/src/main/java/com/huawei/browsergateway/ && cp -r browser-gateway/src/main/java/com/huawei/browsergateway/entity browser-gateway-rewrite/src/main/java/com/huawei/browsergateway/ && cp -r browser-gateway/src/main/java/com/huawei/browsergateway/exception browser-gateway-rewrite/src/main/java/com/huawei/browsergateway/)",
+      "Bash(cd /d/Code/SBG-Github/SBG/BrowserGateway/BrowserGateway && cp -r browser-gateway/src/main/java/com/huawei/browsergateway/adapter browser-gateway-rewrite/src/main/java/com/huawei/browsergateway/)",
+      "Bash(cd /d/Code/SBG-Github/SBG/BrowserGateway/BrowserGateway && cp -r browser-gateway/src/main/java/com/huawei/browsergateway/api browser-gateway-rewrite/src/main/java/com/huawei/browsergateway/)",
+      "Bash(cd /d/Code/SBG-Github/SBG/BrowserGateway/BrowserGateway && cp -r browser-gateway/src/main/java/com/huawei/browsergateway/common browser-gateway-rewrite/src/main/java/com/huawei/browsergateway/)",
+      "Bash(cd /d/Code/SBG-Github/SBG/BrowserGateway/BrowserGateway && cp -r browser-gateway/src/main/java/com/huawei/browsergateway/config browser-gateway-rewrite/src/main/java/com/huawei/browsergateway/)",
+      "Bash(cd /d/Code/SBG-Github/SBG/BrowserGateway/BrowserGateway && cp -r browser-gateway/src/main/java/com/huawei/browsergateway/entity browser-gateway-rewrite/src/main/java/com/huawei/browsergateway/)",
+      "Bash(cd /d/Code/SBG-Github/SBG/BrowserGateway/BrowserGateway && cp -r browser-gateway/src/main/java/com/huawei/browsergateway/exception browser-gateway-rewrite/src/main/java/com/huawei/browsergateway/)",
+      "Bash(ls browser-gateway/src/main/java/com/huawei/browsergateway/sdk/*.java | wc -l)",
+      "Bash(ls browser-gateway-rewrite/src/main/java/com/huawei/browsergateway/sdk/*.java 2>/dev/null | wc -l)",
+      "Bash(ls browser-gateway/src/main/java/com/huawei/browsergateway/sdk/*.java)",
+      "Bash(find \"D:\\\\Code\\\\SBG-Github\\\\SBG\\\\BrowserGateway\\\\BrowserGateway\\\\browser-gateway-rewrite\\\\src\\\\main\\\\java\\\\com\\\\huawei\\\\browsergateway\\\\websocket\" -type f -name \"*.java\" -exec basename {} \\\\; | sort)"
+    ]
+  }
+}

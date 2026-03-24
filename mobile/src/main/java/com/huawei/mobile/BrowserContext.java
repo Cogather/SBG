@@ -1,6 +1,9 @@
 package com.huawei.mobile;
 
+import cn.hutool.core.lang.TypeReference;
 import cn.hutool.core.thread.ThreadUtil;
+import cn.hutool.core.util.StrUtil;
+import cn.hutool.http.HttpRequest;
 import cn.hutool.http.HttpUtil;
 import cn.hutool.json.JSONUtil;
 import cn.hutool.log.Log;
@@ -22,6 +25,9 @@ import io.netty.channel.socket.SocketChannel;
 import io.netty.channel.socket.nio.NioSocketChannel;
 import org.yeauty.pojo.Session;
 
+import java.io.FileNotFoundException;
+import java.io.IOException;
+import java.util.List;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
@@ -38,276 +44,303 @@ public class BrowserContext {
     private final MediaChannelHandler mediaHandler = new MediaChannelHandler(this);
 
     private AtomicReference<String> mediaAddr = new AtomicReference<>();
-    private Channel controlChannel;
 
-    private Session session;
-    private Bootstrap bootstrap;
-    private EventLoopGroup group;
+    private volatile Channel controlChannel;
+    private volatile Channel mediaChannel;
 
-    private ScheduledThreadPoolExecutor heartbeatExecutor;
-    private ScheduledFuture<?> heartbeatFuture;
+    private volatile Session session;
 
-    public String getGidsAddr() { return gidsAddr; }
-    public void setGidsAddr(String gidsAddr) { this.gidsAddr = gidsAddr; }
-    public DeviceLoginRequest getRequest() { return request; }
-    public void setRequest(DeviceLoginRequest request) { this.request = request; }
-    public DeviceLoginResponse getResponse() { return response; }
-    public void setResponse(DeviceLoginResponse response) { this.response = response; }
-    public ControlChannelHandler getChannelHandler() { return channelHandler; }
-    public MediaChannelHandler getMediaHandler() { return mediaHandler; }
-    public AtomicReference<String> getMediaAddr() { return mediaAddr; }
-    public void setMediaAddr(AtomicReference<String> mediaAddr) { this.mediaAddr = mediaAddr; }
-    public Session getSession() { return session; }
-    public void setSession(Session session) { this.session = session; }
-    public Bootstrap getBootstrap() { return bootstrap; }
-    public void setBootstrap(Bootstrap bootstrap) { this.bootstrap = bootstrap; }
-    public EventLoopGroup getGroup() { return group; }
-    public void setGroup(EventLoopGroup group) { this.group = group; }
-    public Channel getControlChannel() { return controlChannel; }
-    public void setControlChannel(Channel controlChannel) { this.controlChannel = controlChannel; }
+    private volatile boolean isLogin;
 
-    public void deviceLogin() {
-        R<DeviceLoginResponse> result = doDeviceLogin();
-        if (result.getCode() == 0) {
-            this.response = result.getData();
-            bootstrap = new Bootstrap();
-            group = new NioEventLoopGroup();
-            bootstrap.group(group)
-                    .channel(NioSocketChannel.class)
-                    .option(ChannelOption.SO_KEEPALIVE, true)
-                    .handler(new ChannelInitializer<SocketChannel>() {
-                        @Override
-                        protected void initChannel(SocketChannel ch) {
-                            ch.pipeline().addLast(new TlvDecoder());
-                            ch.pipeline().addLast(new TlvEncoder());
-                            ch.pipeline().addLast(channelHandler);
-                        }
-                    });
-            doConnectControlChannel();
-        } else {
-            log.error("login fail {}, reason {}", result.getCode(), result.getMsg());
-            R<Void> err = new R<>();
-            err.setCode(result.getCode());
-            err.setMsg(result.getMsg());
-            session.sendText(JSONUtil.toJsonStr(err));
-            close();
+//    private volatile FileOutputStream outputStream;
+
+    public DeviceLoginRequest getRequest() {
+        return request;
+    }
+
+    public void setSession(Session session) {
+        this.session = session;
+    }
+
+    public void setGidsAddr(String gidsAddr) {
+        this.gidsAddr = gidsAddr;
+    }
+
+    public void callbackVideo(byte[] data) throws IOException {
+//        if (data[0] == 2) {
+//            outputStream.write(data, 1, data.length -1);
+//            outputStream.flush();
+//        }
+        session.sendBinary(data);
+    }
+
+    public void callbackMessage(Object obj) {
+        String jsonStr = JSONUtil.toJsonStr(obj);
+        session.sendText(jsonStr);
+    }
+
+    public void callbackMediaAddr(String addr) {
+        log.info("receive media tcp addr: {}", addr);
+        this.mediaAddr.set(addr);
+        mediaLogin();
+    }
+
+
+    public void close() throws IOException {
+//        if (outputStream != null) {
+//            outputStream.close();
+//        }
+        if (controlChannel != null) {
+            controlChannel.close();
+        }
+        if (mediaChannel != null) {
+            mediaChannel.close();
         }
     }
 
-    @SuppressWarnings("unchecked")
-    private R<DeviceLoginResponse> doDeviceLogin() {
-        try {
-            String body = JSONUtil.toJsonStr(request);
-            // Step 1
-            String resp1 = HttpUtil.createPost(gidsAddr + "/app-api/devicetcp/app/login/v1/gridLoginAuth")
-                    .contentType("application/json")
-                    .body(body)
-                    .execute().body();
-            R<DeviceLoginResponse> r1 = JSONUtil.toBean(resp1,
-                    new cn.hutool.core.lang.TypeReference<R<DeviceLoginResponse>>(){}, false);
-            if (r1.getCode() != 200 && r1.getCode() != 0) {
-                R<DeviceLoginResponse> err = new R<>();
-                err.setCode(r1.getCode());
-                err.setMsg("step1 fail: " + r1.getMsg());
-                return err;
-            }
-            // Step 2
-            String resp2 = HttpUtil.createPost(gidsAddr + "/app-api/devicetcp/app/login/v1/gridLoginAuthOpenBrowser")
-                    .contentType("application/json")
-                    .body(body)
-                    .execute().body();
-            R<DeviceLoginResponse> r2 = JSONUtil.toBean(resp2,
-                    new cn.hutool.core.lang.TypeReference<R<DeviceLoginResponse>>(){}, false);
-            if (r2.getCode() != 200 && r2.getCode() != 0) {
-                R<DeviceLoginResponse> err = new R<>();
-                err.setCode(r2.getCode());
-                err.setMsg("step2 fail: " + r2.getMsg());
-                return err;
-            }
-            // Step 3
-            String resp3 = HttpUtil.createPost(gidsAddr + "/app-api/devicetcp/app/login/v1/deviceLoginAuth")
-                    .contentType("application/json")
-                    .body(body)
-                    .execute().body();
-            R<DeviceLoginResponse> r3 = JSONUtil.toBean(resp3,
-                    new cn.hutool.core.lang.TypeReference<R<DeviceLoginResponse>>(){}, false);
-            if (r3.getCode() != 200 && r3.getCode() != 0) {
-                R<DeviceLoginResponse> err = new R<>();
-                err.setCode(r3.getCode());
-                err.setMsg("step3 fail: " + r3.getMsg());
-                return err;
-            }
-            R<DeviceLoginResponse> ok = new R<>();
-            ok.setCode(0);
-            ok.setData(r3.getData());
-            ok.setMsg("success");
-            return ok;
-        } catch (Exception e) {
-            log.error("doDeviceLogin error", e);
-            R<DeviceLoginResponse> err = new R<>();
-            err.setCode(500);
-            err.setMsg("login fail: " + e.getMessage());
-            return err;
+    public void confirmInputHandle(int ut ,String s) throws InterruptedException {
+        TlvData<Object> tlvData = new TlvData<>();
+        tlvData.put(ID.TYPE, Type.MESSAGE);
+        tlvData.put(ID.UPLOAD_TYPE, ut);
+        tlvData.put(ID.CONTENT, s);
+        tlvData.put(ID.SESSION_ID, this.request.getSessionId());
+        channelHandler.send(controlChannel, tlvData, Type.MESSAGE);
+    }
+
+    public void handleUploadFile(String fa) throws InterruptedException {
+        TlvData<Object> tlvData = new TlvData<>();
+        tlvData.put(ID.TYPE, Type.UPLOAD_FILE);
+        tlvData.put(ID.UPLOAD_FILE_RESULT, 0); // 0代表成功
+        tlvData.put(ID.UPLOAD_FILE_TYPE, 1); // 1为默认值
+        tlvData.put(ID.FILE_ADDR, fa);
+        channelHandler.send(controlChannel, tlvData, Type.UPLOAD_FILE);
+    }
+
+    public void handleDirection(int ct, int cv) throws InterruptedException {
+        TlvData<Object> tlvData = new TlvData<>();
+        tlvData.put(ID.TYPE, Type.CONTROL);
+        tlvData.put(ID.CTRL_TYPE, ct);
+        tlvData.put(ID.CTRL_VAL, cv);
+        tlvData.put(ID.SESSION_ID, this.request.getSessionId());
+        channelHandler.send(controlChannel, tlvData, Type.CONTROL);
+    }
+
+    public void deviceLogin() throws FileNotFoundException {
+//        outputStream = new FileOutputStream("C:\\Users\\w00607172\\Desktop\\ppp\\test.mp3");
+        String reqStr = JSONUtil.toJsonStr(this.request);
+        log.info("begin to device login {}", reqStr);
+
+        String respStr = HttpUtil.post(this.gidsAddr + "/app-api/devicetcp/app/login/v1/gridLoginAuth", reqStr);
+        R<DeviceLoginResponse> resp = JSONUtil.toBean(respStr, new TypeReference<>() {
+        }, false);
+        if (resp.getCode() != 200) {
+            log.error("failed to device login {}", respStr);
+            throw new RuntimeException(resp.getMsg());
         }
-    }
 
-    public void doConnectControlChannel() {
-        ChannelFuture future = bootstrap.connect(response.getTcpAddr().split(":")[0],
-                Integer.parseInt(response.getTcpAddr().split(":")[1]));
-        future.addListener((ChannelFutureListener) futureListener -> {
-            if (futureListener.isSuccess()) {
-                controlChannel = futureListener.channel();
-                loginToDevice(controlChannel);
-                String addr = response.getTcpAddr();
-                mediaAddr.set(addr);
-                ThreadUtil.execute(() -> doConnectMediaChannel(
-                        addr.split(":")[0],
-                        Integer.parseInt(addr.split(":")[1])));
-                startHeartbeat();
-            } else {
-                log.error("control channel connect fail");
-                close();
-            }
-        });
-    }
-
-    private void loginToDevice(Channel channel) {
-        TlvData<Object> data = new TlvData<>();
-        data.put(ID.TYPE, Type.LOGIN);
-        data.put(ID.FACTORY, request.getManufacturer());
-        data.put(ID.DEV_TYPE, request.getModel());
-        data.put(ID.IMSI, request.getImsi());
-        data.put(ID.IMEI, request.getImei());
-        data.put(ID.LCD_WIDTH, Integer.parseInt(request.getWidth()));
-        data.put(ID.LCD_HEIGHT, Integer.parseInt(request.getHeight()));
-        data.put(ID.APP_TYPE, Integer.parseInt(request.getAppType()));
-        data.put(ID.TOKEN, response.getToken());
-        data.put(ID.SESSION_ID, request.getSessionId());
-        data.put(ID.APP_ID, Integer.parseInt(request.getAppType()));
-        data.put(ID.EXT_TYPE, request.getExtendModel());
-        data.put(ID.PLAT_TYPE, Integer.parseInt(request.getPlatform()));
-        data.put(ID.PLAY_MODE, default_play_mode);
-        data.put(ID.ABILITY, 1);
-        data.put(ID.DEVICE_TYPE, Integer.parseInt(request.getDeviceType()));
-        data.put(ID.CLIENT_LANGUAGE, request.getClientLanguage());
-        data.put(ID.AUD_TYPE, "mp3");
-        data.put(ID.AUD_SMPRATE, 46000);
-        data.put(ID.AUD_CHANNEL, 1);
-        data.put(ID.NETWORK_TYPE, 1);
-        data.put(ID.URL_TYPE, "1");
-        channel.writeAndFlush(data);
-    }
-
-    public void doConnectMediaChannel(String ip, int port) {
-        mediaHandler.connect(ip, port);
-    }
-
-    private void startHeartbeat() {
-        heartbeatExecutor = new ScheduledThreadPoolExecutor(1);
-        heartbeatFuture = heartbeatExecutor.scheduleAtFixedRate(() -> {
-            if (controlChannel != null && controlChannel.isActive()) {
-                TlvData<Object> hb = new TlvData<>();
-                hb.put(ID.TYPE, Type.HEARTBEATS);
-                hb.put(ID.SEQ, System.currentTimeMillis());
-                controlChannel.writeAndFlush(hb);
-            }
-        }, 15, 15, TimeUnit.SECONDS);
-    }
-
-    public void close() {
-        if (heartbeatFuture != null) {
-            heartbeatFuture.cancel(true);
+        respStr = HttpUtil.post(this.gidsAddr + "/app-api/devicetcp/app/login/v1/gridLoginAuthOpenBrowser", reqStr);
+        resp = JSONUtil.toBean(respStr, new TypeReference<>() {
+        }, false);
+        if (resp.getCode() != 200) {
+            log.error("failed to device login {}", respStr);
+            throw new RuntimeException(resp.getMsg());
         }
-        if (heartbeatExecutor != null) {
-            heartbeatExecutor.shutdownNow();
+
+        respStr = HttpUtil.post(this.gidsAddr + "/app-api/devicetcp/app/login/v1/deviceLoginAuth", reqStr);
+        resp = JSONUtil.toBean(respStr, new TypeReference<>() {
+        }, false);
+        if (resp.getCode() != 200) {
+            log.error("failed to device login {}", respStr);
+            throw new RuntimeException(resp.getMsg());
         }
-        if (group != null) {
-            group.shutdownGracefully();
+        log.info("success to device login {}", respStr);
+        this.response = resp.getData();
+        controlLogin();
+    }
+
+    private void mediaLogin() {
+        log.info("begin to media login :{}", this.mediaAddr.get());
+        String rawAddr = this.mediaAddr.get();
+        if (rawAddr.startsWith("http://")) {
+            rawAddr = rawAddr.substring("http://".length());
+        } else if (rawAddr.startsWith("https://")) {
+            rawAddr = rawAddr.substring("https://".length());
         }
-        mediaHandler.close();
-        if (session != null) {
-            session.close();
+        List<String> parts = StrUtil.split(rawAddr, ":");
+        if (parts.size() != 2) {
+            throw new RuntimeException(String.format("MEDIA TCP ADDR Error: %s", this.mediaAddr.get()));
         }
-    }
-
-    public void handleDirection(int ct, int cv) {
-        if (controlChannel == null || !controlChannel.isActive()) return;
-        TlvData<Object> data = new TlvData<>();
-        data.put(ID.TYPE, Type.CONTROL);
-        data.put(ID.CTRL_TYPE, ct);
-        data.put(ID.CTRL_VAL, cv);
-        data.put(ID.SESSION_ID, request.getSessionId());
-        controlChannel.writeAndFlush(data);
-    }
-
-    public void confirmInputHandle(int ut, String content) {
-        if (controlChannel == null || !controlChannel.isActive()) return;
-        TlvData<Object> data = new TlvData<>();
-        data.put(ID.TYPE, Type.MESSAGE);
-        data.put(ID.UPLOAD_TYPE, ut);
-        data.put(ID.CONTENT, content);
-        data.put(ID.SESSION_ID, request.getSessionId());
-        controlChannel.writeAndFlush(data);
-    }
-
-    public void handleUploadFile(String fa) {
-        if (controlChannel == null || !controlChannel.isActive()) return;
-        TlvData<Object> data = new TlvData<>();
-        data.put(ID.TYPE, Type.UPLOAD_FILE);
-        data.put(ID.FILE_ADDR, fa);
-        data.put(ID.SESSION_ID, request.getSessionId());
-        controlChannel.writeAndFlush(data);
-    }
-
-    public void sendError() {
+        String host = parts.get(0);
+        int port = Integer.parseInt(parts.get(1));
         ThreadUtil.execute(() -> {
+            EventLoopGroup group = new NioEventLoopGroup();
             try {
-                ClientEvent event = new ClientEvent();
-                event.setHsman(request.getManufacturer());
-                event.setHstype(request.getModel());
-                event.setAppType(request.getAppType());
-                event.setImei(request.getImei());
-                event.setImsi(request.getImsi());
-                // type 1 = busy
-                event.setType(1);
-                HttpUtil.createPost(gidsAddr + "/app-api/center/public/client/sendClientEvent")
-                        .contentType("application/json")
-                        .body(JSONUtil.toJsonStr(event))
-                        .execute();
-                // type 2 = error
-                event.setType(2);
-                HttpUtil.createPost(gidsAddr + "/app-api/center/public/client/sendClientEvent")
-                        .contentType("application/json")
-                        .body(JSONUtil.toJsonStr(event))
-                        .execute();
-            } catch (Exception e) {
-                log.error("sendError fail", e);
+                Bootstrap bootstrap = new Bootstrap()
+                        .group(group)
+                        .channel(NioSocketChannel.class)
+                        .handler(new ChannelInitializer<SocketChannel>() {
+                            @Override
+                            public void initChannel(SocketChannel ch) {
+                                ChannelPipeline pipeline = ch.pipeline();
+                                pipeline.addLast(new TlvDecoder(3145728));
+                                pipeline.addLast(new TlvEncoder());
+                                pipeline.addLast(mediaHandler);
+                            }
+                        });
+
+                // 连接到服务器
+                ChannelFuture future = bootstrap.connect(host, port).sync();
+                log.info("success to connect edge media, begin to send login message");
+                // 保存channel引用
+                mediaChannel = future.channel();
+                mediaChannel.writeAndFlush(getLoginData());
+                // 等待连接关闭
+                future.channel().closeFuture().sync();
+            } catch (RuntimeException e) {
+                log.error(e);
+            } catch (InterruptedException e) {
+                throw new RuntimeException(e);
+            } finally {
+                group.shutdownGracefully();
             }
         });
+
+    }
+
+
+    public void controlLogin() {
+        if (isLogin) {
+            log.info("has login");
+            return;
+        }
+        isLogin = true;
+        log.info("begin to control login :{}", this.response.getTcpAddr());
+        List<String> parts = StrUtil.split(this.response.getTcpAddr(), ":");
+        if (parts.size() != 2) {
+            throw new RuntimeException(String.format("TCP ADDR Error: %s", this.response.getTcpAddr()));
+        }
+        String host = parts.get(0);
+        int port = Integer.parseInt(parts.get(1));
+
+        ThreadUtil.execute(() -> {
+            EventLoopGroup group = new NioEventLoopGroup();
+            try {
+                Bootstrap bootstrap = new Bootstrap()
+                        .group(group)
+                        .channel(NioSocketChannel.class)
+                        .handler(new ChannelInitializer<SocketChannel>() {
+                            @Override
+                            public void initChannel(SocketChannel ch) {
+                                ChannelPipeline pipeline = ch.pipeline();
+                                pipeline.addLast(new TlvDecoder(3145728));
+                                pipeline.addLast(new TlvEncoder());
+                                pipeline.addLast(channelHandler);
+                            }
+                        });
+
+                // 连接到服务器
+                ChannelFuture future = bootstrap.connect(host, port).sync();
+                // 保存channel引用
+                controlChannel = future.channel();
+                log.info("success to connect edge control, begin to send login message");
+                channelHandler.send(controlChannel, getLoginData(), Type.LOGIN);
+                // 等待连接关闭
+                future.channel().closeFuture().sync();
+            } catch (RuntimeException e) {
+                log.error(e);
+            } catch (InterruptedException e) {
+                throw new RuntimeException(e);
+            } finally {
+                group.shutdownGracefully();
+            }
+        });
+    }
+
+    private TlvData<Object> getLoginData() {
+        TlvData<Object> tlvData = new TlvData<>();
+        tlvData.put(ID.TYPE, Type.LOGIN);
+        tlvData.put(ID.FACTORY, this.request.getManufacturer());
+        tlvData.put(ID.DEV_TYPE, this.request.getModel());
+        tlvData.put(ID.IMSI, this.request.getImsi());
+        tlvData.put(ID.IMEI, this.request.getImei());
+        tlvData.put(ID.LCD_WIDTH, Integer.parseInt(this.request.getWidth()));
+        tlvData.put(ID.LCD_HEIGHT, Integer.parseInt(this.request.getHeight()));
+        tlvData.put(ID.APP_TYPE, Integer.parseInt(this.request.getAppType()));
+        tlvData.put(ID.TOKEN, this.response.getToken());
+        tlvData.put(ID.APP_ID, Integer.parseInt(this.request.getAppType()));
+        tlvData.put(ID.EXT_TYPE, this.request.getExtendModel());
+        tlvData.put(ID.PLAT_TYPE, Integer.parseInt(this.request.getPlatform()));
+        tlvData.put(ID.PLAY_MODE, default_play_mode);
+        tlvData.put(ID.ABILITY, 1);
+        tlvData.put(ID.DEVICE_TYPE, Integer.parseInt(this.request.getDeviceType()));
+        tlvData.put(ID.CLIENT_LANGUAGE, this.request.getClientLanguage());
+        tlvData.put(ID.AUD_TYPE, "mp3");
+        tlvData.put(ID.AUD_SMPRATE, 46000);
+        tlvData.put(ID.AUD_CHANNEL, 1);
+        tlvData.put(ID.NETWORK_TYPE, 1);
+        tlvData.put(ID.URL_TYPE, "1");
+        return tlvData;
     }
 
     public void sendUseTime() {
-        ThreadUtil.execute(() -> {
-            try {
-                UseTimesEvent event = new UseTimesEvent();
-                event.setUseTimes(100000L);
-                event.setHsman(request.getManufacturer());
-                event.setHstype(request.getModel());
-                event.setAppType(request.getAppType());
-                event.setAppId(request.getAppType());
-                event.setScheight(Integer.parseInt(request.getHeight()));
-                event.setScwidth(Integer.parseInt(request.getWidth()));
-                event.setExttype(request.getExtendModel());
-                event.setImei(request.getImei());
-                event.setImsi(request.getImsi());
-                event.setPlayMode(default_play_mode);
-                HttpUtil.createPost(gidsAddr + "/app-api/center/public/client/sendAppUseTimesEvent")
-                        .contentType("application/octet-stream")
-                        .body(JSONUtil.toJsonStr(event))
-                        .execute();
-            } catch (Exception e) {
-                log.error("sendUseTime fail", e);
-            }
-        });
+        UseTimesEvent ue = new UseTimesEvent();
+        ue.setHsman(this.request.getManufacturer());
+        ue.setHstype(this.request.getModel());
+        ue.setAppType(this.request.getAppType());
+        ue.setAppId(this.request.getAppType());
+        ue.setImei(this.request.getImei());
+        ue.setImsi(this.request.getImsi());
+        ue.setUseTimes(100000L);
+        ue.setScwidth(Integer.parseInt(this.request.getWidth()));
+        ue.setScheight(Integer.parseInt(this.request.getHeight()));
+        ue.setExttype(this.request.getExtendModel());
+        ue.setPlayMode(default_play_mode);
+
+
+        String reqStr = JSONUtil.toJsonStr(ue);
+        String respStr = HttpRequest.post(this.gidsAddr + "/app-api/center/public/client/sendAppUseTimesEvent").
+                contentType("application/octet-stream").
+                body(reqStr).
+                execute().
+                body();
+        R<Object> resp = JSONUtil.toBean(respStr, new TypeReference<>() {
+        }, false);
+        if (resp.getCode() != 0) {
+            log.error("failed to send error {}", respStr);
+            throw new RuntimeException(resp.getMsg());
+        }
+    }
+
+    public void sendError() {
+        ClientEvent ce = new ClientEvent();
+        ce.setHsman(this.request.getManufacturer());
+        ce.setHstype(this.request.getModel());
+        ce.setAppType(this.request.getAppType());
+        ce.setImei(this.request.getImei());
+        ce.setImsi(this.request.getImsi());
+        ce.setType(1);
+
+        String reqStr = JSONUtil.toJsonStr(ce);
+        String respStr = HttpUtil.post(this.gidsAddr + "/app-api/center/public/client/sendClientEvent", reqStr);
+        R<Object> resp = JSONUtil.toBean(respStr, new TypeReference<>() {
+        }, false);
+        if (resp.getCode() != 0) {
+            log.error("failed to send error {}", respStr);
+            throw new RuntimeException(resp.getMsg());
+        }
+        log.info("send error success {}", ce.getType());
+
+
+        ce.setType(2);
+        reqStr = JSONUtil.toJsonStr(ce);
+        respStr = HttpUtil.post(this.gidsAddr + "/app-api/center/public/client/sendClientEvent", reqStr);
+        resp = JSONUtil.toBean(respStr, new TypeReference<>() {
+        }, false);
+        if (resp.getCode() != 0) {
+            log.error("failed to send error {}", respStr);
+            throw new RuntimeException(resp.getMsg());
+        }
+
+        log.info("send error success {}", ce.getType());
     }
 }

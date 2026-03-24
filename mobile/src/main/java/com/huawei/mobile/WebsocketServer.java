@@ -28,18 +28,15 @@ public class WebsocketServer {
     private static final Log log = LogFactory.get();
 
     @OnOpen
-    public void onOpen(Session session, @PathVariable String imeiAndImsi,
-                       @RequestParam MultiValueMap<String, String> reqMap) {
-        log.info("websocket open, {}", imeiAndImsi);
+    public void onOpen(Session session, @PathVariable String imeiAndImsi, @RequestParam MultiValueMap<String, String> reqMap) {
+        log.info("websocket open, ", imeiAndImsi);
         BrowserContext context = new BrowserContext();
-        List<String> split = StrUtil.split(imeiAndImsi, '_');
+        List<String> split = StrUtil.split(imeiAndImsi, "_");
         context.getRequest().setImei(split.get(0));
         context.getRequest().setImsi(split.get(1));
-        List<String> gidsAddrList = reqMap.get("gids_addr");
-        if (gidsAddrList != null && !gidsAddrList.isEmpty()) {
-            context.setGidsAddr(gidsAddrList.get(0));
-        }
+//        context.setGidsAddr(reqMap.get("gids_addr").get(0));
         context.setSession(session);
+        // TODO other param
         session.setAttribute("context", context);
     }
 
@@ -50,14 +47,12 @@ public class WebsocketServer {
 
         switch (msg.getType()) {
             case "login":
-                List<String> cs = StrUtil.split(msg.getCs(), 'x');
+                List<String> cs = StrUtil.split(msg.getCs(), "x");
                 context.getRequest().setWidth(cs.get(0));
                 context.getRequest().setHeight(cs.get(1));
                 context.getRequest().setDeviceType(String.valueOf(msg.getDv()));
                 context.getRequest().setAppType(String.valueOf(msg.getAt()));
-                if (msg.getGa() != null && !msg.getGa().isEmpty()) {
-                    context.setGidsAddr(msg.getGa());
-                }
+                context.setGidsAddr(msg.getGa());
                 context.deviceLogin();
                 break;
             case "logout":
@@ -89,7 +84,7 @@ public class WebsocketServer {
         BrowserContext context = session.getAttribute("context");
         context.close();
         session.close();
-        log.info("close websocket");
+        log.info("close websocket {} ");
     }
 
     @OnError
@@ -97,6 +92,7 @@ public class WebsocketServer {
         BrowserContext context = session.getAttribute("context");
         context.close();
         session.close();
-        log.error("websocket error", error);
+        log.error(error);
     }
+
 }

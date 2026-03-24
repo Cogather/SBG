@@ -177,7 +177,7 @@ public class FileStorageServiceImpl implements IFileStorage {
             throw new IllegalArgumentException("remotePath must contain bucket and key: " + url);
         }
         String bucketName = path.getName(0).toString();
-        String name = path.subpath(1, path.getNameCount()).toString().replace("/", "_");
+        String name = path.subpath(1, path.getNameCount()).toString().replace("\\", "_").replace("/", "_");
         return new S3Path(bucketName, name);
     }
 

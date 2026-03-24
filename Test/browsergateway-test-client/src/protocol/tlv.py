@@ -133,25 +133,52 @@ class TLVEncoder:
     @staticmethod
     def decode(data: bytes) -> Optional[tuple]:
         """
-        解码 TLV 消息
-        
+        解码 TLV 消息（BGW 格式：Magic(2)+Count(4)+DataLen(4)+Fields）
+
         Args:
             data: 待解码的字节数组
-            
+
         Returns:
-            (message_type, value) 元组，如果数据不完整返回 None
+            (message_type, fields_dict, consumed) 元组，如果数据不完整返回 None
+            fields_dict: {field_id: field_value} 的字典
         """
-        if len(data) < 6:  # 至少需要 6 字节（2 字节类型 + 4 字节长度）
+        # 头部最少 2+4+4=10 字节
+        if len(data) < 10:
             return None
-        
-        message_type = struct.unpack('>H', data[0:2])[0]
-        length = struct.unpack('>I', data[2:6])[0]
-        
-        if len(data) < 6 + length:
+
+        magic = struct.unpack('>H', data[0:2])[0]
+        if magic != MAGIC:
+            # 跳过一字节尝试重新同步
+            return None
+
+        count = struct.unpack('>I', data[2:6])[0]
+        data_len = struct.unpack('>I', data[6:10])[0]
+
+        total_len = 10 + data_len
+        if len(data) < total_len:
             return None  # 数据不完整
-        
-        value = data[6:6 + length]
-        return (message_type, value, 6 + length)  # 返回类型、值和消耗的字节数
+
+        # 解析所有字段
+        fields_dict = {}
+        offset = 10
+        for _ in range(count):
+            if offset + 8 > total_len:
+                break
+            field_type = struct.unpack('>I', data[offset:offset+4])[0]
+            field_len = struct.unpack('>I', data[offset+4:offset+8])[0]
+            offset += 8
+            if offset + field_len > total_len:
+                break
+            field_value = data[offset:offset+field_len]
+            fields_dict[field_type] = field_value
+            offset += field_len
+
+        # 从 ID=1 (ID_TYPE) 字段读取消息类型
+        message_type = 0
+        if ID_TYPE in fields_dict and len(fields_dict[ID_TYPE]) >= 4:
+            message_type = struct.unpack('>I', fields_dict[ID_TYPE])[0]
+
+        return (message_type, fields_dict, total_len)
 
 
 class TLVBuffer:
@@ -167,22 +194,21 @@ class TLVBuffer:
     def extract_messages(self):
         """
         从缓冲区中提取完整的 TLV 消息
-        
+
         Returns:
-            消息列表，每个元素为 (message_type, value)
+            消息列表，每个元素为 (message_type, fields_dict)
         """
         messages = []
-        encoder = TLVEncoder()
-        
+
         while True:
-            result = encoder.decode(self.buffer)
+            result = TLVEncoder.decode(self.buffer)
             if result is None:
                 break  # 没有完整的消息
-            
-            message_type, value, consumed = result
-            messages.append((message_type, value))
+
+            message_type, fields_dict, consumed = result
+            messages.append((message_type, fields_dict))
             self.buffer = self.buffer[consumed:]
-        
+
         return messages
     
     def clear(self):

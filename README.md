@@ -87,3 +87,8 @@ java -jar target/browser-gateway.jar
 ## 许可证
 
 Copyright © Huawei Technologies Co., Ltd.
+
+## Skill
+1. 代码变更报告Skill
+2. 代码检查见识Skill
+3. 
