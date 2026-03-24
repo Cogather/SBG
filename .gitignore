@@ -126,9 +126,13 @@ __pycache__/
 *$py.class
 *.so
 .Python
+.venv/
 venv/
 env/
 ENV/
+.pytest_cache/
+.coverage
+htmlcov/
 
 # Local configuration files
 local.properties
