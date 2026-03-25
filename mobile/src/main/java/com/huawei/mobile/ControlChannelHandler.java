@@ -91,7 +91,11 @@ public class ControlChannelHandler extends ChannelInboundHandlerAdapter {
         this.ackType = type;
 
         channel.writeAndFlush(tlvData);
-        this.latch.await();
-        log.info("success to wait ack for type:{}", type);
+        boolean acked = this.latch.await(5, TimeUnit.SECONDS);
+        if (!acked) {
+            log.warn("timeout waiting for ack for type:{}", type);
+        } else {
+            log.info("success to wait ack for type:{}", type);
+        }
     }
 }

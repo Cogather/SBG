@@ -279,15 +279,20 @@
                     <option value="540x720">540×720</option>
                 </select>
                 <select id="inputMode">
-                    <option value="keypad">按键模式</option>
-                    <option value="touchscreen">触屏模式</option>
+                    <option value="1">按键</option>
+                    <option value="2">触屏</option>
                 </select>
                 <select id="appType">
-                    <option value="1">BBC</option>
+                    <option value="1">Youtube</option>
                     <option value="2">TikTok</option>
-                    <option value="3">Facebook</option>
-                    <option value="4">YouTube</option>
-                    <option value="5">Other</option>
+                    <option value="3">FaceBook</option>
+                    <option value="5">BBC</option>
+                    <option value="6">Upload</option>
+                    <option value="8">Ins</option>
+                    <option value="10">SNAPCHAT</option>
+                    <option value="12">Google</option>
+                    <option value="18">CNN</option>
+                    <option value="920425">TELE</option>
                 </select>
             </div>
         </div>
@@ -327,9 +332,7 @@
                 <button class="btn" onclick="sendNum('7')">7</button>
                 <button class="btn" onclick="sendNum('8')">8</button>
                 <button class="btn" onclick="sendNum('9')">9</button>
-                <button class="btn btn-muted" onclick="sendNum('*')">＊</button>
                 <button class="btn" onclick="sendNum('0')">0</button>
-                <button class="btn btn-muted" onclick="sendNum('#')">#</button>
             </div>
         </div>
 
@@ -365,19 +368,18 @@
 </div>
 
 <script>
-    let ws, canvas, ctx, videoDecoder, audioContext;
+    let ws, canvas, ctx, videoDecoder, audioContext, lastSourceNode;
+    let videoTimestamp = 0;
+    let gids_addr = 'http://127.0.0.1:9090';
+    let downflag = false, downX = 0, downY = 0, lastTime = 0;
+    let minBuffer = [], curBufferSize = 0;
+    const MIN_BUFFER_SIZE = 2 * 1024;
+    let isDecoding = false;
 
     window.onload = function() {
         canvas = document.getElementById('canvas');
         ctx = canvas.getContext('2d');
         setupVideoDecoder();
-        setupAudioContext();
-        canvas.addEventListener('click', function(e) {
-            const rect = canvas.getBoundingClientRect();
-            const x = Math.floor((e.clientX - rect.left) * (canvas.width / rect.width));
-            const y = Math.floor((e.clientY - rect.top) * (canvas.height / rect.height));
-            sendTouchEvent(x, y);
-        });
     };
 
     function setStatus(state) {
@@ -400,11 +402,7 @@
             output: function(frame) { ctx.drawImage(frame, 0, 0, canvas.width, canvas.height); frame.close(); },
             error: function(e) { console.error('Video decode error:', e); }
         });
-        videoDecoder.configure({ codec: 'avc1.42E01E', width: w, height: h });
-    }
-
-    function setupAudioContext() {
-        audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        videoDecoder.configure({ codec: 'avc1.42E01F', codedWidth: w, codedHeight: h, optimizeForLatency: true });
     }
 
     function login() {
@@ -414,6 +412,9 @@
         const sizeParts = sizeVal.split('x');
         canvas.width = parseInt(sizeParts[0]) || 240;
         canvas.height = parseInt(sizeParts[1]) || 320;
+        gids_addr = document.getElementById('gidsAddr').value || 'http://127.0.0.1:9090';
+        const inputMode = document.getElementById('inputMode').value;
+        audioContext = new (window.AudioContext || window.webkitAudioContext)();
         setupVideoDecoder();
         setStatus('connecting');
         ws = new WebSocket(`ws://localhost:40002/app/websocket/${imei}_${imsi}`);
@@ -423,10 +424,35 @@
             ws.send(JSON.stringify({
                 type: 'login',
                 cs: sizeVal,
-                dv: 2,
+                dv: parseInt(inputMode) || 1,
                 at: parseInt(document.getElementById('appType').value) || 5,
-                ga: document.getElementById('gidsAddr').value
+                ga: gids_addr
             }));
+            if (inputMode === '2') {
+                canvas.addEventListener('mousedown', function(event) {
+                    downflag = true;
+                    downX = event.offsetX;
+                    downY = event.offsetY;
+                    const cv = event.offsetX * 10000 + event.offsetY;
+                    ws.send(JSON.stringify({ type: 'direction', ct: 1, cv }));
+                });
+                canvas.addEventListener('mouseup', function(event) {
+                    downflag = false;
+                    const cv = event.offsetX * 10000 + event.offsetY;
+                    ws.send(JSON.stringify({ type: 'direction', ct: 2, cv }));
+                });
+                canvas.addEventListener('mousemove', function(event) {
+                    if (downflag) {
+                        const now = Date.now();
+                        if (now - lastTime >= 100) {
+                            if (event.offsetX === downX && event.offsetY === downY) return;
+                            lastTime = now;
+                            const cv = event.offsetX * 10000 + event.offsetY;
+                            ws.send(JSON.stringify({ type: 'direction', ct: 3, cv }));
+                        }
+                    }
+                });
+            }
         };
         ws.onmessage = function(e) {
             if (e.data instanceof ArrayBuffer) handleBinaryMessage(e.data);
@@ -443,25 +469,59 @@
     function handleBinaryMessage(data) {
         const h = new Uint8Array(data, 0, 2);
         if (h[0] === 0x01) {
-            videoDecoder && videoDecoder.decode(new EncodedVideoChunk({
-                type: h[1] === 1 ? 'key' : 'delta',
-                timestamp: performance.now(),
-                data: new Uint8Array(data, 2)
-            }));
+            const isKeyFrame = h[1] === 1;
+            const videoData = data.slice(2);
+            const chunk = new EncodedVideoChunk({
+                type: isKeyFrame ? 'key' : 'delta',
+                timestamp: videoTimestamp,
+                data: videoData
+            });
+            videoTimestamp++;
+            if (videoDecoder && videoDecoder.state === 'configured') {
+                videoDecoder.decode(chunk);
+            }
         } else if (h[0] === 0x02) {
-            playAudio(new Uint8Array(data, 1));
+            const audioData = data.slice(1);
+            if (!audioContext || audioContext.state === 'suspended') {
+                console.error('音频解码器未准备好，无法解码音频数据');
+                return;
+            }
+            curBufferSize += audioData.byteLength;
+            minBuffer.push(audioData);
+            if (curBufferSize > MIN_BUFFER_SIZE) {
+                const combined = combineBuffers(minBuffer);
+                minBuffer = [];
+                curBufferSize = 0;
+                if (isDecoding) { console.error('正在解码音频'); return; }
+                isDecoding = true;
+                audioContext.decodeAudioData(combined)
+                    .then(function(audioBuffer) {
+                        isDecoding = false;
+                        if (lastSourceNode) { lastSourceNode.stop(); lastSourceNode = null; }
+                        const sourceNode = audioContext.createBufferSource();
+                        sourceNode.buffer = audioBuffer;
+                        sourceNode.connect(audioContext.destination);
+                        sourceNode.start(0);
+                        lastSourceNode = sourceNode;
+                    })
+                    .catch(function(e) { isDecoding = false; console.error('音频解码错误:', e); });
+            }
         }
+    }
+
+    function combineBuffers(buffers) {
+        const totalLength = buffers.reduce(function(sum, buf) { return sum + buf.byteLength; }, 0);
+        const combined = new Uint8Array(totalLength);
+        let offset = 0;
+        buffers.forEach(function(buf) { combined.set(new Uint8Array(buf), offset); offset += buf.byteLength; });
+        return combined.buffer;
     }
 
     function handleTextMessage(data) {
         const msg = JSON.parse(data);
-        if (msg.type === 'callback') {
-            const info = [];
-            if (msg.elm != null) info.push('elm=' + msg.elm);
-            if (msg.info != null) info.push('info=' + msg.info);
-            if (msg.wt != null) info.push('wt=' + msg.wt);
-            if (msg.content) info.push('content=' + msg.content);
-            console.log('[callback]', info.join(' '));
+        console.log('收到控制流消息返回:', msg);
+        if (msg.elm === 2) {
+            handleFileUploadByInfo(msg.info);
         } else if (msg.code != null && msg.code !== 0) {
             console.error('[login error] code=' + msg.code + ' msg=' + msg.msg);
             alert('连接失败: ' + msg.msg);
@@ -469,13 +529,46 @@
         }
     }
 
-    function playAudio(audioData) {
-        audioContext.decodeAudioData(audioData.buffer.slice(), function(buf) {
-            const src = audioContext.createBufferSource();
-            src.buffer = buf;
-            src.connect(audioContext.destination);
-            src.start(0);
-        }, function(e) { console.error('Audio error:', e); });
+    function handleFileUploadByInfo(info) {
+        const fileInput = document.createElement('input');
+        fileInput.type = 'file';
+        fileInput.style.display = 'none';
+        fileInput.multiple = false;
+        switch (info) {
+            case 10: break;
+            case 5: fileInput.accept = 'image/*'; break;
+            case 15: fileInput.accept = 'audio/*'; break;
+            default: console.warn('未知的文件类型指令:', info); return;
+        }
+        document.body.appendChild(fileInput);
+        fileInput.click();
+        fileInput.addEventListener('change', function(e) {
+            document.body.removeChild(fileInput);
+            if (e.target.files && e.target.files.length === 1) {
+                uploadToServer(e.target.files[0]);
+            }
+        });
+    }
+
+    function uploadToServer(file) {
+        const reader = new FileReader();
+        reader.readAsArrayBuffer(file);
+        reader.onload = function(e) {
+            const byteArray = new Uint8Array(e.target.result);
+            const fileName = encodeURIComponent(file.name);
+            const url = gids_addr + '/app-api/control/file/upload?fileName=' + fileName;
+            fetch(url, { method: 'POST', body: byteArray })
+                .then(function(r) { return r.json(); })
+                .then(function(result) {
+                    if (result.code === 0) {
+                        ws.send(JSON.stringify({ type: 'upload_file', fa: result.data }));
+                    } else {
+                        console.error('上传失败:', result.msg);
+                    }
+                })
+                .catch(function(err) { console.error('上传过程出错:', err); });
+        };
+        reader.onerror = function() { console.error('文件读取失败'); };
     }
 
     function requireWs() {
@@ -485,22 +578,21 @@
 
     function sendDirection(dir) {
         if (!requireWs()) return;
-        const map = { up:[1,100], down:[2,100], left:[3,100], right:[4,100], ok:[5,1] };
-        const [ct, cv] = map[dir] || [1,1];
-        ws.send(JSON.stringify({ type:'direction', ct, cv }));
+        const map = { up:12, down:13, left:14, right:15, ok:20 };
+        const cv = map[dir] ?? 12;
+        ws.send(JSON.stringify({ type:'direction', ct:0, cv }));
     }
 
     function sendFunctionKey(key) {
         if (!requireWs()) return;
-        const ct = key === 'menu' ? 10 : 11;
-        ws.send(JSON.stringify({ type:'direction', ct, cv:1 }));
+        const cvMap = { menu:17, back:18 };
+        const cv = cvMap[key] ?? 17;
+        ws.send(JSON.stringify({ type:'direction', ct:0, cv }));
     }
 
     function sendNum(num) {
         if (!requireWs()) return;
-        const content = document.getElementById('content').value + num;
-        document.getElementById('content').value = content;
-        ws.send(JSON.stringify({ type:'upload', ut:1, content }));
+        ws.send(JSON.stringify({ type:'direction', ct:0, cv: num }));
     }
 
     function sendContent() {
@@ -514,11 +606,6 @@
     function uploadFile() {
         if (!requireWs()) return;
         ws.send(JSON.stringify({ type:'upload_file', fa: document.getElementById('fileAddr').value }));
-    }
-
-    function sendTouchEvent(x, y) {
-        if (!requireWs()) return;
-        ws.send(JSON.stringify({ type:'touch', x, y }));
     }
 
     function sendError() {

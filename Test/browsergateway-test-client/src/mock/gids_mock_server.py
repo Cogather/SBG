@@ -243,6 +243,21 @@ async def upload_event(request: Request):
     logger.info(f"POST /server/event/v1/uploadEvent: {data}")
     return {"code": 200, "msg": "success", "data": {}}
 
+@app.post("/app-api/center/public/client/sendClientEvent")
+async def send_client_event(request: Request):
+    """接收客户端事件埋点（sendError / sendUseTime）"""
+    data = await request.json()
+    logger.info(f"POST /app-api/center/public/client/sendClientEvent: type={data.get('type')}")
+    return {"code": 0, "msg": "success", "data": {}}
+
+@app.post("/app-api/control/file/upload")
+async def upload_control_file(request: Request, fileName: str = ""):
+    """接收前端文件上传，返回文件路径供 upload_file TLV 使用"""
+    body = await request.body()
+    logger.info(f"POST /app-api/control/file/upload: fileName={fileName}, size={len(body)}")
+    saved_path = f"/tmp/{fileName}" if fileName else "/tmp/upload"
+    return {"code": 0, "msg": "success", "data": saved_path}
+
 @app.get("/health")
 async def health_check():
     """健康检查"""
@@ -343,11 +358,16 @@ async def get_muen_config():
         ],
         "routeAppConfigList": [],
         "urlConfigList": [
-            {"nodeIdent": "", "appType": 1, "url": "https://www.bbc.com", "appID": "1", "name": "BBC", "isVideoType": False, "isWebType": True, "isShortType": False},
+            {"nodeIdent": "", "appType": 1, "url": "https://m.youtube.com", "appID": "1", "name": "Youtube", "isVideoType": True, "isWebType": False, "isShortType": True},
             {"nodeIdent": "", "appType": 2, "url": "https://www.tiktok.com", "appID": "2", "name": "TikTok", "isVideoType": True, "isWebType": False, "isShortType": True},
-            {"nodeIdent": "", "appType": 3, "url": "https://www.facebook.com", "appID": "3", "name": "Facebook", "isVideoType": False, "isWebType": True, "isShortType": False},
-            {"nodeIdent": "", "appType": 4, "url": "https://m.youtube.com/shorts", "appID": "4", "name": "YouTube", "isVideoType": True, "isWebType": False, "isShortType": True},
-            {"nodeIdent": "", "appType": 5, "url": "https://www.google.com", "appID": "5", "name": "Other", "isVideoType": False, "isWebType": True, "isShortType": False}
+            {"nodeIdent": "", "appType": 3, "url": "https://www.facebook.com", "appID": "3", "name": "FaceBook", "isVideoType": False, "isWebType": True, "isShortType": False},
+            {"nodeIdent": "", "appType": 5, "url": "https://www.bbc.com", "appID": "5", "name": "BBC", "isVideoType": False, "isWebType": True, "isShortType": False},
+            {"nodeIdent": "", "appType": 6, "url": "about:blank", "appID": "6", "name": "Upload", "isVideoType": False, "isWebType": True, "isShortType": False},
+            {"nodeIdent": "", "appType": 8, "url": "https://www.instagram.com", "appID": "8", "name": "Ins", "isVideoType": False, "isWebType": True, "isShortType": False},
+            {"nodeIdent": "", "appType": 10, "url": "https://www.snapchat.com", "appID": "10", "name": "SNAPCHAT", "isVideoType": False, "isWebType": True, "isShortType": False},
+            {"nodeIdent": "", "appType": 12, "url": "https://www.google.com", "appID": "12", "name": "Google", "isVideoType": False, "isWebType": True, "isShortType": False},
+            {"nodeIdent": "", "appType": 18, "url": "https://www.cnn.com", "appID": "18", "name": "CNN", "isVideoType": False, "isWebType": True, "isShortType": False},
+            {"nodeIdent": "", "appType": 920425, "url": "https://web.telegram.org", "appID": "920425", "name": "TELE", "isVideoType": False, "isWebType": True, "isShortType": False}
         ]
     }
 
