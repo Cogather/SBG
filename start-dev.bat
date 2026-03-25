@@ -7,8 +7,8 @@ REM
 REM  前置条件:
 REM    1. Java 和 Maven 已安装并在系统 PATH 中
 REM    2. Python 虚拟环境已创建:
-REM       - Test\browsergateway-test-client\venv\
-REM         (创建: cd Test\browsergateway-test-client && python -m venv venv)
+REM       - Test\mock-servers\venv\
+REM         (创建: cd Test\mock-servers && python -m venv venv)
 REM       - BrowserGateway\BrowserGateway\browser-proxy\.venv\
 REM         (创建: cd BrowserGateway\BrowserGateway\browser-proxy && python -m venv .venv)
 REM    3. browser-gateway local 配置文件已存在:
@@ -32,7 +32,7 @@ echo.
 
 REM 1. gids_mock_server (port 9090)
 echo [1/4] Starting gids-mock-server on port 9090...
-start "gids-mock-server" cmd /k "cd /d %ROOT%Test\browsergateway-test-client & call venv\Scripts\activate.bat & python src\mock\gids_mock_server.py"
+start "gids-mock-server" cmd /k "cd /d %ROOT%Test\mock-servers & call venv\Scripts\activate.bat & python mock\gids_mock_server.py"
 
 REM 2. browser-proxy (port 8000)
 echo [2/4] Starting browser-proxy on port 8000...
