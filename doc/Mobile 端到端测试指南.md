@@ -236,3 +236,41 @@ POST deviceLoginAuth: imei=..., session_id=6258412454025411_68510155565211
 | 方向按钮无响应 | browser-gateway 插件未加载 | 启用 stub-mode 或准备 SDK JAR |
 | `timeout waiting for ack` | browser-gateway 未回 ACK | 检查控制通道是否正常建立 |
 | 音频无声音 | AudioContext 被浏览器挂起 | 先点击页面任意处再连接 |
+
+---
+
+## 自动化测试
+
+除人工前端验证外，可使用 `Test/browsergateway-test-client` 中的 pytest 套件进行自动化端到端验证。
+
+### 环境安装（首次）
+
+```bat
+cd Test\browsergateway-test-client
+python -m venv .venv
+.venv\Scripts\activate
+pip install -r requirements.txt
+```
+
+### 运行测试
+
+```bat
+# 先启动 mobile + browser-gateway（GIDS Mock 由 pytest 自动启动）
+start-dev.bat
+
+# 另开终端，激活虚拟环境后运行
+cd Test\browsergateway-test-client
+.venv\Scripts\activate
+pytest tests/ -v
+```
+
+### 测试覆盖
+
+| 测试文件 | 场景 |
+|----------|------|
+| `test_login.py` | 登录握手（TLV LOGIN → ACK）、登出重连 |
+| `test_heartbeat.py` | 心跳保活（HEARTBEATS type=2） |
+| `test_control.py` | 方向键/功能键/数字键/触屏点击滑动 |
+| `test_media.py` | 浏览器打开验证（15s 内收到视频帧）、帧格式校验 |
+
+> 详见 `Test/browsergateway-test-client/README.md`

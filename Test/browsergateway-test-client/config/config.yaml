@@ -10,6 +10,10 @@ server:
     control_tls_port: 30012  # TCP 控制流 TLS 端口（需要证书）
     media_tls_port: 30013    # TCP 媒体流 TLS 端口（需要证书）
   
+mobile:
+  address: 127.0.0.1
+  websocket_port: 40002  # mobile WebSocket 端口
+
 test:
   imei: "123456789012345"
   imsi: "987654321098765"

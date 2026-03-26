@@ -32,7 +32,7 @@ echo.
 
 REM 1. gids_mock_server (port 9090)
 echo [1/4] Starting gids-mock-server on port 9090...
-start "gids-mock-server" cmd /k "cd /d %ROOT%Test\mock-servers & call venv\Scripts\activate.bat & python mock\gids_mock_server.py"
+start "gids-mock-server" cmd /k "cd /d %ROOT%Test\browsergateway-test-client & call .venv\Scripts\activate.bat & python src\mock\gids_mock_server.py"
 
 REM 2. browser-proxy (port 8000)
 echo [2/4] Starting browser-proxy on port 8000...
@@ -43,12 +43,21 @@ echo [3/4] Starting mobile service (port 8088, WS 40002)...
 start "mobile" cmd /k "cd /d %ROOT%mobile & mvn spring-boot:run"
 
 REM 4. browser-gateway (local profile)
-echo [4/4] Starting browser-gateway with local profile...
-start "browser-gateway" cmd /k "cd /d %ROOT%BrowserGateway\BrowserGateway\browser-gateway & mvn spring-boot:run -Dspring-boot.run.profiles=local"
+echo [4/4] Building and starting browser-gateway with local profile...
+start "browser-gateway" cmd /k "cd /d %ROOT%BrowserGateway\BrowserGateway\browser-gateway & mvn package -DskipTests -q & call start-local.bat"
 
 echo.
 echo All 4 services launched in separate windows.
 echo Close each window to stop the corresponding service.
+echo.
+echo Waiting 60s for services to start, then verifying ports...
+timeout /t 60 /nobreak >nul
+
+echo.
+echo =============================================
+echo  Port Verification
+echo =============================================
+python -c "import socket; ports=[('gids-mock',9090),('browser-proxy',8000),('mobile-http',8088),('mobile-ws',40002),('bgw-tcp-ctrl',30001),('bgw-tcp-media',30002),('bgw-http',8090)]; [print(('OK' if socket.socket().connect_ex(('127.0.0.1',p))==0 else 'MISSING')+' '+str(p)+' '+n) for n,p in ports]"
 echo.
 
 endlocal
