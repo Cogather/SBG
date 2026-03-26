@@ -359,7 +359,7 @@ async def get_muen_config():
         "routeAppConfigList": [],
         "urlConfigList": [
             {"nodeIdent": "", "appType": 1, "url": "https://m.youtube.com", "appID": "1", "name": "Youtube", "isVideoType": True, "isWebType": False, "isShortType": True},
-            {"nodeIdent": "", "appType": 2, "url": "https://www.tiktok.com", "appID": "2", "name": "TikTok", "isVideoType": True, "isWebType": False, "isShortType": True},
+            {"nodeIdent": "", "appType": 2, "url": "https://www.tiktok.com/foryou?lang=en_US", "appID": "2", "name": "TikTok", "isVideoType": True, "isWebType": False, "isShortType": True},
             {"nodeIdent": "", "appType": 3, "url": "https://www.facebook.com", "appID": "3", "name": "FaceBook", "isVideoType": False, "isWebType": True, "isShortType": False},
             {"nodeIdent": "", "appType": 5, "url": "https://www.bbc.com", "appID": "5", "name": "BBC", "isVideoType": False, "isWebType": True, "isShortType": False},
             {"nodeIdent": "", "appType": 6, "url": "about:blank", "appID": "6", "name": "Upload", "isVideoType": False, "isWebType": True, "isShortType": False},
