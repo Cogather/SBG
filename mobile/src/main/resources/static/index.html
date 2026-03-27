@@ -248,20 +248,20 @@
                     <rect x="5" y="2" width="14" height="20" rx="2"/>
                     <circle cx="12" cy="18" r="1"/>
                 </svg>
-                <span>未连接</span>
+                <span>未登录</span>
             </div>
         </div>
 
         <div class="status-bar">
             <div class="status-dot" id="statusDot"></div>
-            <span class="status-text" id="statusText">等待连接</span>
+            <span class="status-text" id="statusText">等待登录</span>
         </div>
 
         <div class="conn-row">
             <span style="font-size:11px;color:#8b949e;white-space:nowrap;padding:0 2px;">GIDS</span>
             <input type="text" id="gidsAddr" value="http://127.0.0.1:9090" placeholder="GIDS 服务地址">
-            <button class="btn btn-primary" onclick="login()">连接</button>
-            <button class="btn btn-danger" onclick="logout()">断开</button>
+            <button class="btn btn-primary" onclick="login()">登录</button>
+            <button class="btn btn-danger" onclick="logout()">退出</button>
         </div>
     </div>
 
@@ -387,9 +387,9 @@
         const text = document.getElementById('statusText');
         const ph = document.getElementById('placeholder');
         dot.className = 'status-dot ' + (state || '');
-        if (state === 'connected') { text.textContent = '已连接'; ph.style.display = 'none'; }
-        else if (state === 'connecting') { text.textContent = '连接中…'; ph.style.display = 'flex'; }
-        else { text.textContent = '等待连接'; ph.style.display = 'flex'; }
+        if (state === 'connected') { text.textContent = '已登录'; ph.style.display = 'none'; }
+        else if (state === 'connecting') { text.textContent = '登录中…'; ph.style.display = 'flex'; }
+        else { text.textContent = '等待登录'; ph.style.display = 'flex'; }
     }
 
     function setupVideoDecoder() {
@@ -524,7 +524,7 @@
             handleFileUploadByInfo(msg.info);
         } else if (msg.code != null && msg.code !== 0) {
             console.error('[login error] code=' + msg.code + ' msg=' + msg.msg);
-            alert('连接失败: ' + msg.msg);
+            alert('登录失败: ' + msg.msg);
             setStatus('');
         }
     }
@@ -572,7 +572,7 @@
     }
 
     function requireWs() {
-        if (!ws || ws.readyState !== WebSocket.OPEN) { alert('请先连接'); return false; }
+        if (!ws || ws.readyState !== WebSocket.OPEN) { alert('请先登录'); return false; }
         return true;
     }
 
