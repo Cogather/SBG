@@ -1,0 +1,4 @@
+{
+  "mobile_console_base_url": "http://127.0.0.1:8088/",
+  "environment_label": "local"
+}

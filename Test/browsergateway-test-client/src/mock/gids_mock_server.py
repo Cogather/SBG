@@ -8,15 +8,25 @@ GIDS Mock Server - 模拟 GIDS 认证服务
 - POST /stats/v1/traffic/media - 接收媒体流量统计
 - POST /stats/v1/traffic/control - 接收控制流量统计
 - POST /stats/v1/session - 接收会话统计
+
+黑盒防护网（对齐 case.md 插件侧契约，供 test_http_blackbox.py）：
+- POST /auth/v1/importIMEIList - multipart: file + operation
+- GET /auth/v1/exportIMEIList
+- POST /auth/v1/authIMEI - 限流 429
+- GET /stats/v1/exportStaticData/{month}
+- POST /config 支持 rate_limit_*、reset_rate_limits、clear_imei_whitelist
 """
 
 import asyncio
+import re
 import time
-from typing import Dict, Optional
-from fastapi import FastAPI, HTTPException, Request
-from pydantic import BaseModel
+from typing import Dict, List, Optional
+
 import uvicorn
 import logging
+from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
+from fastapi.responses import JSONResponse, PlainTextResponse, HTMLResponse
+from pydantic import BaseModel
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -30,8 +40,70 @@ user_binds: Dict[str, dict] = {}
 class GIDSConfig:
     scenario = "success"  # success, invalid_token, timeout, unavailable
     response_delay = 0  # 响应延迟（秒）
+    # 黑盒防护网：限流（每分钟窗口）。生产 case 为 200；本地 pytest 默认用小窗口便于快速断言 429
+    rate_limit_auth_imei_max = 200
+    rate_limit_upload_max = 200
 
 config = GIDSConfig()
+
+# ---------- 黑盒：IMEI 白名单（内存，供 export/import 一致性验证）----------
+imei_whitelist_rows: List[str] = []
+
+# ---------- 黑盒：限流计数（每分钟重置）----------
+def _rate_state():
+    return {"count": 0, "window_start": 0.0}
+
+
+_auth_imei_rl = _rate_state()
+_upload_rl = _rate_state()
+
+MAX_IMPORT_BYTES = int(3.5 * 1024 * 1024)
+IMEI_RE = re.compile(r"^\d{14,15}$")
+
+
+def _rate_allow(state: dict, max_req: int) -> bool:
+    now = time.time()
+    if now - state["window_start"] >= 60:
+        state["count"] = 0
+        state["window_start"] = now
+    state["count"] += 1
+    return state["count"] <= max_req
+
+
+def _validate_imei_csv(content: str) -> Optional[str]:
+    """返回 None 表示合法；否则返回错误信息。"""
+    lines = [ln.strip() for ln in content.strip().splitlines() if ln.strip()]
+    if not lines:
+        return "empty csv"
+    for line in lines:
+        parts = line.split(",")
+        if len(parts) != 2:
+            return "bad csv row"
+        imei_field, mode = parts[0].strip(), parts[1].strip()
+        if mode == "single":
+            if not IMEI_RE.match(imei_field):
+                return "invalid single imei"
+        elif mode == "range":
+            if "-" not in imei_field:
+                return "invalid range"
+            a, b = imei_field.split("-", 1)
+            a, b = a.strip(), b.strip()
+            if not (IMEI_RE.match(a) and IMEI_RE.match(b)):
+                return "invalid range imei"
+        else:
+            return "invalid mode"
+    return None
+
+
+def _apply_import_rows(content: str, operation: str) -> None:
+    global imei_whitelist_rows
+    lines = [ln.strip() for ln in content.strip().splitlines() if ln.strip()]
+    if operation == "firstImport":
+        imei_whitelist_rows = lines.copy()
+    else:
+        for ln in lines:
+            if ln not in imei_whitelist_rows:
+                imei_whitelist_rows.append(ln)
 
 class UserBindUpdate(BaseModel):
     sessionId: str
@@ -165,6 +237,94 @@ async def receive_session_stats(request: Request):
     logger.debug(f"Received session stats: {data}")
     return {"status": "success"}
 
+
+# ---------- 黑盒防护网：鉴权 / 统计导出（对齐 case.md，插件侧契约模拟）----------
+
+@app.post("/auth/v1/importIMEIList")
+async def import_imei_list(
+    operation: Optional[str] = Form(None),
+    file: Optional[UploadFile] = File(None),
+):
+    """
+    导入 IMEI 白名单（multipart：file + operation）。
+    负面用例与 case.md 一致：缺参、非法 operation、空文件、超大文件、非法 CSV 行。
+    """
+    if operation is None or str(operation).strip() == "":
+        return JSONResponse(
+            status_code=400, content={"code": 1, "msg": "参数错误: operation 必填"}
+        )
+    op = str(operation).strip()
+    if op not in ("firstImport", "update"):
+        return JSONResponse(
+            status_code=400, content={"code": 1, "msg": "参数错误: operation 非法"}
+        )
+    if file is None:
+        return JSONResponse(
+            status_code=400, content={"code": 1, "msg": "参数错误: file 必填"}
+        )
+    raw = await file.read()
+    if len(raw) == 0:
+        return JSONResponse(
+            status_code=400, content={"code": 1, "msg": "参数错误: 空文件"}
+        )
+    if len(raw) > MAX_IMPORT_BYTES:
+        return JSONResponse(
+            status_code=400, content={"code": 1, "msg": "参数错误: 文件超过 3.5M"}
+        )
+    try:
+        text = raw.decode("utf-8")
+    except UnicodeDecodeError:
+        return JSONResponse(
+            status_code=400, content={"code": 1, "msg": "参数错误: 文件编码非法"}
+        )
+    err = _validate_imei_csv(text)
+    if err:
+        return JSONResponse(
+            status_code=400, content={"code": 1, "msg": f"参数错误: {err}"}
+        )
+    _apply_import_rows(text, op)
+    logger.info(f"importIMEIList ok operation={op} rows={len(imei_whitelist_rows)}")
+    return {"code": 0, "msg": "success", "data": {}}
+
+
+@app.get("/auth/v1/exportIMEIList")
+async def export_imei_list():
+    """导出全量白名单 CSV；无数据时返回空 body（200）。"""
+    body = "\n".join(imei_whitelist_rows) + ("\n" if imei_whitelist_rows else "")
+    return PlainTextResponse(body, media_type="text/csv; charset=utf-8")
+
+
+@app.post("/auth/v1/authIMEI")
+async def auth_imei(request: Request):
+    """授权校验；超限返回 429（限流窗口内）。"""
+    if not _rate_allow(_auth_imei_rl, config.rate_limit_auth_imei_max):
+        return JSONResponse(
+            status_code=429, content={"code": 429, "msg": "too many requests"}
+        )
+    try:
+        _ = await request.body()
+    except Exception:
+        pass
+    return {"code": 0, "msg": "success", "data": {"authorized": True}}
+
+
+@app.get("/stats/v1/exportStaticData/{month}")
+async def export_static_data(month: str):
+    """导出静态统计 CSV；月份格式 YYYY-MM，非法则 400。"""
+    if not re.match(r"^\d{4}-(0[1-9]|1[0-2])$", month):
+        return JSONResponse(
+            status_code=400, content={"code": 1, "msg": "非法月份"}
+        )
+    # 最小列集，便于黑盒断言「有 CSV 结构」
+    csv = (
+        "record_type,imei_imsi,app,login_time,tcp_open,tcp_close,bytes\n"
+        "session,123456789012345_987654321098765,5,2026-01-01T00:00:00,,,\n"
+        "control,123456789012345_987654321098765,5,,2026-01-01T00:00:01,2026-01-01T00:10:00,1024\n"
+        "media,123456789012345_987654321098765,5,,2026-01-01T00:00:02,2026-01-01T00:10:00,2048\n"
+    )
+    return PlainTextResponse(csv, media_type="text/csv; charset=utf-8")
+
+
 @app.post("/app-api/devicetcp/app/login/v1/gridLoginAuth")
 async def grid_login_auth(request: Request):
     """登录第一步"""
@@ -252,7 +412,11 @@ async def send_client_event(request: Request):
 
 @app.post("/app-api/control/file/upload")
 async def upload_control_file(request: Request, fileName: str = ""):
-    """接收前端文件上传，返回文件路径供 upload_file TLV 使用"""
+    """接收前端文件上传，返回文件路径供 upload_file TLV 使用；限流与 authIMEI 同策略。"""
+    if not _rate_allow(_upload_rl, config.rate_limit_upload_max):
+        return JSONResponse(
+            status_code=429, content={"code": 429, "msg": "too many requests"}
+        )
     body = await request.body()
     logger.info(f"POST /app-api/control/file/upload: fileName={fileName}, size={len(body)}")
     saved_path = f"/tmp/{fileName}" if fileName else "/tmp/upload"
@@ -395,7 +559,28 @@ async def update_config(request: Request):
     if "response_delay" in data:
         config.response_delay = data["response_delay"]
         logger.info(f"Updated response_delay to: {config.response_delay}")
-    return {"status": "success", "config": {"scenario": config.scenario, "response_delay": config.response_delay}}
+    if "rate_limit_auth_imei_max" in data:
+        config.rate_limit_auth_imei_max = int(data["rate_limit_auth_imei_max"])
+    if "rate_limit_upload_max" in data:
+        config.rate_limit_upload_max = int(data["rate_limit_upload_max"])
+    if data.get("reset_rate_limits"):
+        _auth_imei_rl["count"] = 0
+        _auth_imei_rl["window_start"] = 0.0
+        _upload_rl["count"] = 0
+        _upload_rl["window_start"] = 0.0
+        logger.info("Rate limit counters reset")
+    if data.get("clear_imei_whitelist"):
+        imei_whitelist_rows.clear()
+        logger.info("IMEI whitelist cleared")
+    return {
+        "status": "success",
+        "config": {
+            "scenario": config.scenario,
+            "response_delay": config.response_delay,
+            "rate_limit_auth_imei_max": config.rate_limit_auth_imei_max,
+            "rate_limit_upload_max": config.rate_limit_upload_max,
+        },
+    }
 
 def start_server(host: str = "127.0.0.1", port: int = 9090):
     """启动 GIDS Mock 服务器"""

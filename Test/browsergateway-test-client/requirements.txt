@@ -1,7 +1,10 @@
 fastapi
+python-multipart
 uvicorn[standard]
 pydantic
 pytest
 pytest-asyncio
+pytest-html
+PyYAML
 websockets
 httpx

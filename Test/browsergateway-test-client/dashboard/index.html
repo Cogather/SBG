@@ -1,0 +1,984 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>BrowserGateway 评测看板</title>
+  <style>
+    :root {
+      --bg: #1a1b1e;
+      --card: #21262d;
+      --border: #30363d;
+      --text: #c9d1d9;
+      --muted: #8b949e;
+      --ok: #3fb950;
+      --fail: #f85149;
+      --skip: #d29922;
+      --info: #58a6ff;
+      --radius: 8px;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-width: 960px;
+      line-height: 1.45;
+    }
+    header {
+      padding: 1rem 1.5rem;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      flex-wrap: wrap;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 0.75rem;
+    }
+    header h1 {
+      margin: 0;
+      font-size: 1.25rem;
+      font-weight: 600;
+    }
+    header .sub { color: var(--muted); font-size: 0.875rem; margin-top: 0.25rem; }
+    .header-actions { display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center; }
+    .env-tag {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 0.2rem 0.5rem;
+      font-size: 0.75rem;
+      color: var(--info);
+    }
+    button, .btn-link {
+      background: var(--card);
+      border: 1px solid var(--border);
+      color: var(--text);
+      border-radius: var(--radius);
+      padding: 0.45rem 0.85rem;
+      font-size: 0.875rem;
+      cursor: pointer;
+      text-decoration: none;
+      display: inline-block;
+    }
+    button:hover, .btn-link:hover { border-color: var(--muted); }
+    .btn-primary {
+      background: #238636;
+      border-color: #238636;
+      color: #fff;
+      font-weight: 600;
+    }
+    .btn-primary:hover { background: #2ea043; border-color: #2ea043; }
+    button:disabled,
+    button:disabled:hover {
+      opacity: 0.5;
+      cursor: not-allowed;
+      border-color: var(--border);
+      color: var(--muted);
+    }
+    button.btn-primary:disabled,
+    button.btn-primary:disabled:hover {
+      background: var(--border);
+      border-color: var(--border);
+      color: var(--muted);
+    }
+    main { padding: 1rem 1.5rem 2rem; max-width: 1400px; margin: 0 auto; }
+    section { margin-bottom: 1.5rem; }
+    section h2 {
+      margin: 0 0 0.75rem;
+      font-size: 1rem;
+      font-weight: 600;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 0.75rem;
+    }
+    .kpi-row {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+      gap: 0.75rem;
+    }
+    .kpi {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 0.75rem 1rem;
+    }
+    .kpi .val { font-size: 1.35rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+    .kpi .lbl { font-size: 0.75rem; color: var(--muted); margin-top: 0.2rem; }
+    .kpi.passed .val { color: var(--ok); }
+    .kpi.failed .val { color: var(--fail); }
+    .kpi.skipped .val { color: var(--skip); }
+    .warn-bar {
+      background: rgba(210, 153, 34, 0.15);
+      border: 1px solid var(--skip);
+      color: var(--skip);
+      border-radius: var(--radius);
+      padding: 0.5rem 0.75rem;
+      font-size: 0.875rem;
+      margin-bottom: 1rem;
+    }
+    .deps-head {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.75rem;
+      margin-bottom: 0.75rem;
+    }
+    .deps-head h2 { margin: 0; }
+    .card-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+      gap: 0.5rem;
+    }
+    .svc-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 0.6rem 0.75rem;
+      font-size: 0.8rem;
+    }
+    .svc-card .name { font-weight: 600; }
+    .svc-card .port { color: var(--muted); }
+    .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; vertical-align: middle; }
+    .dot.ok { background: var(--ok); }
+    .dot.bad { background: var(--fail); }
+    .ws-smoke {
+      margin-top: 0.75rem;
+      padding: 0.6rem 0.75rem;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      font-size: 0.85rem;
+      color: var(--muted);
+    }
+    .ws-smoke.ok { border-color: rgba(63, 185, 80, 0.4); color: var(--ok); }
+    .ws-smoke.bad { border-color: rgba(248, 81, 73, 0.4); color: var(--fail); }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.85rem;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+    }
+    th, td { padding: 0.5rem 0.65rem; text-align: left; border-bottom: 1px solid var(--border); }
+    th { background: rgba(0,0,0,0.2); color: var(--muted); font-weight: 600; }
+    td.case-id { font-family: ui-monospace, monospace; font-size: 0.78rem; color: var(--info); white-space: nowrap; vertical-align: top; }
+    .case-feature { font-size: 0.85rem; color: var(--text); line-height: 1.4; }
+    .case-skip-hint { font-size: 0.75rem; color: var(--skip); margin-top: 0.35rem; }
+    .case-fail-snippet { font-size: 0.75rem; color: var(--fail); margin-top: 0.35rem; max-height: 3.2em; overflow: hidden; }
+    tr:last-child td { border-bottom: none; }
+    .status { font-weight: 600; font-variant-numeric: tabular-nums; }
+    .status.pass { color: var(--ok); }
+    .status.fail { color: var(--fail); }
+    .status.skip { color: var(--skip); }
+    @keyframes pulse-run {
+      50% { opacity: 0.65; }
+    }
+    .status.run { color: var(--info); animation: pulse-run 1.2s ease-in-out infinite; }
+    .status.pending { color: var(--muted); font-weight: 500; }
+    .toolbar { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; margin-bottom: 0.5rem; }
+    select, input[type="search"] {
+      background: var(--card);
+      border: 1px solid var(--border);
+      color: var(--text);
+      border-radius: var(--radius);
+      padding: 0.35rem 0.5rem;
+      font-size: 0.85rem;
+    }
+    .failure-detail {
+      margin: 0.25rem 0 0;
+      padding: 0.5rem;
+      background: var(--bg);
+      border-radius: 4px;
+      font-family: ui-monospace, monospace;
+      font-size: 0.75rem;
+      white-space: pre-wrap;
+      word-break: break-word;
+      color: var(--fail);
+      max-height: 200px;
+      overflow: auto;
+    }
+    footer.links {
+      margin-top: 2rem;
+      padding-top: 1rem;
+      border-top: 1px solid var(--border);
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.75rem;
+      font-size: 0.875rem;
+    }
+    footer.links a { color: var(--info); }
+    .empty { color: var(--muted); padding: 1rem; text-align: center; }
+    .spark {
+      font-size: 0.75rem;
+      color: var(--muted);
+      margin-top: 0.35rem;
+    }
+    .e2e-run-bar {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 0.5rem 0.75rem;
+      padding: 0.65rem 0.75rem;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      margin-bottom: 1rem;
+      font-size: 0.85rem;
+    }
+    .e2e-run-bar input[type="text"] {
+      flex: 1;
+      min-width: 180px;
+      max-width: 420px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      color: var(--text);
+      border-radius: var(--radius);
+      padding: 0.35rem 0.5rem;
+    }
+    .e2e-run-bar label.chk { color: var(--muted); display: flex; align-items: center; gap: 0.35rem; cursor: pointer; }
+    #runStatus { color: var(--info); min-width: 120px; }
+    #runStatus.done-ok { color: var(--ok); }
+    #runStatus.done-fail { color: var(--fail); }
+    #runLogPreview {
+      margin: 0.5rem 0 0;
+      padding: 0.5rem 0.65rem;
+      max-height: 180px;
+      overflow: auto;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      font-family: ui-monospace, monospace;
+      font-size: 0.72rem;
+      white-space: pre-wrap;
+      word-break: break-word;
+      color: var(--muted);
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div>
+      <h1>BrowserGateway 评测看板</h1>
+      <div class="sub">端到端 + Mobile 依赖探针 · <span id="pageTime"></span></div>
+    </div>
+    <div class="header-actions">
+      <span class="env-tag" id="envLabel">—</span>
+      <button type="button" id="btnRunE2E" class="btn-primary" title="执行中或请求处理中时不可重复点击">执行端到端测试</button>
+      <button type="button" id="btnRefresh">刷新数据</button>
+    </div>
+  </header>
+  <main>
+    <section class="e2e-run-bar" aria-label="触发端到端测试">
+      <label class="chk"><input type="checkbox" id="chkSkipServices" />跳过依赖端口检查</label>
+      <input type="text" id="pytestArgs" placeholder="pytest 附加参数，如 -k http 或 tests/test_http_blackbox.py" autocomplete="off" />
+      <span id="runStatus">就绪</span>
+      <button type="button" id="btnRunLog">查看最新日志</button>
+    </section>
+    <pre id="runLogPreview" style="display:none;" aria-live="polite"></pre>
+
+    <div id="globalWarn" class="warn-bar" style="display:none;"></div>
+
+    <section>
+      <h2>总览</h2>
+      <div class="kpi-row" id="kpiRow">
+        <div class="kpi passed"><div class="val" id="kpiPass">—</div><div class="lbl">通过</div></div>
+        <div class="kpi failed"><div class="val" id="kpiFail">—</div><div class="lbl">失败</div></div>
+        <div class="kpi skipped"><div class="val" id="kpiSkip">—</div><div class="lbl">跳过</div></div>
+        <div class="kpi"><div class="val" id="kpiTime">—</div><div class="lbl">总耗时 (s)</div></div>
+        <div class="kpi"><div class="val" id="kpiTotal">—</div><div class="lbl">用例数</div></div>
+      </div>
+      <div class="spark" id="trendLine"></div>
+    </section>
+
+    <section>
+      <div class="deps-head">
+        <h2>Mobile / 依赖在线评测</h2>
+        <div style="display:flex;flex-wrap:wrap;gap:0.5rem;align-items:center;">
+          <span id="probeMeta" style="font-size:0.8rem;color:var(--muted);"></span>
+          <a class="btn-link btn-primary" id="btnConsole" href="#" target="_blank" rel="noopener">打开云手机控制台</a>
+        </div>
+      </div>
+      <div class="card-grid" id="probeGrid"></div>
+      <div id="wsSmokeEl"></div>
+    </section>
+
+    <section>
+      <h2>端到端用例</h2>
+      <div class="toolbar">
+        <label>筛选
+          <select id="filterState">
+            <option value="all">全部</option>
+            <option value="failed">仅失败</option>
+            <option value="skipped">仅跳过</option>
+            <option value="passed">仅通过</option>
+          </select>
+        </label>
+        <input type="search" id="searchQ" placeholder="搜索编号 / 功能说明 / 类名 / 用例名…" style="min-width:240px;" />
+      </div>
+      <div id="casesWrap"></div>
+    </section>
+
+    <footer class="links">
+      <a id="linkConsole2" href="#" target="_blank" rel="noopener">云手机控制台</a>
+      <a href="../reports/report.html" target="_blank" rel="noopener">pytest-html</a>
+      <a href="../reports/junit.xml" target="_blank" rel="noopener" download>junit.xml</a>
+      <a href="../reports/history.jsonl" target="_blank" rel="noopener">history.jsonl</a>
+      <a href="../reports/run-tests-last.log" target="_blank" rel="noopener">run-tests-last.log</a>
+    </footer>
+  </main>
+  <script>
+(function () {
+  const $ = (id) => document.getElementById(id);
+  const JUNIT_URL = '../reports/junit.xml';
+  const PROBE_URL = '../reports/probe-result.json';
+  const HISTORY_URL = '../reports/history.jsonl';
+  const CONFIG_URL = './dashboard-config.json';
+
+  function nowStr() {
+    const d = new Date();
+    return d.toLocaleString('zh-CN', { hour12: false });
+  }
+  $('pageTime').textContent = '更新 ' + nowStr();
+
+  let dashboardConfig = { mobile_console_base_url: 'http://127.0.0.1:8088/', environment_label: 'local' };
+
+  /**
+   * 与 README / 防护网清单一致的用例编号 + 功能说明（未知用例回退为 —）。
+   */
+  function caseMeta(classname, name) {
+    const cn = classname || '';
+    const nm = name || '';
+    if (cn === 'tests.test_login') {
+      if (nm === 'test_login_success') {
+        return { id: 'AUTO-LOGIN-01', feature: '登录后会话可用：可发送方向控制消息，验证链路未报错' };
+      }
+      if (nm === 'test_logout') {
+        return { id: 'AUTO-LOGIN-02', feature: '登出后使用相同 IMEI/IMSI 再次登录成功' };
+      }
+    }
+    if (cn === 'tests.test_heartbeat') {
+      if (nm === 'test_connection_stays_alive') {
+        return { id: 'AUTO-HB-01', feature: '短时静默（默认 E2E_IDLE_SECONDS，常 15s）后 WebSocket 仍可用，可发控制消息' };
+      }
+      if (nm === 'test_connection_stays_alive_long') {
+        return { id: 'PLAN-HB-LONG-01', feature: '长静默保活：可配置长时长静默后连接仍保持（需 E2E_RUN_LONG_IDLE）' };
+      }
+    }
+    if (cn === 'tests.test_control') {
+      const ke = nm.match(/^test_key_event\[(\w+)-(\d+)\]$/);
+      if (ke) {
+        return { id: 'AUTO-CTRL-01', feature: '协议层按键事件：' + ke[1] + '（cv=' + ke[2] + '），验证 TLV 下发成功' };
+      }
+      if (nm === 'test_menu_key') {
+        return { id: 'AUTO-CTRL-02', feature: '菜单键 MENU 事件下发' };
+      }
+      const nk = nm.match(/^test_numeric_keys\[(\d)\]$/);
+      if (nk) {
+        return { id: 'AUTO-CTRL-03', feature: '数字键 ' + nk[1] + ' 事件下发' };
+      }
+      if (nm === 'test_touch_tap') {
+        return { id: 'AUTO-CTRL-04', feature: '触屏单点：ACTION_DOWN → ACTION_UP' };
+      }
+      if (nm === 'test_touch_swipe') {
+        return { id: 'AUTO-CTRL-05', feature: '触屏滑动：DOWN → MOVE → UP' };
+      }
+    }
+    if (cn === 'tests.test_media') {
+      if (nm === 'test_browser_opened_after_login') {
+        return { id: 'AUTO-MEDIA-01', feature: '登录后一段时间内收到视频流（首帧语义）；无推流时常 skip' };
+      }
+      if (nm === 'test_video_frame_format') {
+        return { id: 'AUTO-MEDIA-02', feature: '视频帧格式：H.264 payload 与类型字节合法' };
+      }
+      if (nm === 'test_audio_frame_format') {
+        return { id: 'AUTO-MEDIA-03', feature: '音频帧格式：MP3 负载合法' };
+      }
+    }
+    if (cn === 'tests.test_http_blackbox') {
+      const httpMap = {
+        test_import_imei_missing_operation: ['PLAN-H-01', 'importIMEIList：缺少 operation 等参数，应返回错误'],
+        test_import_imei_invalid_operation: ['PLAN-H-02', 'importIMEIList：operation 非 firstImport/update，应返回错误'],
+        test_import_imei_empty_file: ['PLAN-H-03', 'importIMEIList：空文件体，应返回错误'],
+        test_import_imei_file_too_large: ['PLAN-H-04', 'importIMEIList：超过 3.5MB，应返回错误'],
+        test_import_imei_invalid_row_wrong_single: ['PLAN-H-05', 'importIMEIList：非法 single 行（如 11111-22222,single）'],
+        test_import_imei_invalid_row_bad_range: ['PLAN-H-06', 'importIMEIList：非法 range 行（如 11111,range）'],
+        test_import_imei_success_then_export_matches: ['PLAN-H-07', 'importIMEIList 成功导入后 exportIMEIList 内容一致'],
+        test_import_imei_missing_file_part: ['PLAN-H-08', 'importIMEIList：缺少 file 字段'],
+        test_export_imei_empty_whitelist: ['PLAN-H-09', 'exportIMEIList：白名单为空时返回空 CSV（200）'],
+        test_export_static_invalid_month: ['PLAN-H-10', 'exportStaticData：非法月份参数应失败'],
+        test_export_static_valid_month: ['PLAN-H-11', 'exportStaticData：合法 YYYY-MM 返回 CSV 结构数据'],
+        test_auth_imei_rate_limit_429: ['PLAN-H-12', 'authIMEI：超限返回 429（Mock 限流）'],
+        test_file_upload_rate_limit_429: ['PLAN-H-13', 'control/file/upload：超限返回 429（Mock 限流）'],
+      };
+      const row = httpMap[nm];
+      if (row) return { id: row[0], feature: row[1] };
+    }
+    const short = nm.replace(/^test_/, '').replace(/\[.*/, '');
+    return { id: '—', feature: '自动化用例（未在编目）：验证「' + short + '」' };
+  }
+
+  async function loadConfig() {
+    try {
+      const r = await fetch(CONFIG_URL + '?t=' + Date.now());
+      if (r.ok) {
+        const j = await r.json();
+        dashboardConfig = { ...dashboardConfig, ...j };
+      }
+    } catch (e) { /* default */ }
+    $('envLabel').textContent = dashboardConfig.environment_label || 'local';
+    const base = dashboardConfig.mobile_console_base_url || 'http://127.0.0.1:8088/';
+    $('btnConsole').href = base;
+    $('linkConsole2').href = base;
+  }
+
+  function parseJunit(xmlText) {
+    const doc = new DOMParser().parseFromString(xmlText, 'text/xml');
+    const err = doc.querySelector('parsererror');
+    if (err) throw new Error('XML 解析失败');
+    let root = doc.documentElement;
+    let suites = [];
+    if (root.tagName === 'testsuites') {
+      suites = Array.from(root.getElementsByTagName('testsuite'));
+    } else if (root.tagName === 'testsuite') {
+      suites = [root];
+    }
+    let tests = 0, failures = 0, errors = 0, skipped = 0, time = 0;
+    suites.forEach((su) => {
+      tests += parseInt(su.getAttribute('tests') || '0', 10);
+      failures += parseInt(su.getAttribute('failures') || '0', 10);
+      errors += parseInt(su.getAttribute('errors') || '0', 10);
+      skipped += parseInt(su.getAttribute('skipped') || '0', 10);
+      time += parseFloat(su.getAttribute('time') || '0');
+    });
+    const passed = tests - failures - errors - skipped;
+    const cases = [];
+    suites.forEach((su) => {
+      su.querySelectorAll(':scope > testcase').forEach((tc) => {
+        const classname = tc.getAttribute('classname') || '';
+        const name = tc.getAttribute('name') || '';
+        const t = parseFloat(tc.getAttribute('time') || '0');
+        let state = 'passed';
+        let detail = '';
+        const sk = tc.querySelector('skipped');
+        const fl = tc.querySelector('failure, error');
+        if (sk) { state = 'skipped'; detail = sk.getAttribute('message') || sk.textContent || ''; }
+        else if (fl) { state = 'failed'; detail = (fl.getAttribute('message') || '') + '\n' + (fl.textContent || ''); }
+        const meta = caseMeta(classname, name);
+        cases.push({
+          classname,
+          name,
+          time: t,
+          state,
+          detail: detail.trim(),
+          caseId: meta.id,
+          feature: meta.feature,
+        });
+      });
+    });
+    return { tests, passed, failures, errors, skipped, time, cases };
+  }
+
+  async function loadJunit() {
+    const r = await fetch(JUNIT_URL + '?t=' + Date.now());
+    if (!r.ok) return null;
+    return parseJunit(await r.text());
+  }
+
+  async function loadProbe() {
+    const r = await fetch(PROBE_URL + '?t=' + Date.now());
+    if (!r.ok) return null;
+    return r.json();
+  }
+
+  async function loadHistoryTrend() {
+    const r = await fetch(HISTORY_URL + '?t=' + Date.now());
+    if (!r.ok) return null;
+    const text = await r.text();
+    const lines = text.trim().split('\n').filter(Boolean);
+    if (lines.length < 2) return null;
+    let prev = null;
+    let last = null;
+    try {
+      prev = JSON.parse(lines[lines.length - 2]);
+      last = JSON.parse(lines[lines.length - 1]);
+    } catch (e) { return null; }
+    const pt = prev.tests || 1;
+    const ratePrev = (prev.passed || 0) / pt;
+    const rateLast = (last.passed || 0) / (last.tests || 1);
+    const delta = Math.round((rateLast - ratePrev) * 1000) / 10;
+    return { delta, last };
+  }
+
+  function renderKpi(data) {
+    if (!data) {
+      $('kpiPass').textContent = $('kpiFail').textContent = $('kpiSkip').textContent = '—';
+      $('kpiTime').textContent = $('kpiTotal').textContent = '—';
+      $('globalWarn').style.display = 'block';
+      $('globalWarn').textContent = '暂无 junit 数据：请先运行 pytest / run_tests.py，并用本地 HTTP 服务打开本页（见 README）。';
+      return;
+    }
+    $('globalWarn').style.display = 'none';
+    $('kpiPass').textContent = data.passed;
+    $('kpiFail').textContent = data.failures + data.errors;
+    $('kpiSkip').textContent = data.skipped;
+    $('kpiTime').textContent = data.time.toFixed(2);
+    $('kpiTotal').textContent = data.tests;
+  }
+
+  function renderTrend(trend) {
+    const el = $('trendLine');
+    if (!trend) { el.textContent = ''; return; }
+    const sign = trend.delta >= 0 ? '+' : '';
+    el.textContent = '较上次通过率变化（history.jsonl）：' + sign + trend.delta + '% · 最近提交 ' + (trend.last.git_sha || '—');
+  }
+
+  function renderProbe(probe) {
+    const grid = $('probeGrid');
+    const meta = $('probeMeta');
+    const wsEl = $('wsSmokeEl');
+    grid.innerHTML = '';
+    wsEl.innerHTML = '';
+    if (!probe || !probe.services) {
+      meta.textContent = '无探针数据：运行 python probe_services.py（可选 --ws-smoke）';
+      return;
+    }
+    meta.textContent = '探针 ' + (probe.checked_at || '') + ' · TCP ~' + (probe.probe_duration_ms || 0) + ' ms · host ' + (probe.host || '');
+    probe.services.forEach((s) => {
+      const div = document.createElement('div');
+      div.className = 'svc-card';
+      const ok = s.ok;
+      div.innerHTML = '<span class="dot ' + (ok ? 'ok' : 'bad') + '"></span><span class="name">' + escapeHtml(s.name) + '</span><br/><span class="port">:' + s.port + '</span>' +
+        (s.latency_ms != null ? ' · ' + s.latency_ms + ' ms' : '');
+      grid.appendChild(div);
+    });
+    if (probe.ws_smoke) {
+      const w = probe.ws_smoke;
+      const div = document.createElement('div');
+      div.className = 'ws-smoke' + (w.ok ? ' ok' : ' bad');
+      div.textContent = 'WS 登录 smoke · ' + (w.stage || '') + ' · ' + (w.message || '') + ' · ' + (w.duration_ms || 0) + ' ms';
+      wsEl.appendChild(div);
+    }
+  }
+
+  function escapeHtml(s) {
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+
+  /** 单条用例耗时：亚秒级若只保留 2 位会显示成 0.00，易误解为未执行 */
+  function formatCaseDurationSeconds(t) {
+    const x = Number(t);
+    if (!Number.isFinite(x) || x <= 0) return '0';
+    if (x < 1) return x.toFixed(3);
+    return x.toFixed(2);
+  }
+
+  let allCases = [];
+  let pollTimer = null;
+  /** 与 API progress 对齐；pytest 未结束时用于表格与 KPI 实时刷新 */
+  let liveRunState = null;
+  let pytestDoneRefreshDone = false;
+
+  function parseNodeIdFromPytest(nodeid) {
+    const i = nodeid.indexOf('::');
+    if (i < 0) return { classname: '', name: nodeid };
+    let file = nodeid.slice(0, i).replace(/\\/g, '/');
+    const name = nodeid.slice(i + 2);
+    const classname = file.replace(/\.py$/, '').split('/').join('.');
+    return { classname, name };
+  }
+
+  /** junit 一行还原为 pytest nodeid（与当前仓库 tests/*.py 平铺用例一致） */
+  function junitRowToNodeid(c) {
+    const cn = (c.classname || '').trim();
+    const nm = (c.name || '').trim();
+    if (!cn || !nm) return '';
+    return cn.replace(/\./g, '/') + '.py::' + nm;
+  }
+
+  /** 点击「执行」后立即展示完整清单（不等待 pytest 收集结束） */
+  function createOptimisticLiveStateFromAllCases() {
+    const order = allCases.map(junitRowToNodeid).filter(Boolean);
+    return {
+      version: 1,
+      order,
+      completed: [],
+      phase: order.length ? 'running' : 'collecting',
+      pytest_finished: false,
+      current: null,
+      optimistic: order.length > 0,
+    };
+  }
+
+  /**
+   * 服务端 progress 在 collecting 阶段 order 为空；保留前端乐观 order，
+   * 合并 completed / current。一旦服务端 order 非空则以其为准。
+   */
+  function mergeLiveProgress(serverP, prevLive) {
+    const p = serverP || {
+      version: 1,
+      order: [],
+      completed: [],
+      current: null,
+      phase: 'collecting',
+      pytest_finished: false,
+    };
+    const srvOrder = p.order || [];
+    if (srvOrder.length > 0) {
+      const out = { ...p };
+      delete out.optimistic;
+      return out;
+    }
+    const base =
+      prevLive && prevLive.order && prevLive.order.length
+        ? prevLive
+        : createOptimisticLiveStateFromAllCases();
+    if (!base.order || !base.order.length) {
+      return p;
+    }
+    return {
+      version: p.version || 1,
+      order: base.order,
+      completed: p.completed || [],
+      current: p.current != null ? p.current : null,
+      phase: p.phase || base.phase,
+      pytest_finished: !!p.pytest_finished,
+      optimistic: true,
+    };
+  }
+
+  function buildCasesFromProgress(progress) {
+    const order = progress.order || [];
+    const byNode = {};
+    (progress.completed || []).forEach((e) => {
+      byNode[e.nodeid] = e;
+    });
+    return order.map((nodeid) => {
+      const { classname, name } = parseNodeIdFromPytest(nodeid);
+      const meta = caseMeta(classname, name);
+      let state;
+      let time = 0;
+      let detail = '';
+      const finished = progress.pytest_finished === true;
+      if (!finished && progress.current === nodeid) {
+        state = 'running';
+      } else if (byNode[nodeid]) {
+        const o = byNode[nodeid].outcome;
+        time = byNode[nodeid].duration || 0;
+        if (o === 'passed') state = 'passed';
+        else if (o === 'skipped') state = 'skipped';
+        else state = 'failed';
+      } else {
+        state = 'pending';
+      }
+      return {
+        classname,
+        name,
+        time,
+        state,
+        detail,
+        caseId: meta.id,
+        feature: meta.feature,
+        nodeid,
+      };
+    });
+  }
+
+  function renderKpiLive(progress) {
+    $('globalWarn').style.display = 'none';
+    const order = progress.order || [];
+    const total = order.length;
+    const byNode = {};
+    (progress.completed || []).forEach((e) => {
+      byNode[e.nodeid] = e;
+    });
+    let pass = 0;
+    let fail = 0;
+    let skip = 0;
+    Object.keys(byNode).forEach((nid) => {
+      const o = byNode[nid].outcome;
+      if (o === 'passed') pass++;
+      else if (o === 'skipped') skip++;
+      else fail++;
+    });
+    let timeSum = 0;
+    Object.values(byNode).forEach((e) => {
+      timeSum += e.duration || 0;
+    });
+    $('kpiPass').textContent = pass;
+    $('kpiFail').textContent = fail;
+    $('kpiSkip').textContent = skip;
+    $('kpiTime').textContent = timeSum.toFixed(2);
+    if (!total && (progress.phase === 'collecting' || !progress.phase)) {
+      $('kpiTotal').textContent = '…';
+    } else {
+      $('kpiTotal').textContent = total ? (Object.keys(byNode).length + '/' + total) : '—';
+    }
+  }
+
+  function splitPytestArgs(line) {
+    const s = (line || '').trim();
+    if (!s) return [];
+    const m = s.match(/(?:[^\s"]+|"[^"]*")+/g);
+    return (m || []).map((x) => x.replace(/^"(.*)"$/, '$1'));
+  }
+
+  async function fetchRunStatus() {
+    const r = await fetch('/api/run-tests/status?t=' + Date.now());
+    if (!r.ok) throw new Error('status ' + r.status);
+    return r.json();
+  }
+
+  function setRunStatus(text, cls) {
+    const el = $('runStatus');
+    el.textContent = text;
+    el.className = cls || '';
+  }
+
+  /** 端到端按钮：false = 执行中/不可点，true = 可点 */
+  function setE2eRunButtonEnabled(enabled) {
+    const b = $('btnRunE2E');
+    b.disabled = !enabled;
+    if (enabled) b.removeAttribute('aria-busy');
+    else b.setAttribute('aria-busy', 'true');
+  }
+
+  async function pollRunOnce() {
+    try {
+      const s = await fetchRunStatus();
+      if (!s.running) {
+        if (pollTimer) {
+          clearInterval(pollTimer);
+          pollTimer = null;
+        }
+        liveRunState = null;
+        pytestDoneRefreshDone = false;
+        setE2eRunButtonEnabled(true);
+        const code = s.exit_code;
+        const ok = code === 0;
+        setRunStatus('完成，退出码 ' + (code != null ? code : '—'), ok ? 'done-ok' : 'done-fail');
+        await refreshAll();
+        await loadRunLogPreview(true);
+        return;
+      }
+      if (s.progress && s.progress.pytest_finished !== true) {
+        const merged = mergeLiveProgress(s.progress, liveRunState);
+        liveRunState = merged;
+        renderKpiLive(merged);
+        renderTable();
+        setRunStatus('运行中…');
+      } else if (s.progress && s.progress.pytest_finished && !pytestDoneRefreshDone) {
+        pytestDoneRefreshDone = true;
+        liveRunState = null;
+        setRunStatus('pytest 已完成，探针/收尾中…');
+        await refreshAll();
+      } else {
+        setRunStatus('运行中…');
+      }
+    } catch (e) {
+      if (pollTimer) {
+        clearInterval(pollTimer);
+        pollTimer = null;
+      }
+      liveRunState = null;
+      pytestDoneRefreshDone = false;
+      setE2eRunButtonEnabled(true);
+      setRunStatus('轮询失败: ' + e, 'done-fail');
+    }
+  }
+
+  function startRunPoll() {
+    if (pollTimer) clearInterval(pollTimer);
+    pytestDoneRefreshDone = false;
+    pollRunOnce();
+    pollTimer = setInterval(pollRunOnce, 800);
+  }
+
+  async function postRunE2E() {
+    const btn = $('btnRunE2E');
+    if (btn.disabled) return;
+    const skip = $('chkSkipServices').checked;
+    const parts = splitPytestArgs($('pytestArgs').value);
+    const body = {
+      check_services: !skip,
+      run_probe: true,
+      pytest_args: parts,
+    };
+    setE2eRunButtonEnabled(false);
+    try {
+      const r = await fetch('/api/run-tests', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      const j = await r.json().catch(() => ({}));
+      if (r.status === 202) {
+        liveRunState = createOptimisticLiveStateFromAllCases();
+        if (!liveRunState.order.length) {
+          liveRunState = {
+            version: 1,
+            order: [],
+            completed: [],
+            phase: 'collecting',
+            pytest_finished: false,
+            current: null,
+          };
+        }
+        renderKpiLive(liveRunState);
+        renderTable();
+        setRunStatus('运行中…');
+        startRunPoll();
+      } else if (r.status === 409) {
+        setRunStatus(j.message || '已有任务在执行', 'done-fail');
+        setE2eRunButtonEnabled(true);
+      } else {
+        setRunStatus(j.message || ('错误 HTTP ' + r.status), 'done-fail');
+        setE2eRunButtonEnabled(true);
+      }
+    } catch (e) {
+      setRunStatus('请求失败（请确认通过 serve_dashboard.py 打开本页，而非 file://）: ' + e, 'done-fail');
+      setE2eRunButtonEnabled(true);
+    }
+  }
+
+  async function loadRunLogPreview(show) {
+    const pre = $('runLogPreview');
+    try {
+      const r = await fetch('/api/run-tests/log?tail=12000&t=' + Date.now());
+      const t = await r.text();
+      pre.textContent = t;
+      pre.style.display = show || pre.textContent.trim() ? 'block' : 'none';
+    } catch (e) {
+      pre.textContent = '无法读取日志: ' + e;
+      pre.style.display = 'block';
+    }
+  }
+
+  async function resumePollIfRunning() {
+    try {
+      const s = await fetchRunStatus();
+      if (s.running) {
+        const pfDone = s.progress && s.progress.pytest_finished === true;
+        if (!pfDone) {
+          liveRunState = mergeLiveProgress(s.progress, liveRunState || createOptimisticLiveStateFromAllCases());
+          renderKpiLive(liveRunState);
+          renderTable();
+        }
+        setRunStatus('运行中（后台任务）…');
+        setE2eRunButtonEnabled(false);
+        startRunPoll();
+      }
+    } catch (e) { /* 非 serve_dashboard 打开时无 API */ }
+  }
+
+  function renderTable() {
+    const wrap = $('casesWrap');
+    const f = $('filterState').value;
+    const q = ($('searchQ').value || '').trim().toLowerCase();
+
+    let sourceRows;
+    if (liveRunState && liveRunState.pytest_finished !== true) {
+      const ord = liveRunState.order || [];
+      if (!ord.length) {
+        wrap.innerHTML = '<div class="empty">正在收集用例…</div>';
+        return;
+      }
+      sourceRows = buildCasesFromProgress(liveRunState);
+    } else {
+      sourceRows = allCases;
+    }
+
+    let rows = sourceRows.filter((c) => {
+      if (f === 'failed' && c.state !== 'failed') return false;
+      if (f === 'skipped' && c.state !== 'skipped') return false;
+      if (f === 'passed' && c.state !== 'passed') return false;
+      if (q) {
+        const hay = (c.classname + ' ' + c.name + ' ' + (c.caseId || '') + ' ' + (c.feature || '')).toLowerCase();
+        if (!hay.includes(q)) return false;
+      }
+      return true;
+    });
+    if (!sourceRows.length) {
+      wrap.innerHTML = '<div class="empty">无用例数据</div>';
+      return;
+    }
+    let html = '<table><thead><tr><th>编号</th><th>状态</th><th>类</th><th>用例</th><th>耗时(s)</th><th>说明</th></tr></thead><tbody>';
+    rows.forEach((c, i) => {
+      let st;
+      let sym;
+      let timeStr;
+      if (c.state === 'running') {
+        st = 'run';
+        sym = '运行中';
+        timeStr = '—';
+      } else if (c.state === 'pending') {
+        st = 'pending';
+        sym = '待执行';
+        timeStr = '—';
+      } else {
+        st = c.state === 'passed' ? 'pass' : (c.state === 'skipped' ? 'skip' : 'fail');
+        sym = c.state === 'passed' ? '✓' : (c.state === 'skipped' ? '⊘' : '✗');
+        timeStr = formatCaseDurationSeconds(c.time || 0);
+      }
+      const fid = 'fd-' + i + '-' + Math.random().toString(36).slice(2, 8);
+      const feat = '<div class="case-feature">' + escapeHtml(c.feature || '—') + '</div>';
+      let note = feat;
+      if (c.state === 'skipped' && (c.detail || '').trim()) {
+        note += '<div class="case-skip-hint">跳过原因：' + escapeHtml((c.detail || '').slice(0, 200)) + '</div>';
+      }
+      if (c.state === 'failed') {
+        const snip = (c.detail || '').slice(0, 160);
+        note += '<div class="case-fail-snippet">' + escapeHtml(snip) + (c.detail && c.detail.length > 160 ? '…' : '') + '</div>';
+        note += '<button type="button" class="toggle-fail" data-target="' + fid + '">展开完整错误</button><div class="failure-detail" id="' + fid + '" style="display:none;">' + escapeHtml(c.detail || '') + '</div>';
+      }
+      const cid = escapeHtml(c.caseId || '—');
+      html += '<tr><td class="case-id">' + cid + '</td><td class="status ' + st + '">' + sym + '</td><td>' + escapeHtml(c.classname) + '</td><td>' + escapeHtml(c.name) + '</td><td>' + timeStr + '</td><td>' + note + '</td></tr>';
+    });
+    html += '</tbody></table>';
+    wrap.innerHTML = html;
+    wrap.querySelectorAll('.toggle-fail').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const id = btn.getAttribute('data-target');
+        const d = id ? document.getElementById(id) : null;
+        if (d) d.style.display = d.style.display === 'none' ? 'block' : 'none';
+      });
+    });
+  }
+
+  async function refreshAll() {
+    $('pageTime').textContent = '更新 ' + nowStr();
+    await loadConfig();
+    let junit = null;
+    try {
+      junit = await loadJunit();
+    } catch (e) {
+      junit = null;
+    }
+    renderKpi(junit);
+    if (junit) allCases = junit.cases;
+    else allCases = [];
+    renderTable();
+    try {
+      const trend = await loadHistoryTrend();
+      renderTrend(trend);
+    } catch (e) { $('trendLine').textContent = ''; }
+    try {
+      renderProbe(await loadProbe());
+    } catch (e) { renderProbe(null); }
+  }
+
+  $('btnRefresh').addEventListener('click', refreshAll);
+  $('btnRunE2E').addEventListener('click', postRunE2E);
+  $('btnRunLog').addEventListener('click', () => loadRunLogPreview(true));
+  $('filterState').addEventListener('change', renderTable);
+  $('searchQ').addEventListener('input', renderTable);
+
+  refreshAll().then(resumePollIfRunning);
+})();
+  </script>
+</body>
+</html>

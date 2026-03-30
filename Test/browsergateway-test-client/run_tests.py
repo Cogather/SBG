@@ -8,34 +8,16 @@
     python run_tests.py -v        # 详细输出（默认已开启）
 """
 
+import os
 import subprocess
 import sys
-import socket
-import os
 
-SERVICES = [
-    ("gids-mock",      9090),
-    ("browser-proxy",  8000),
-    ("mobile-http",    8088),
-    ("mobile-ws",      40002),
-    ("bgw-tcp-ctrl",   30001),
-    ("bgw-tcp-media",  30002),
-    ("bgw-http",       8090),
-]
+_ROOT = os.path.dirname(os.path.abspath(__file__))
+_SRC = os.path.join(_ROOT, "src")
+if _SRC not in sys.path:
+    sys.path.insert(0, _SRC)
 
-
-def check_services():
-    missing = []
-    for name, port in SERVICES:
-        s = socket.socket()
-        s.settimeout(1)
-        r = s.connect_ex(("127.0.0.1", port))
-        s.close()
-        status = "OK" if r == 0 else "MISSING"
-        print(f"  {status:7s} {port}  {name}")
-        if r != 0:
-            missing.append((name, port))
-    return missing
+from health.check_services import check_services  # noqa: E402
 
 
 def main():
@@ -45,7 +27,14 @@ def main():
     print()
 
     print("[1/2] Checking services...")
-    missing = check_services()
+    skip_check = os.environ.get("E2E_SKIP_SERVICE_CHECK", "").lower() in (
+        "1",
+        "true",
+        "yes",
+    )
+    missing = [] if skip_check else check_services()
+    if skip_check:
+        print("  (E2E_SKIP_SERVICE_CHECK: skipping port check — e.g. HTTP-only from dashboard)")
     print()
 
     if missing:
@@ -59,15 +48,18 @@ def main():
     print("[2/2] Running tests...")
     print()
 
-    root = os.path.dirname(os.path.abspath(__file__))
-    python = os.path.join(root, ".venv", "Scripts", "python.exe")
+    reports = os.path.join(_ROOT, "reports")
+    os.makedirs(reports, exist_ok=True)
+
+    python = os.path.join(_ROOT, ".venv", "Scripts", "python.exe")
     if not os.path.exists(python):
         python = sys.executable
 
     extra_args = sys.argv[1:]
+    # junit.xml / pytest-html paths come from pytest.ini addopts
     cmd = [python, "-m", "pytest", "tests/", "-v"] + extra_args
 
-    result = subprocess.run(cmd, cwd=root)
+    result = subprocess.run(cmd, cwd=_ROOT)
     sys.exit(result.returncode)
 
 
