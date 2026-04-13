@@ -39,6 +39,9 @@ public class ServiceReport {
     /** 当前已使用数量 */
     private Integer used;
 
+    /** 本周期内累计音视频有效载荷字节（videoData + audioData），供 License / GIDS；与 {@link #used}、{@link #cap} 等字段相同，不使用 Hutool {@code @Alias} */
+    private Long tpused;
+
     /** 插件加载状态 */
     private String pluginStatus;
 

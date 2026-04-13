@@ -52,6 +52,9 @@ public class ChromeSetImpl implements IChromeSet {
     @Autowired
     private ServiceManagementAdapter serviceManagementAdapter;
 
+    @Autowired
+    private TpusedMediaAccumulator tpusedMediaAccumulator;
+
     @Override
     public UserChrome create(InitBrowserRequest request) {
         log.info("create user chrome, request: {}.", JSONUtil.toJsonStr(request));
@@ -94,10 +97,14 @@ public class ChromeSetImpl implements IChromeSet {
         String mediaInnerEndpoint = config.getAddress() + ":" + config.getWebsocket().getMediaPort();
         ServiceReport report = new ServiceReport(id, config.getReport(), mediaInnerEndpoint, pluginManage.getPluginStatus());
         report.setUsed(userChromeMap.size());
+        long tpusedSnapshot = tpusedMediaAccumulator.getCurrentBytes();
+        report.setTpused(tpusedSnapshot);
 
         Map<String, String> reportMap = new HashMap<>();
         reportMap.put(PROPERTY_KEY, JSONUtil.toJsonStr(report));
-        if (!serviceManagementAdapter.reportInstanceProperties(reportMap)) {
+        if (serviceManagementAdapter.reportInstanceProperties(reportMap)) {
+            tpusedMediaAccumulator.subtractReported(tpusedSnapshot);
+        } else {
             log.error("failed to update properties to cse");
         }
     }
