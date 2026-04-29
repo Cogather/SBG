@@ -80,37 +80,104 @@ flowchart TB
 | **配置项** | 复用现有环境变量/常量，不新建配置 |
 | **服务地址** | 使用CSE服务发现（`cse://ServiceName/path`），不硬编码IP |
 
-#### 必须符合现有代码风格
+#### 必须符合现有代码实现风格（全面检查）
 
-| 检查项 | 检查方法 | 示例 |
-| --- | --- | --- |
-| **main.go启动风格** | 对比现有初始化调用方式，必须一致 | `service.StartXXX()`而非`xxx := NewXXX(); go xxx.Start()` |
-| **函数命名风格** | 对比现有函数命名，统一使用`Start/Init/New`前缀 | `StartMasterElection()`与`StartRefreshConfigTask()`一致 |
-| **单例初始化方式** | 对比现有单例模式，使用`sync.Once`或直接函数调用 | 参考现有service的初始化方式 |
-| **goroutine启动方式** | 对比现有后台任务启动方式，是否需要`go`前缀 | `go dao.EnsureConnectGaussDB()`风格 |
+**代码风格一致性是强制要求**：所有新增代码必须与现有代码仓的实现风格一致，包括但不限于：
 
-**main.go风格一致性检查示例**：
+| 风格类别 | 检查内容 | 检查方法 | 参考文件 |
+| --- | --- | --- | --- |
+| **main.go启动风格** | 初始化调用方式 | 对比现有初始化调用 | `main.go` |
+| **单例模式实现** | 单例初始化方式、锁保护 | 对比现有单例实现 | `service/*.go` |
+| **接口定义风格** | 接口命名、方法签名 | 对比现有接口定义 | `service/*.go` |
+| **Service层实现** | 构造函数、私有实现类、包级变量 | 对比现有Service实现 | `service/*.go` |
+| **DAO层实现** | BaseInterface继承、方法定义 | 对比现有DAO实现 | `dao/*.go` |
+| **实体定义风格** | orm标签、TableName方法、init注册 | 对比现有实体定义 | `models/db/*.go` |
+| **错误处理风格** | error返回、日志打印、错误传播 | 对比现有错误处理 | 全仓代码 |
+| **日志打印风格** | logger调用方式、日志级别 | 对比现有日志打印 | 全仓代码 |
+| **并发安全模式** | sync.RWMutex/sync.Mutex/sync.Once使用 | 对比现有并发安全实现 | 全仓代码 |
+| **goroutine启动** | 是否需要go前缀、后台任务模式 | 对比现有后台任务 | `main.go` |
+
+**风格一致性检查示例**：
 
 ```markdown
-| 现有服务 | 启动方式 | 风格特点 |
-| --- | --- | --- |
-| dao.EnsureConnectGaussDB() | `go dao.EnsureConnectGaussDB()` | goroutine后台任务 |
-| service.StartRefreshConfigTask() | 直接调用 | 无需创建实例 |
-| service.StartSendingEventLogPeriod() | 直接调用 | 无需创建实例 |
-| scheduler.StartDataCleanupScheduler() | 直接调用 | 无需创建实例 |
+## 代码实现风格对比分析
 
-**结论**：新增服务应采用`service.StartXXX()`风格，而非`xxx := NewXXX(); go xxx.Start()`
+### 1. 单例模式实现风格
+
+| 现有Service | 单例实现方式 | 特点 |
+| --- | --- | --- |
+| MonitorService | `var instance; func NewXXX() { return instance }` | 包级变量 + New函数 |
+| AuthService | `var instance; func NewXXX() { return instance }` | 包级变量 + New函数 |
+
+**新增Service应采用**：`var xxxService *xxxServiceImpl; func NewXXXService() XXXService`
+
+### 2. Service层接口与实现风格
+
+| 现有Service | 接口定义 | 实现类命名 |
+| --- | --- | --- |
+| MonitorService | `type MonitorService interface` | `MonitorServiceImpl` |
+| AuthService | `type AuthService interface` | `AuthServiceImpl` |
+
+**新增Service应采用**：接口名`XXXService`，实现类`xxxServiceImpl`（小写开头）
+
+### 3. DAO层继承风格
+
+| 现有DAO | 继承方式 | EntityType设置 |
+| --- | --- | --- |
+| UserDao | `BaseInterface`嵌入 | `EntityType: &db.User{}` |
+| ImeiAllowlistDao | `BaseInterface`嵌入 | `EntityType: &db.ImeiAllowlist{}` |
+
+**新增DAO应采用**：`type XxxDao struct { BaseInterface }` + `EntityType: &db.Xxx{}`
+
+### 4. 实体定义风格
+
+| 现有实体 | orm标签风格 | TableName方法 | init注册 |
+| --- | --- | --- | --- |
+| User | `orm:"pk;column(key)"` | `func TableName()` | `orm.RegisterModel()` |
+| UserBind | `orm:"pk;column(key)"` | `func TableName()` | `orm.RegisterModel()` |
+
+**新增实体应采用**：`orm:"pk;column(xxx)"` + `TableName()` + `init(){ orm.RegisterModel() }`
+
+### 5. main.go启动风格
+
+| 现有服务 | 启动方式 | 风格 |
+| --- | --- | --- |
+| DB连接 | `go dao.EnsureConnectGaussDB()` | goroutine后台 |
+| Config刷新 | `service.StartRefreshConfigTask()` | 直接调用Start函数 |
+| Scheduler | `scheduler.StartDataCleanupScheduler()` | 直接调用Start函数 |
+
+**新增服务应采用**：`go service.StartXXX()`或`service.StartXXX()`（根据是否需要后台运行）
 ```
 
 **风格修正示例**：
 
 ```go
-// 问题代码：风格不一致
-electionService := service.NewMasterElectionService()
-go electionService.Start()
+// 问题代码：Service层风格不一致
+type MasterElectionService interface { ... }
+var masterElectionService *masterElectionServiceImpl  // 包级变量命名不一致
+func NewMasterElectionService() MasterElectionService {
+    masterElectionService = &masterElectionServiceImpl{ ... }  // 应使用once.Do
+    return masterElectionService
+}
 
-// 正确代码：与现有风格一致
-go service.StartMasterElection()
+// 正确代码：与现有MonitorService风格一致
+type MasterElectionService interface { ... }
+type masterElectionServiceImpl struct { ... }  // 小写开头
+var masterElectionService *masterElectionServiceImpl
+var electionOnce sync.Once
+
+func NewMasterElectionService() MasterElectionService {
+    electionOnce.Do(func() {
+        masterElectionService = &masterElectionServiceImpl{ ... }
+    })
+    return masterElectionService
+}
+
+// 同时提供Start函数（与StartRefreshConfigTask风格一致）
+func StartMasterElection() {
+    NewMasterElectionService()
+    go masterElectionService.electionLoop()
+}
 ```
 
 #### 代码质量基线（Go）
