@@ -3,6 +3,7 @@ package com.huawei.browsergateway.tcpserver.media;
 import com.huawei.browsergateway.common.Constant;
 import com.huawei.browsergateway.config.Config;
 import com.huawei.browsergateway.service.IRemote;
+import com.huawei.browsergateway.service.TpusedMediaAccumulator;
 import com.huawei.browsergateway.tcpserver.AbstractTcpServer;
 import com.huawei.browsergateway.tcpserver.DataSizeTracker;
 import com.huawei.browsergateway.tcpserver.FlowRateTracker;
@@ -39,6 +40,9 @@ public class MediaTcpServer extends AbstractTcpServer {
     private FlowRateTracker flowRateTracker;
 
     @Autowired
+    private TpusedMediaAccumulator tpusedMediaAccumulator;
+
+    @Autowired
     @Qualifier("mediaDataSizeTracker")
     private DataSizeTracker mediaDataSizeTracker;
 
@@ -64,7 +68,8 @@ public class MediaTcpServer extends AbstractTcpServer {
 
     @Override
     protected ChannelHandler getEncoder() {
-        return new TlvEncoder(mediaDataSizeTracker, flowRateTracker, Constant.MEDIA_SERVICE_TYPE);
+        return new TlvEncoder(mediaDataSizeTracker, flowRateTracker,
+                Constant.MEDIA_SERVICE_TYPE, tpusedMediaAccumulator);
     }
 
     @Override

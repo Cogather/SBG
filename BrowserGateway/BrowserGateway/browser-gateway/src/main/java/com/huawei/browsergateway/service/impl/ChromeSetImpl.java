@@ -1,6 +1,5 @@
 package com.huawei.browsergateway.service.impl;
 
-import cn.hutool.json.JSONUtil;
 import com.huawei.browsergateway.adapter.ServiceManagementAdapter;
 import com.huawei.browsergateway.config.Config;
 import com.huawei.browsergateway.entity.request.InitBrowserRequest;
@@ -8,7 +7,11 @@ import com.huawei.browsergateway.service.*;
 import com.huawei.browsergateway.tcpserver.control.ControlClientSet;
 import com.huawei.browsergateway.tcpserver.media.MediaClientSet;
 import com.huawei.browsergateway.util.UserIdUtil;
+
 import com.moon.cloud.browser.sdk.core.MuenDriver;
+
+import cn.hutool.json.JSONUtil;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -24,6 +27,8 @@ import java.util.concurrent.ConcurrentMap;
 /**
  * 浏览器会话集合管理实现，维护用户 ID 到 UserChrome 实例的映射，
  * 并负责向 CSE 上报实例使用情况
+ *
+ * @since 2026-04-16
  */
 @Service
 public class ChromeSetImpl implements IChromeSet {
@@ -51,6 +56,9 @@ public class ChromeSetImpl implements IChromeSet {
     private IPluginManage pluginManage;
     @Autowired
     private ServiceManagementAdapter serviceManagementAdapter;
+
+    @Autowired
+    private TpusedMediaAccumulator tpusedMediaAccumulator;
 
     @Override
     public UserChrome create(InitBrowserRequest request) {
@@ -92,14 +100,19 @@ public class ChromeSetImpl implements IChromeSet {
     public synchronized void reportUsed() {
         String id = config.getSelfAddr();
         String mediaInnerEndpoint = config.getAddress() + ":" + config.getWebsocket().getMediaPort();
-        ServiceReport report = new ServiceReport(id, config.getReport(), mediaInnerEndpoint, pluginManage.getPluginStatus());
+        ServiceReport report = new ServiceReport(id, config.getReport(),
+                mediaInnerEndpoint, pluginManage.getPluginStatus());
         report.setUsed(userChromeMap.size());
+        int tpusedSnapshot = tpusedMediaAccumulator.getCurrentMbps();
+        report.setTpUsed(tpusedSnapshot);
 
         Map<String, String> reportMap = new HashMap<>();
         reportMap.put(PROPERTY_KEY, JSONUtil.toJsonStr(report));
         if (!serviceManagementAdapter.reportInstanceProperties(reportMap)) {
             log.error("failed to update properties to cse");
         }
+
+        tpusedMediaAccumulator.reset();
     }
 
     @Override

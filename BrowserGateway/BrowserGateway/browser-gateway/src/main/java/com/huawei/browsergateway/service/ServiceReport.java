@@ -1,11 +1,14 @@
 package com.huawei.browsergateway.service;
 
-import cn.hutool.core.annotation.Alias;
 import com.huawei.browsergateway.config.ReportConfig;
+
+import cn.hutool.core.annotation.Alias;
 import lombok.Data;
 
 /**
  * 服务实例状态上报数据，序列化后写入 CSE 实例属性
+ *
+ * @since 2026-04-16
  */
 @Data
 public class ServiceReport {
@@ -38,6 +41,9 @@ public class ServiceReport {
 
     /** 当前已使用数量 */
     private Integer used;
+
+    /** 本周期内累计音视频有效载荷平均带宽（Mbps），供 License / GIDS；与 {@link #used}、{@link #cap} 等字段相同，不使用 Hutool {@code @Alias} */
+    private Integer tpUsed;
 
     /** 插件加载状态 */
     private String pluginStatus;

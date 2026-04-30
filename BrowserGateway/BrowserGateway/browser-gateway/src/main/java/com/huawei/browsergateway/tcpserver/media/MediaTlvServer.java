@@ -3,12 +3,15 @@ package com.huawei.browsergateway.tcpserver.media;
 import com.huawei.browsergateway.common.Constant;
 import com.huawei.browsergateway.config.Config;
 import com.huawei.browsergateway.service.IRemote;
+import com.huawei.browsergateway.service.TpusedMediaAccumulator;
 import com.huawei.browsergateway.tcpserver.AbstractTcpServer;
 import com.huawei.browsergateway.tcpserver.DataSizeTracker;
 import com.huawei.browsergateway.tcpserver.FlowRateTracker;
 import com.huawei.browsergateway.util.encode.TlvDecoder;
 import com.huawei.browsergateway.util.encode.TlvEncoder;
+
 import io.netty.channel.ChannelHandler;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -21,6 +24,8 @@ import javax.annotation.PreDestroy;
 /**
  * 媒体流TLV服务器（非加密）
  * 处理客户端的媒体数据传输，使用TLV协议格式
+ *
+ * @since 2026-04-16
  */
 @Component
 public class MediaTlvServer extends AbstractTcpServer {
@@ -41,6 +46,9 @@ public class MediaTlvServer extends AbstractTcpServer {
     @Autowired
     @Qualifier("mediaDataSizeTracker")
     private DataSizeTracker mediaDataSizeTracker;
+
+    @Autowired
+    private TpusedMediaAccumulator tpusedMediaAccumulator;
 
     @Override
     protected Logger getLogger() {
@@ -64,7 +72,8 @@ public class MediaTlvServer extends AbstractTcpServer {
 
     @Override
     protected ChannelHandler getEncoder() {
-        return new TlvEncoder(mediaDataSizeTracker, flowRateTracker, Constant.MEDIA_SERVICE_TYPE);
+        return new TlvEncoder(mediaDataSizeTracker, flowRateTracker,
+                Constant.MEDIA_SERVICE_TYPE, tpusedMediaAccumulator);
     }
 
     @Override
