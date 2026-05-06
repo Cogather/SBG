@@ -74,10 +74,11 @@ public class SnmpHttpClient {
         log.error("All SNMP servers failed for perf request");
     }
 
-    private String getLocalIP() {
+    public String getLocalIP() {
         try {
             return InetAddress.getLocalHost().getHostAddress();
         } catch (Exception e) {
+            log.warn("Failed to get local IP", e);
             return "unknown";
         }
     }

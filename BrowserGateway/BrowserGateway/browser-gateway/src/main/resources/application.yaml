@@ -61,6 +61,10 @@ browsergw:
     health-check-period: 60000
     session-report-period: 300000  #单位毫秒
     data-size-report-period: 300000  #单位毫秒
+  # SNMP资源上报周期
+  snmp:
+    resource:
+      report-period: 300000 #单位毫秒，5分钟上报一次CPU/内存负载
   # 本地tcp服务地址
   tcp:
     address: 127.0.0.1
