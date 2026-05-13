@@ -83,23 +83,7 @@ public class ControlTcpServerHandler extends ChannelInboundHandlerAdapter {
      * 处理登录请求
      */
     private void processLogin(Client client, Tlv tlv) throws Exception {
-        Message message = parseMessage(tlv);
-        validateLoginRequest(message);
-
-        String sessionKey = Type.tcpBindKey(message.getImei(), message.getImsi());
-        UserBind userBind = validateUserBind(sessionKey, message);
-
-        initializeClientSession(client, message, sessionKey);
-        clientSet.set(sessionKey, client);
-        loginInfoMap.put(sessionKey, message);
-
-        client.ack(message.getType(), Code.OK);
-        chromeSet.updateHeartbeats(sessionKey, System.nanoTime());
-
-        UserBind updatedUserBind = remote.updateUserBind(sessionKey);
-        ThreadUtil.execute(() -> createBrowser(client, message, updatedUserBind, tlv));
-
-        recordSessionLogin(sessionKey, message.getAppType(), client.getStr(Client.VAL_TCP_UNIQUE_ID));
+        // TODO: 实现登录请求处理逻辑，包括解析消息、验证、初始化会话、创建浏览器
     }
 
     /**
@@ -160,19 +144,7 @@ public class ControlTcpServerHandler extends ChannelInboundHandlerAdapter {
      * 创建浏览器实例
      */
     private void createBrowser(Client client, Message message, UserBind userBind, Tlv tlv) {
-        try {
-            String jsonString = JSONUtil.toJsonStr(message);
-            InitBrowserRequest request = JSONUtil.toBean(jsonString, InitBrowserRequest.class);
-            request.setInnerMediaEndpoint(userBind.getInnerMediaEndpoint());
-
-            byte[] tlvBytes = tlv.marshal(ByteOrder.BIG_ENDIAN);
-            remote.createChrome(tlvBytes, request, (future) -> {
-                client.send(new LoginResponse(userBind.getMediaEndpoint(), userBind.getMediaTlsEndpoint()));
-            });
-        } catch (Exception e) {
-            client.ack(message.getType(), Code.FAILED);
-            log.error("Failed to create browser instance", e);
-        }
+        // TODO: 实现创建浏览器实例逻辑，解析请求、调用remote.createChrome
     }
 
     /**

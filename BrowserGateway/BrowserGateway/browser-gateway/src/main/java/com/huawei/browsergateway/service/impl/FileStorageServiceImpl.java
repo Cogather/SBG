@@ -44,98 +44,23 @@ public class FileStorageServiceImpl implements IFileStorage {
 
     @Override
     public void uploadFile(String localFilePath, String remoteUrl) {
-        validatePathNotBlank(localFilePath, "localPath");
-        validatePathNotBlank(remoteUrl, "remotePath");
-        S3Path s3Path = parseS3Url(remoteUrl);
-        File file = Path.of(localFilePath).toFile();
-        String url = buildFileUrl(s3Path);
-
-        HttpEntity fileEntity = MultipartEntityBuilder.create()
-                .addBinaryBody("file", file, ContentType.DEFAULT_BINARY, file.getName())
-                .build();
-        HttpPost httpPost = new HttpPost(url);
-        httpPost.setEntity(fileEntity);
-
-        try {
-            HttpUtil.getHttpClient().execute(httpPost, response -> {
-                if (response.getCode() == 200) {
-                    log.info("upload {} success", remoteUrl);
-                } else {
-                    dealFileHttpError("upload", s3Path, response);
-                }
-                return null;
-            });
-        } catch (IOException e) {
-            log.error("upload {} failed", s3Path, e);
-        }
+        // TODO: 实现上传文件逻辑，验证路径、解析S3Url、构建HTTP请求
     }
 
     @Override
     public void downloadFile(String localFilePath, String remoteUrl) {
-        validatePathNotBlank(localFilePath, "localPath");
-        validatePathNotBlank(remoteUrl, "remotePath");
-        S3Path s3Path = parseS3Url(remoteUrl);
-        String url = buildFileUrl(s3Path);
-
-        try {
-            HttpUtil.getHttpClient().execute(new HttpGet(url), response -> {
-                int status = response.getCode();
-                HttpEntity entity = response.getEntity();
-                if (status == 200 && entity != null) {
-                    try (FileOutputStream out = new FileOutputStream(localFilePath)) {
-                        entity.writeTo(out);
-                    }
-                } else {
-                    dealFileHttpError("download", s3Path, response);
-                    EntityUtils.consume(response.getEntity());
-                }
-                return null;
-            });
-        } catch (IOException e) {
-            log.error("download {} failed", s3Path, e);
-        }
+        // TODO: 实现下载文件逻辑，验证路径、解析S3Url、执行HTTP请求
     }
 
     @Override
     public void deleteFile(String remoteUrl) {
-        validatePathNotBlank(remoteUrl, "path");
-        S3Path s3Path = parseS3Url(remoteUrl);
-        String url = buildFileUrl(s3Path);
-
-        try {
-            HttpUtil.getHttpClient().execute(new HttpDelete(url), response -> {
-                if (response.getCode() == 200) {
-                    log.info("delete {} success", remoteUrl);
-                } else {
-                    dealFileHttpError("delete", s3Path, response);
-                }
-                return null;
-            });
-        } catch (IOException e) {
-            log.error("delete {} failed", s3Path, e);
-        }
+        // TODO: 实现删除文件逻辑，验证路径、解析S3Url、执行HTTP请求
     }
 
     @Override
     public boolean exist(String remoteUrl) {
-        validatePathNotBlank(remoteUrl, "path");
-        S3Path s3Path = parseS3Url(remoteUrl);
-        String url = buildExistUrl(s3Path);
-        boolean result = false;
-        try {
-            result = HttpUtil.getHttpClient().execute(new HttpGet(url), response -> {
-                if (response.getCode() == 200) {
-                    return true;
-                }
-                if (response.getCode() != 404) {
-                    dealFileHttpError("exist", s3Path, response);
-                }
-                return false;
-            });
-        } catch (IOException e) {
-            log.error("exist {} failed", s3Path, e);
-        }
-        return result;
+        // TODO: 实现检查文件是否存在逻辑，验证路径、解析S3Url、执行HTTP请求
+        return false;
     }
 
     /** 构建文件操作 URL */

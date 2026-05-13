@@ -46,12 +46,7 @@ public final class HttpUtil {
      * @param body   请求体，为空时不设置
      */
     public static void request(String url, String method, String body) {
-        execute(url, method, body, response -> {
-            if (response.getCode() != 200) {
-                log.warn("request for {}, got code {}", url, response.getCode());
-            }
-            return null;
-        });
+        // TODO: 实现HTTP请求逻辑，忽略响应体
     }
 
     /**
@@ -65,15 +60,8 @@ public final class HttpUtil {
      * @return 反序列化后的响应对象，非 200 或响应体为空时返回 null
      */
     public static <T> T request(String url, String method, String body, TypeReference<T> typeReference) {
-        return execute(url, method, body, response -> {
-            if (response.getCode() != 200) {
-                log.warn("request for {}, got code {}", url, response.getCode());
-                return null;
-            }
-            HttpEntity entity = response.getEntity();
-            if (entity == null) return null;
-            return JSONUtil.toBean(EntityUtils.toString(entity), typeReference, true);
-        });
+        // TODO: 实现HTTP请求逻辑，将响应体反序列化为指定类型
+        return null;
     }
 
     /** 构建请求并执行，统一处理 IO 异常 */

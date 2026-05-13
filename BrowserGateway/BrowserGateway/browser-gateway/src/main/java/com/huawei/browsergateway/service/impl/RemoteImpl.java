@@ -78,25 +78,7 @@ public class RemoteImpl implements IRemote {
     @Override
     public void createChrome(byte[] receivedControlPackets, InitBrowserRequest parsedParams,
                              Consumer<Object> consumer) {
-        String userId = UserIdUtil.generateUserIdByImeiAndImsi(parsedParams.getImei(), parsedParams.getImsi());
-        log.info("create browser instance, userId:{}, parsed params: {}", userId, JSONUtil.toJsonStr(parsedParams));
-
-        ReentrantLock lock = lockManager.getLock(userId);
-        try {
-            acquireLock(lock, userId);
-
-            UserChrome userChrome = processUserChrome(userId, receivedControlPackets, parsedParams, consumer);
-            if (consumer == null || userChrome == null) {
-                return;
-            }
-
-            loginAndHandleEvent(userChrome, receivedControlPackets, userId, consumer);
-            clearAlarms();
-        } catch (Exception e) {
-            handleCreateChromeException(e, userId);
-        } finally {
-            releaseLock(lock, userId);
-        }
+        // TODO: 实现创建浏览器实例的完整流程，包括加锁、状态检查、登录、事件处理
     }
 
     @Override
@@ -136,22 +118,22 @@ public class RemoteImpl implements IRemote {
 
     @Override
     public void sendTrafficMedia(String dataJson) {
-        sendTrafficData("/stats/v1/traffic/media", dataJson, "media traffic");
+        // TODO: 实现发送媒体流量统计数据逻辑
     }
 
     @Override
     public void sendTrafficControl(String dataJson) {
-        sendTrafficData("/stats/v1/traffic/control", dataJson, "control traffic");
+        // TODO: 实现发送控制流量统计数据逻辑
     }
 
     @Override
     public void sendSession(String dataJson) {
-        sendTrafficData("/stats/v1/session", dataJson, "session");
+        // TODO: 实现发送会话统计数据逻辑
     }
 
     @Override
     public <T> void reportEvent(EventInfo<T> event) {
-        ReportEventUtil.reportServerEvent(event, cse.getReportEndpoint());
+        // TODO: 实现上报事件逻辑
     }
 
     // ----------------------------- private methods -----------------------------

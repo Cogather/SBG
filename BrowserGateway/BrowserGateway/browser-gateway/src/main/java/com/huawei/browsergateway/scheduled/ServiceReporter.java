@@ -36,24 +36,6 @@ public class ServiceReporter {
      * @param maxRetries 最大重试次数
      */
     private void reportChainInfoWithRetry(int maxRetries) {
-        for (int remaining = maxRetries; remaining >= 0; remaining--) {
-            log.info("start to report chain endpoints");
-            if (chromeSet.reportChainEndpoints()) {
-                log.info("report chain endpoint success");
-                return;
-            }
-            if (remaining == 0) {
-                log.fatal("report chain endpoint failed");
-                return;
-            }
-            log.info("failed to report, will retry");
-            try {
-                Thread.sleep(RETRY_INTERVAL_MS);
-            } catch (InterruptedException e) {
-                log.fatal("failed to sleep", e);
-                Thread.currentThread().interrupt();
-                return;
-            }
-        }
+        // TODO: 实现带重试的链路端点上报逻辑
     }
 }

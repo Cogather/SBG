@@ -25,7 +25,7 @@ public final class ReportEventUtil {
      * @param endpoint 目标服务地址（host:port）
      */
     public static void reportSdkEvent(ReportEvent<Object> event, String endpoint) {
-        reportEvent(event, endpoint);
+        // TODO: 实现上报SDK事件逻辑
     }
 
     /**
@@ -35,17 +35,11 @@ public final class ReportEventUtil {
      * @param endpoint 目标服务地址（host:port）
      */
     public static <T> void reportServerEvent(EventInfo<T> event, String endpoint) {
-        reportEvent(event, endpoint);
+        // TODO: 实现上报服务端事件逻辑
     }
 
     /** 将事件序列化后 POST 到事件接口 */
     private static void reportEvent(Object event, String endpoint) {
-        String url = String.format("http://%s%s", endpoint, EVENT_API);
-        String body = JSONUtil.toJsonStr(event, DATE_CONFIG);
-        try {
-            HttpUtil.request(url, HttpPost.METHOD_NAME, body);
-        } catch (Exception e) {
-            log.error("report event failed, event: {}", body, e);
-        }
+        // TODO: 实现上报事件逻辑，序列化后POST到事件接口
     }
 }

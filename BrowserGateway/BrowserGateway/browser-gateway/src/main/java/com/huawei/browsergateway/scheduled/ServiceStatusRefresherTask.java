@@ -32,10 +32,14 @@ public class ServiceStatusRefresherTask {
 
     @PostConstruct
     public void init() {
-        scheduler = Executors.newSingleThreadScheduledExecutor();
-        scheduler.scheduleAtFixedRate(this::refreshServiceStatus, 0, period, TimeUnit.MILLISECONDS);
-        log.info("Service status refresher task initialized, period: {}ms", period);
+        // TODO: 实现初始化定时任务逻辑
     }
+
+    public void refreshStatus() {
+        // TODO: 实现刷新服务状态逻辑，上报使用量和链路端点
+    }
+
+
 
     /** 上报当前实例使用情况，异常时记录日志但不中断调度 */
     public void refreshServiceStatus() {

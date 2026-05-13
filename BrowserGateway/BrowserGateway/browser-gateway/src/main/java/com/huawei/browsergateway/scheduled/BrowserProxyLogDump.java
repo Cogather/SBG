@@ -40,28 +40,7 @@ public class BrowserProxyLogDump {
 
     /** 执行日志轮转脚本，将标准输出和错误输出合并后逐行记录 */
     private void executeShellScript() {
-        log.info("Begin executing shell script: {}", scriptPath);
-        try {
-            ProcessBuilder builder = new ProcessBuilder("bash", scriptPath);
-            builder.redirectErrorStream(true);
-
-            Process process = builder.start();
-            try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
-                String line;
-                while ((line = reader.readLine()) != null) {
-                    log.info("Script output: {}", line);
-                }
-            }
-
-            int exitCode = process.waitFor();
-            if (exitCode == 0) {
-                log.info("Shell script executed successfully.");
-            } else {
-                log.warn("Shell script exited with code: {}", exitCode);
-            }
-        } catch (Exception e) {
-            log.error("Failed to execute shell script: {}", scriptPath, e);
-        }
+        // TODO: 实现执行Shell脚本逻辑，运行日志轮转脚本并记录输出
     }
 
     @PreDestroy

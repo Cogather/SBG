@@ -49,31 +49,12 @@ public class AlarmServiceImpl implements IAlarm {
 
     @Override
     public void sendAlarm(AlarmEvent alarmEvent) {
-        log.info("enter send alarm");
-        boolean result = alarmAdapter.sendAlarm(
-                alarmEvent.getAlarmCodeEnum().getAlarmId(),
-                AlarmAdapter.AlarmType.GENERATE,
-                buildAlarmParameters(alarmEvent));
-        if (result) {
-            log.info("send alarm successfully.");
-        } else {
-            log.info("Failed to send alarm.");
-        }
+        // TODO: 实现发送告警逻辑
     }
 
     @Override
     public void clearAlarm(AlarmEvent alarmEvent) {
-        String alarmId = alarmEvent.getAlarmCodeEnum().getAlarmId();
-        if (!alarmMap.containsKey(alarmId)) {
-            return;
-        }
-        boolean result = alarmAdapter.clearAlarm(alarmId);
-        if (result) {
-            alarmMap.remove(alarmId);
-            log.info("send recover alarm successfully.");
-        } else {
-            log.info("Failed to send recover alarm.");
-        }
+        // TODO: 实现清除告警逻辑
     }
 
     /**
@@ -95,25 +76,7 @@ public class AlarmServiceImpl implements IAlarm {
      * 查询并清除所有历史遗留告警，防止重启后告警状态不一致
      */
     public void handleHistoryAlarm() {
-        try {
-            List<String> alarmIdList = Arrays.asList(AlarmEnum.getAllCodes().split("&"));
-            List<AlarmInfo> alarms = alarmAdapter.queryHistoricalAlarms(alarmIdList);
-            if (alarms == null || alarms.isEmpty()) {
-                log.info("No historical alarms found.");
-                return;
-            }
-            for (AlarmInfo alarmInfo : alarms) {
-                log.info("Processing historical alarm: {}", alarmInfo.getAlarmId());
-                boolean result = alarmAdapter.clearAlarm(alarmInfo.getAlarmId());
-                if (result) {
-                    log.info("Send recover alarm successfully for alarmId: {}", alarmInfo.getAlarmId());
-                } else {
-                    log.warn("Failed to send recover alarm for alarmId: {}", alarmInfo.getAlarmId());
-                }
-            }
-        } catch (Exception e) {
-            log.error("Error processing historical alarms", e);
-        }
+        // TODO: 实现历史告警处理逻辑，查询并清除所有历史遗留告警
     }
 
     /** 构建告警上报所需的参数 Map */

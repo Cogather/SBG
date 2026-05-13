@@ -62,18 +62,7 @@ public class ChromeSetImpl implements IChromeSet {
 
     @Override
     public UserChrome create(InitBrowserRequest request) {
-        log.info("create user chrome, request: {}.", JSONUtil.toJsonStr(request));
-        Integer cap = config.getReport().getCap();
-        if (userChromeMap.size() >= cap) {
-            log.error("cap is not enough, cap: {}, current user size: {}.", cap, userChromeMap.size());
-            throw new RuntimeException("cap is not enough!");
-        }
-        String userId = UserIdUtil.generateUserIdByImeiAndImsi(request.getImei(), request.getImsi());
-        MuenDriver muenDriver = pluginManage.createDriver(userId);
-        UserChrome chrome = new UserChrome(request, fs, config, muenDriver, controlClientSet, mediaClientSet, remote);
-        userChromeMap.put(userId, chrome);
-        reportUsed();
-        return chrome;
+        // TODO: 实现浏览器实例创建逻辑
     }
 
     @Override
@@ -83,12 +72,12 @@ public class ChromeSetImpl implements IChromeSet {
 
     @Override
     public void delete(String userId) {
-        deleteInternal(userId, false);
+        // TODO: 实现删除用户浏览器实例逻辑
     }
 
     @Override
     public void deleteForRestart(String userId) {
-        deleteInternal(userId, true);
+        // TODO: 实现重启场景删除逻辑
     }
 
     @Override
@@ -158,20 +147,7 @@ public class ChromeSetImpl implements IChromeSet {
      * 内部删除逻辑：reopen=true 时跳过断开连接步骤（重启场景）
      */
     private void deleteInternal(String userId, boolean reopen) {
-        long start = System.currentTimeMillis();
-        UserChrome userChrome = userChromeMap.get(userId);
-        if (userChrome == null) {
-            log.warn("user: {} not exist.", userId);
-            return;
-        }
-        if (!reopen) {
-            userChrome.closeConnection();
-        }
-        userChrome.closeInstance();
-        userChromeMap.remove(userId);
-        reportUsed();
-        log.info("close browser instance and upload data success, userId: {}, cost:{}.",
-                userId, System.currentTimeMillis() - start);
+        // TODO: 实现内部删除逻辑，包括检查用户是否存在、关闭连接、关闭实例、移除映射
     }
 
     /** 获取用户实例，不存在时打印 warn 日志 */

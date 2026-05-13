@@ -61,11 +61,41 @@ public class PluginManageImpl implements IPluginManage {
         return pluginActive;
     }
 
-    @Override
+@Override
     public void updatePluginActive(String name, String version, String type) {
-        pluginActive.setName(name);
-        pluginActive.setVersion(version);
-        pluginActive.setType(type);
+        // TODO: 实现更新插件激活状态逻辑
+    }
+
+    @Override
+    public void loadPlugin(String keyPath, String touchPath, String jarPath) {
+        // TODO: 实现加载插件逻辑，包括加载SDK和JS扩展
+    }
+
+    @Override
+    public void updateStatus(String pluginStatus) {
+        // TODO: 实现更新插件状态逻辑，包括告警处理
+    }
+
+    @Override
+    public MuenDriver createDriver(String userId) {
+        // TODO: 实现创建驱动实例逻辑
+        return null;
+    }
+
+    /**
+     * 加载 JS 扩展文件（keys 和 touch 目录）到配置的扩展路径
+     */
+    public boolean loadJSExtension(String keyPath, String touchPath) {
+        // TODO: 实现加载JS扩展文件逻辑
+        return false;
+    }
+
+    /**
+     * 加载 SDK JAR 文件，替换旧版本并重新初始化类加载器
+     */
+    public boolean loadSDK(String jarPath) {
+        // TODO: 实现加载SDK JAR文件逻辑
+        return false;
     }
 
     @Override

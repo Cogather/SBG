@@ -40,23 +40,8 @@ public class MuenPluginClassLoader {
      * @return 初始化是否成功
      */
     public boolean init(Path jarPath) {
-        log.info("load jar from {}", jarPath);
-        try {
-            classLoader = new URLClassLoader(
-                    new URL[]{jarPath.toUri().toURL()},
-                    Thread.currentThread().getContextClassLoader());
-        } catch (MalformedURLException e) {
-            log.error("failed to new urlClassLoader", e);
-            return false;
-        }
-
-        List<String> classNames = listAllClassName(jarPath);
-        driverImplClass = findDriverImpl(classNames);
-        if (driverImplClass == null) {
-            log.warn("cannot find the driver implement class from {}", jarPath);
-            return false;
-        }
-        return true;
+        // TODO: 实现初始化类加载器逻辑，从JAR中查找MuenDriver实现类
+        return false;
     }
 
     /**
@@ -66,16 +51,8 @@ public class MuenPluginClassLoader {
      * @return MuenDriver 实例，失败时返回 null
      */
     public MuenDriver createDriverInstance(HWCallback hwCallback) {
-        if (driverImplClass == null || hwCallback == null) {
-            return null;
-        }
-        try {
-            return (MuenDriver) driverImplClass.getConstructor(HWCallback.class).newInstance(hwCallback);
-        } catch (InstantiationException | IllegalAccessException
-                 | InvocationTargetException | NoSuchMethodException e) {
-            log.error("failed to instance MuenDriver", e);
-            return null;
-        }
+        // TODO: 实现创建MuenDriver实例逻辑
+        return null;
     }
 
     /** 关闭类加载器，释放 JAR 文件句柄 */

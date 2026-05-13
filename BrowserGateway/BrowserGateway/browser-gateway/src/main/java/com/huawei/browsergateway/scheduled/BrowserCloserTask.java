@@ -53,23 +53,7 @@ public class BrowserCloserTask {
 
     /** 遍历所有用户实例，关闭不活跃或心跳超时的实例 */
     public void closeBrowser() {
-        log.info("begin scheduled task for monitoring browser instances.");
-        List<String> userIds = new ArrayList<>(chromeSet.getAllUser());
-        try {
-            for (String userId : userIds) {
-                try {
-                    UserBind ub = remote.getUserBind(userId);
-                    if (!isActive(ub) || isExpired(userId)) {
-                        log.info("browser {} is expired, close it.", userId);
-                        chromeSet.delete(userId);
-                    }
-                } catch (Exception e) {
-                    log.error("failed to close user {} browser", userId, e);
-                }
-            }
-        } catch (Exception e) {
-            log.error("monitoring browser instances error!", e);
-        }
+        // TODO: 实现关闭过期浏览器实例逻辑，遍历用户、检查活跃状态、删除过期实例
     }
 
     /**

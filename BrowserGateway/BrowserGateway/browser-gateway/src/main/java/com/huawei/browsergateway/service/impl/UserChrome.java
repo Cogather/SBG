@@ -47,22 +47,10 @@ public class UserChrome {
     /** 控制流心跳时间戳（单调时钟，纳秒） */
     private long heartbeats;
 
-    public UserChrome(InitBrowserRequest request, IFileStorage fs, Config config,
-                      MuenDriver muenDriver, ControlClientSet controlClientSet,
-                      MediaClientSet mediaClientSet, IRemote remote) {
-        this.userId = UserIdUtil.generateUserIdByImeiAndImsi(request.getImei(), request.getImsi());
-        this.userData = new UserData(fs, config.getUserDataPath(), userId, config.getSelfAddr(), remote);
-        this.controlClientSet = controlClientSet;
-        this.mediaClientSet = mediaClientSet;
-        this.muenDriver = muenDriver;
-        this.status = BrowserStatus.NORMAL;
-        this.heartbeats = System.nanoTime();
-
-        String userdata = userData.download();
-        this.options = request.buildBrowserOptions(userdata, config);
-        this.options.setUrl(config.getRecordExtensionPage());
-
-        log.info("create sel chrome instance success, userId: {}.", userId);
+public UserChrome(InitBrowserRequest request, IFileStorage fs, Config config,
+                       MuenDriver muenDriver, ControlClientSet controlClientSet,
+                       MediaClientSet mediaClientSet, IRemote remote) {
+        // TODO: 实现UserChrome构造函数，初始化userId、userData、options等
     }
 
     /**
@@ -88,12 +76,7 @@ public class UserChrome {
      * 关闭应用：断开 TCP 连接、保存用户数据并上传
      */
     public void closeApp() {
-        log.info("close app, userId: {}.", userId);
-        controlClientSet.del(userId);
-        mediaClientSet.del(userId);
-        muenDriver.onControlTcpDisconnected();
-        chromeDriver.saveUserdata();
-        userData.upload();
+        // TODO: 实现关闭应用逻辑，断开TCP连接、保存用户数据并上传
     }
 
     /**
@@ -108,10 +91,7 @@ public class UserChrome {
      * 关闭浏览器实例并上传用户数据
      */
     public void closeInstance() {
-        if (chromeDriver != null) {
-            chromeDriver.quit();
-        }
-        userData.upload();
+        // TODO: 实现关闭浏览器实例并上传用户数据逻辑
     }
 
     public synchronized void setHeartbeats(long heartbeats) {

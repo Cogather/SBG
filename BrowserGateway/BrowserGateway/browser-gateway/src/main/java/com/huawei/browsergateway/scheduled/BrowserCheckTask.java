@@ -53,33 +53,7 @@ public class BrowserCheckTask {
      * 执行健康检查：若全部正常则直接返回；否则找出错误上下文对应的用户实例并删除
      */
     public void checkBrowsers() {
-        try {
-            log.info("begin scheduled task for check browsers status.");
-            long start = System.currentTimeMillis();
-
-            Type.HealthCheckResult result = client.browser().healthCheck();
-            if (result.isSuccess()) {
-                log.info("check browsers success. cost:{}ms", System.currentTimeMillis() - start);
-                return;
-            }
-
-            Set<String> delUsers = new HashSet<>();
-            for (String user : chromeSet.getAllUser()) {
-                UserChrome userChrome = chromeSet.get(user);
-                if (userChrome != null && result.getErrContexts().contains(userChrome.getChromeDriver().getProxyContextId())) {
-                    delUsers.add(user);
-                }
-            }
-
-            if (!delUsers.isEmpty()) {
-                log.info("These user instances have expired:{}, close.", JSONUtil.toJsonStr(delUsers));
-                delUsers.forEach(chromeSet::delete);
-            }
-
-            log.info("end scheduled task for check browsers status. cost:{}ms", System.currentTimeMillis() - start);
-        } catch (Exception e) {
-            log.error("check browser task error.", e);
-        }
+        // TODO: 实现浏览器健康检查逻辑，检查状态并删除异常实例
     }
 
     @PreDestroy

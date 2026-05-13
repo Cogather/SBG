@@ -39,40 +39,7 @@ public class UserData {
      * 仅当本实例是该用户的绑定实例时才执行上传。
      */
     public void upload() {
-        log.info("Uploading Chrome user data for user {}", userId);
-        if (!needUpload()) {
-            log.info("userdata not need to upload, userId:{}", userId);
-            return;
-        }
-
-        File localUserData = getLocalURL();
-        if (!localUserData.exists()) {
-            log.warn("browser userdata path is not exist: {}", localUserData);
-            return;
-        }
-
-        UserdataSlimmer.slimInplace(localUserData);
-
-        // 压缩为 zst 格式
-        File localZip = new File(localUserData.getParent(), "userdata.json.zst");
-        try {
-            ZstdUtil.compressJson(localUserData.getAbsolutePath(), localZip.getAbsolutePath());
-        } catch (Exception e) {
-            log.error("Compression failed: {}", localUserData.getAbsolutePath(), e);
-            return;
-        }
-
-        String remoteURL = getRemoteURL();
-        long startUpload = System.currentTimeMillis();
-        if (fileStorageService.exist(remoteURL)) {
-            fileStorageService.deleteFile(remoteURL);
-        }
-        fileStorageService.uploadFile(localZip.getAbsolutePath(), remoteURL);
-        log.info("upload userdata to remote storage end, cost {} ms", System.currentTimeMillis() - startUpload);
-
-        if (localZip.exists()) {
-            FileUtil.del(localZip);
-        }
+        // TODO: 实现用户数据上传逻辑，包括压缩、上传到远端存储
     }
 
     /**
@@ -82,32 +49,8 @@ public class UserData {
      * @return 本地用户数据文件路径
      */
     public String download() {
-        log.info("Downloading Chrome user data for user {}", userId);
-        File localUserData = getLocalURL();
-        String remoteURL = getRemoteURL();
-
-        if (!fileStorageService.exist(remoteURL)) {
-            log.info("userdata not exist in remote storage, use local path, userId:{}", userId);
-            return localUserData.getAbsolutePath();
-        }
-
-        if (!localUserData.getParentFile().exists()) {
-            FileUtil.mkdir(localUserData.getParentFile());
-            FileUtil.touch(localUserData);
-        }
-
-        File localZip = new File(localUserData.getParent(), "userdata.json.zst");
-        try {
-            fileStorageService.downloadFile(localZip.getAbsolutePath(), remoteURL);
-            ZstdUtil.decompressJson(localZip.getAbsolutePath(), localUserData.getAbsolutePath());
-            if (localZip.exists()) {
-                FileUtil.del(localZip);
-            }
-        } catch (Exception e) {
-            log.error("download user data error! userId:{}", userId, e);
-        }
-
-        return localUserData.getAbsolutePath();
+        // TODO: 实现用户数据下载逻辑，从远端存储下载并解压
+        return null;
     }
 
     /**
